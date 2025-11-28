@@ -8,7 +8,7 @@
     "dev": "nodemon -r tsconfig-paths/register src/server.ts",
     "dev:safe": "nodemon --ignore 'src/config/database.ts' --ignore 'src/server.ts' -r tsconfig-paths/register src/server.ts",
     "dev:routes": "nodemon --watch 'src/routes' --watch 'src/controllers' --watch 'src/services' -r tsconfig-paths/register src/server.ts",
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "test": "jest",
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
@@ -57,6 +57,7 @@
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.1",
+    "tsc-alias": "^1.8.10",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.2"
   },

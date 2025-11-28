@@ -33,7 +33,7 @@ const sequelize = new Sequelize({
     timestamps: false,
     underscored: true
   },
-  dialectOptions: DB_HOST !== 'localhost' && DB_HOST !== '127.0.0.1' ? {
+  dialectOptions: DB_HOST !== 'localhost' && DB_HOST !== '127.0.0.1' && DB_HOST !== 'postgres' ? {
     ssl: {
       require: true,
       rejectUnauthorized: false
@@ -100,24 +100,17 @@ export const testConnection = async (): Promise<void> => {
   }
 };
 
-// Función para sincronizar modelos (solo en desarrollo)
+// Función para sincronizar modelos
 export const syncDatabase = async (): Promise<void> => {
   try {
-    if (NODE_ENV === 'development') {
-      // OPCIÓN 1: Solo crear tablas si no existen (MANTENER DATOS)
-      // await sequelize.sync(); // Comentado temporalmente por conflicto de índices
-      
-      // OPCIÓN 2: Modificar tablas existentes sin eliminar datos
-      //await sequelize.sync({ alter: true });
-      
-      // OPCIÓN 3: Eliminar y recrear todas las tablas (ELIMINA DATOS)
-      // await sequelize.sync({ force: true });
-      
-      console.log('✅ Base de datos conectada (sincronización desactivada)');
-    }
+    // Sincronizar en todos los entornos para asegurar que las tablas existan
+    // Solo crear tablas si no existen (MANTENER DATOS)
+    await sequelize.sync({ alter: false });
+    console.log('✅ Base de datos sincronizada (tablas creadas/verificadas)');
   } catch (error) {
     console.error('❌ Error al sincronizar la base de datos:', error);
-    throw error;
+    // No lanzar error para permitir que el servidor inicie aunque falle la sincronización
+    // Las tablas pueden existir ya o necesitar migraciones manuales
   }
 };
 

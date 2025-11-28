@@ -109,6 +109,36 @@ El proyecto fue desarrollado siguiendo la **metodología Cascada (Waterfall)**, 
 4. **Fase 4**: Pruebas y Despliegue
 5. **Fase 5**: Cierre
 
+## 🐳 Despliegue con Docker
+
+El proyecto incluye configuración completa de Docker para facilitar el despliegue y compartir la aplicación.
+
+### Inicio Rápido
+
+1. **Instalar Docker Desktop**: [docker.com](https://www.docker.com/products/docker-desktop)
+
+2. **Navegar a la carpeta del sistema**:
+   ```bash
+   cd "Fase 2/Evidencias Proyecto/Evidencias de sistema"
+   ```
+
+3. **Iniciar todos los servicios**:
+   ```bash
+   docker-compose up --build
+   ```
+
+4. **Acceder a la aplicación**: http://localhost:3000
+
+### Documentación Completa
+
+Para más detalles sobre Docker, configuración avanzada, y cómo compartir la aplicación con otros usuarios, consulta: **[DOCKER.md](Fase%202/Evidencias%20Proyecto/Evidencias%20de%20sistema/DOCKER.md)**
+
+### Servicios Incluidos
+
+- **Frontend**: Next.js en puerto 3000
+- **Backend**: API Express en puerto 3001
+- **PostgreSQL**: Base de datos en puerto 5432
+
 ## Licencia
 
 Este proyecto fue desarrollado como parte del proyecto APT (Aplicación de Proyecto Tecnológico) para LL Consulting.

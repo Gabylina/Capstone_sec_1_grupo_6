@@ -1,0 +1,80 @@
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: llconsulting_db
+    environment:
+      POSTGRES_DB: defaultdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - llconsulting_network
+
+  # Backend API
+  backend:
+    build:
+      context: ./Base de datos
+      dockerfile: Dockerfile
+    container_name: llconsulting_backend
+    environment:
+      DB_HOST: ${DB_HOST:-database-llconsulting-database-llconsulting.d.aivencloud.com}
+      DB_PORT: ${DB_PORT:-23264}
+      DB_NAME: ${DB_NAME:-defaultdb}
+      DB_USER: ${DB_USER:-avnadmin}
+      DB_PASSWORD: ${DB_PASSWORD}
+      PORT: 3001
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-tu_jwt_secret_muy_seguro_cambiar_en_produccion}
+      JWT_EXPIRES_IN: 24h
+      FRONTEND_URL: https://grande-rat-logs-regarding.trycloudflare.com
+      UPLOAD_PATH: ./uploads
+      MAX_FILE_SIZE: 10485760
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100000
+    ports:
+      - "3001:3001"
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    # Base de datos externa en Aiven Cloud, no depende del servicio postgres local
+    networks:
+      - llconsulting_network
+    restart: unless-stopped
+
+  # Frontend Next.js
+  frontend:
+    build:
+      context: ./Aplicación
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://charles-inside-drops-sized.trycloudflare.com
+    container_name: llconsulting_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: https://charles-inside-drops-sized.trycloudflare.com
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - llconsulting_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  backend_uploads:
+  backend_logs:
+
+networks:
+  llconsulting_network:
+    driver: bridge
+
