@@ -2160,6 +2160,7 @@ export class SolicitudService {
         cliente: string;
         contacto: string | null;
         comuna: string | null;
+        cargo: string | null;
         total_candidatos: number;
         candidatos_exitosos: Array<{ nombre: string; rut: string }>;
     }>> {
@@ -2185,6 +2186,7 @@ export class SolicitudService {
                         c.nombre_cliente,
                         co.nombre_contacto,
                         com.nombre_comuna,
+                        car.nombre_cargo,
                         uc.fecha_cierre
                     FROM solicitud s
                     INNER JOIN ultimo_cierre uc ON s.id_solicitud = uc.id_solicitud
@@ -2192,13 +2194,14 @@ export class SolicitudService {
                     LEFT JOIN cliente c ON co.id_cliente = c.id_cliente
                     LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
                     LEFT JOIN LATERAL (
-                        SELECT dc.id_comuna
+                        SELECT dc.id_comuna, dc.id_cargo
                         FROM descripcioncargo dc
                         WHERE dc.id_solicitud = s.id_solicitud
                         ORDER BY dc.id_descripcioncargo DESC
                         LIMIT 1
                     ) dc ON true
                     LEFT JOIN comuna com ON dc.id_comuna = com.id_comuna
+                    LEFT JOIN cargo car ON dc.id_cargo = car.id_cargo
                     WHERE DATE(uc.fecha_cierre) >= DATE(:startDate)
                       AND DATE(uc.fecha_cierre) <= DATE(:endDate)
                 ),
@@ -2259,6 +2262,7 @@ export class SolicitudService {
                     pc.nombre_cliente AS cliente,
                     pc.nombre_contacto AS contacto,
                     pc.nombre_comuna AS comuna,
+                    pc.nombre_cargo AS cargo,
                     COALESCE(tc.total, 0) AS total_candidatos,
                     COALESCE(
                         json_agg(
@@ -2279,6 +2283,7 @@ export class SolicitudService {
                     pc.nombre_cliente,
                     pc.nombre_contacto,
                     pc.nombre_comuna,
+                    pc.nombre_cargo,
                     pc.fecha_cierre,
                     tc.total
                 ORDER BY pc.fecha_cierre DESC, pc.nombre_cliente
@@ -2301,6 +2306,7 @@ export class SolicitudService {
                 cliente: string;
                 contacto: string | null;
                 comuna: string | null;
+                cargo: string | null;
                 total_candidatos: number | string;
                 candidatos_exitosos: string | Array<{ nombre: string; rut: string }>;
             }>;
@@ -2314,6 +2320,7 @@ export class SolicitudService {
                 cliente: row.cliente || 'Sin cliente',
                 contacto: row.contacto || null,
                 comuna: row.comuna || null,
+                cargo: row.cargo || null,
                 total_candidatos: typeof row.total_candidatos === 'string' 
                     ? parseInt(row.total_candidatos) 
                     : (row.total_candidatos || 0),

@@ -23,10 +23,87 @@ import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { clientService, comunaService, regionService, apiUtils } from "@/lib/api"
 import type { Client, ClientContact, Comuna, Region } from "@/lib/types"
 import { useFormValidation, validationSchemas, validateClientContacts } from "@/hooks/useFormValidation"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { useClientes } from "@/hooks/useClientes"
 
 export default function ClientesPage() {
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    
+    // Mensajes específicos de clientes (basados en las respuestas reales de la API)
+    if (message.includes('cliente no encontrado') || message.includes('client not found')) {
+      return 'El cliente no fue encontrado'
+    }
+    if (message.includes('contacto no encontrado') || message.includes('contact not found')) {
+      return 'El contacto no fue encontrado'
+    }
+    if (message.includes('ya existe un cliente con ese nombre') || message.includes('cliente ya existe') || message.includes('client already exists')) {
+      return 'Ya existe un cliente con ese nombre'
+    }
+    if (message.includes('el correo electrónico') && message.includes('ya está registrado')) {
+      // Mantener el mensaje completo que incluye el email específico
+      return errorMessage
+    }
+    if (message.includes('el teléfono') && message.includes('ya está registrado')) {
+      // Mantener el mensaje completo que incluye el teléfono específico
+      return errorMessage
+    }
+    if (message.includes('ya existe un registro con esos datos')) {
+      return 'Ya existe un registro con esos datos'
+    }
+    if (message.includes('el nombre del cliente es requerido')) {
+      return 'El nombre del cliente es requerido'
+    }
+    if (message.includes('debe proporcionar al menos un contacto')) {
+      return 'Debe proporcionar al menos un contacto'
+    }
+    if (message.includes('no se puede eliminar el cliente porque tiene solicitudes asociadas') || message.includes('no se puede eliminar') || message.includes('cannot delete')) {
+      return 'No se puede eliminar el cliente porque tiene solicitudes asociadas'
+    }
+    if (message.includes('error al procesar la solicitud')) {
+      return 'Error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente'
+    }
+    
+    // Mensajes generales
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción') || message.includes('foreign key')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos'
+    }
+    if (message.includes('invalid') || message.includes('inválido') || message.includes('invalido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    if (message.includes('ha ocurrido un error inesperado')) {
+      return errorMessage // Ya es un mensaje amigable
+    }
+    
+    // Si el mensaje ya está en español y es claro, devolverlo tal cual (ya viene capitalizado de la API)
+    return errorMessage
+  }
+  
   const {
     clients,
     isLoading,
@@ -233,7 +310,11 @@ export default function ClientesPage() {
       isValid = false
       
       if (contactsValidation.errors.general) {
-        toast.error(contactsValidation.errors.general as string)
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: contactsValidation.errors.general as string,
+        })
       } else {
         // Mostrar errores de contactos específicos y marcar campos
         const newContactErrors: {[key: string]: string} = {}
@@ -243,7 +324,11 @@ export default function ClientesPage() {
           const contactNumber = parseInt(contactIndex) + 1
           
           // Mostrar mensaje principal del contacto
-          toast.error(`Contacto ${contactNumber}: Complete todos los campos obligatorios`)
+          showToast({
+            type: "error",
+            title: "Error de validación",
+            description: `Contacto ${contactNumber}: Complete todos los campos obligatorios`,
+          })
           
           // Marcar campos con errores específicos
           Object.keys(contactErrors).forEach(field => {
@@ -267,14 +352,28 @@ export default function ClientesPage() {
       const result = await createClient()
       
       if (result.success) {
-        toast.success(result.message || 'Cliente creado exitosamente')
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: result.message || 'Cliente creado exitosamente',
+        })
         setIsCreateDialogOpen(false)
       } else {
-        toast.error(result.message || 'Error al crear el cliente')
+        const errorMsg = processApiErrorMessage(result.message, 'Error al crear el cliente')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating client:', error)
-      toast.error('Error al crear el cliente')
+      const errorMsg = processApiErrorMessage(error.message, 'Error al crear el cliente')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -308,14 +407,28 @@ export default function ClientesPage() {
       const result = await updateClient()
       
       if (result.success) {
-        toast.success(result.message || 'Cliente actualizado exitosamente')
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: result.message || 'Cliente actualizado exitosamente',
+        })
         setIsEditDialogOpen(false)
       } else {
-        toast.error(result.message || 'Error al actualizar el cliente')
+        const errorMsg = processApiErrorMessage(result.message, 'Error al actualizar el cliente')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating client:', error)
-      toast.error('Error al actualizar el cliente')
+      const errorMsg = processApiErrorMessage(error.message, 'Error al actualizar el cliente')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -333,13 +446,27 @@ export default function ClientesPage() {
       const result = await deleteClient(clientToDelete)
       
       if (result.success) {
-        toast.success(result.message || 'Cliente eliminado exitosamente')
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: result.message || 'Cliente eliminado exitosamente',
+        })
       } else {
-        toast.error(result.message || 'Error al eliminar el cliente')
+        const errorMsg = processApiErrorMessage(result.message, 'Error al eliminar el cliente')
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting client:', error)
-      toast.error('Error al eliminar el cliente')
+      const errorMsg = processApiErrorMessage(error.message, 'Error al eliminar el cliente')
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     } finally {
       setClientToDelete(null)
     }

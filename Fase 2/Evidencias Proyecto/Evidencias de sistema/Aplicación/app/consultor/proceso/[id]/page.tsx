@@ -34,6 +34,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const [descripcionCargo, setDescripcionCargo] = useState<any>(null)
   const [hitos, setHitos] = useState<Hito[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [hasCandidatesWithReportStatus, setHasCandidatesWithReportStatus] = useState(false)
 
   // Función para determinar el módulo activo basado en la etapa
   const getModuleFromStage = (etapa: string | null | undefined, serviceType: string | null | undefined): string => {
@@ -123,6 +124,19 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
   }, [process, isLoading])
 
+  // Recargar verificación de candidatos con estado de informe cuando cambie el proceso o el tab activo
+  useEffect(() => {
+    if (process && !isLoading) {
+      const serviceType = process.tipo_servicio || process.service_type
+      const currentStage = process.etapa || process.stage
+      if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+        checkCandidatesWithReportStatus(parseInt(params.id))
+      } else {
+        setHasCandidatesWithReportStatus(false)
+      }
+    }
+  }, [process, activeTab, isLoading])
+
   const loadProcessData = async () => {
     try {
       setIsLoading(true)
@@ -184,6 +198,15 @@ export default function ProcessPage({ params }: ProcessPageProps) {
           }
         })
         setHitos(hitosMapeados)
+
+        // Verificar si hay candidatos con estado de informe definido (solo para procesos PC)
+        const serviceType = response.data.tipo_servicio || response.data.service_type
+        const currentStage = response.data.etapa || response.data.stage
+        if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+          await checkCandidatesWithReportStatus(processId)
+        } else {
+          setHasCandidatesWithReportStatus(false)
+        }
       } else {
         toast.error("No se pudo cargar la solicitud")
         notFound()
@@ -193,6 +216,50 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       toast.error("Error al cargar los datos")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const checkCandidatesWithReportStatus = async (processId: number) => {
+    try {
+      // Obtener candidatos del proceso
+      const { postulacionService, evaluacionPsicolaboralService } = await import('@/lib/api')
+      const candidatesResponse = await postulacionService.getBySolicitudOptimized(processId)
+      const allCandidates = candidatesResponse.data || []
+      
+      // Filtrar solo candidatos aprobados por el cliente (para procesos PC)
+      const candidatesToCheck = allCandidates.filter((c: any) => c.client_response === "aprobado")
+      
+      if (candidatesToCheck.length === 0) {
+        setHasCandidatesWithReportStatus(false)
+        return
+      }
+
+      // Verificar si hay al menos un candidato con estado de informe definido
+      let hasReportStatus = false
+      for (const candidate of candidatesToCheck) {
+        try {
+          const evaluationResponse = await evaluacionPsicolaboralService.getByPostulacion(Number(candidate.id_postulacion))
+          const evaluation = evaluationResponse.data?.[0]
+          
+          if (evaluation && evaluation.estado_informe) {
+            const estadoInforme = evaluation.estado_informe
+            // Solo avanzan los que tienen estado: Recomendable, No recomendable, o Recomendable con observaciones
+            if (estadoInforme === "Recomendable" || 
+                estadoInforme === "No recomendable" || 
+                estadoInforme === "Recomendable con observaciones") {
+              hasReportStatus = true
+              break
+            }
+          }
+        } catch (error) {
+          console.error(`Error al verificar evaluación para candidato ${candidate.id}:`, error)
+        }
+      }
+      
+      setHasCandidatesWithReportStatus(hasReportStatus)
+    } catch (error) {
+      console.error("Error al verificar candidatos con estado de informe:", error)
+      setHasCandidatesWithReportStatus(false)
     }
   }
 
@@ -274,11 +341,17 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
 
     if (serviceType === "PC") {
+      // El módulo 5 solo está habilitado si:
+      // 1. Ya estás en el módulo 5, O
+      // 2. Estás en el módulo 4 Y hay candidatos con estado de informe definido
+      const module5Enabled = currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" || 
+                             (currentStage === "Módulo 4: Evaluación Psicolaboral" && hasCandidatesWithReportStatus)
+      
       modules.push({ 
         id: "modulo-5", 
         label: "Seguimiento Posterior a la Evaluación Psicolaboral", 
         icon: Clock, 
-        enabled: currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" || currentStage === "Módulo 4: Evaluación Psicolaboral",
+        enabled: module5Enabled,
         isActive: activeTab === "modulo-5"
       })
     }

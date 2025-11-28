@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { FileText, BarChart3, History, Bell, User, LogOut, Briefcase, Users, Building } from "lucide-react"
+import { FileText, BarChart3, History, Bell, User, LogOut, Briefcase, Users, Building, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const adminMenuItems = [
@@ -30,6 +30,11 @@ const adminMenuItems = [
     title: "Usuarios",
     icon: Users,
     href: "/admin/usuarios",
+  },
+  {
+    title: "Portales",
+    icon: Globe,
+    href: "/admin/portales",
   },
   {
     title: "Reportes",

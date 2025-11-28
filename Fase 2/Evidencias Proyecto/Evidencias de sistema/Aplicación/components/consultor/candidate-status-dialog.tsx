@@ -76,6 +76,16 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       return
     }
 
+    // Validar que el comentario no exceda 500 caracteres
+    if (formData.comment && formData.comment.length > 500) {
+      toast({
+        title: "Límite de caracteres excedido",
+        description: "El comentario no puede exceder 500 caracteres",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       setIsSubmitting(true)
       
@@ -202,15 +212,27 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
               id="comment"
               placeholder={getCommentPlaceholder(formData.status)}
               value={formData.comment}
-              onChange={(e) => setFormData(prev => ({ ...prev, comment: e.target.value }))}
+              onChange={(e) => {
+                const value = e.target.value
+                // Limitar a 500 caracteres
+                if (value.length <= 500) {
+                  setFormData(prev => ({ ...prev, comment: value }))
+                }
+              }}
               rows={3}
               className="resize-none"
+              maxLength={500}
             />
-            {formData.status === "no_presentado" && (
-              <p className="text-xs text-muted-foreground">
-                El comentario es obligatorio para este estado.
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              {formData.status === "no_presentado" && (
+                <p className="text-xs text-muted-foreground">
+                  El comentario es obligatorio para este estado (mínimo 10 caracteres).
+                </p>
+              )}
+              <div className="text-xs text-muted-foreground ml-auto">
+                {(formData.comment || "").length}/500 caracteres
+              </div>
+            </div>
           </div>
 
           <DialogFooter>

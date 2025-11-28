@@ -212,12 +212,23 @@ export class EvaluacionPsicolaboralController {
                 return sendError(res, 'Estado de informe inválido', 400);
             }
             
-            if (!conclusion_global || conclusion_global.trim().length < 10) {
-                return sendError(res, 'La conclusión global debe tener al menos 10 caracteres', 400);
+            // Validar conclusión global solo si se proporciona (es opcional)
+            if (conclusion_global !== undefined && conclusion_global !== null && conclusion_global !== '') {
+                const trimmedConclusion = conclusion_global.trim();
+                if (trimmedConclusion.length > 0) {
+                    if (trimmedConclusion.length < 10) {
+                        return sendError(res, 'La conclusión global debe tener al menos 10 caracteres', 400);
+                    }
+                    if (trimmedConclusion.length > 300) {
+                        return sendError(res, 'La conclusión global no puede exceder 300 caracteres', 400);
+                    }
+                }
             }
             
             const fechaEnvio = fecha_envio_informe ? new Date(fecha_envio_informe) : undefined;
-            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusion_global, fechaEnvio, req.user?.id);
+            // Pasar conclusión global como undefined si está vacía o null
+            const conclusionToSave = (conclusion_global && conclusion_global.trim().length > 0) ? conclusion_global.trim() : undefined;
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusionToSave, fechaEnvio);
             return sendSuccess(res, evaluacion, 'Informe actualizado completamente');
         } catch (error) {
             Logger.error('Error al actualizar informe completo:', error);

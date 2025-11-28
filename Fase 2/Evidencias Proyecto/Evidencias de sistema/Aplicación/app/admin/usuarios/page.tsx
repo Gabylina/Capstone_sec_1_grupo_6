@@ -22,9 +22,56 @@ import { Plus, Search, Edit, Trash2, UserCheck, UserX, Loader2, ChevronLeft, Che
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { useUsuarios } from "@/hooks/useUsuarios"
 import { useFormValidation, validationSchemas, type ValidationRule } from "@/hooks/useFormValidation"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 // Helper function para validar un campo individual (copiado de useFormValidation)
 const validateSingleFieldHelper = (value: any, rule: ValidationRule): string | null => {
@@ -62,6 +109,8 @@ const validateSingleFieldHelper = (value: any, rule: ValidationRule): string | n
 }
 
 export default function UsuariosPage() {
+  const { showToast } = useToastNotification()
+  
   const {
     users,
     filteredUsers,
@@ -177,10 +226,18 @@ export default function UsuariosPage() {
     if (!isValid || !passwordMatch) {
       // Mostrar toast cuando hay errores de validación
       if (!isValid) {
-        toast.error("Faltan campos por completar o existen datos incorrectos")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Faltan campos por completar o existen datos incorrectos",
+        })
       }
       if (!passwordMatch) {
-        toast.error("Las contraseñas no coinciden")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Las contraseñas no coinciden",
+        })
       }
       setIsSubmitting(false)
       return
@@ -190,19 +247,29 @@ export default function UsuariosPage() {
     setIsSubmitting(false)
     
     if (res.success) {
-      toast.success(res.message || "Usuario creado correctamente")
+      showToast({
+        type: "success",
+        title: "¡Éxito!",
+        description: res.message || "Usuario creado correctamente",
+      })
       setIsCreateDialogOpen(false)
       setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
       setConfirmPassword("")
       clearAllErrors()
     } else {
       // Mostrar toast con el mensaje de error de la API
-      toast.error(res.message || "Error creando usuario")
+      const errorMsg = processApiErrorMessage(res.message, "Error creando usuario")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
       
       // Si hay errores de campos específicos del servidor, aplicarlos al estado de errores
       if (res.fieldErrors) {
         Object.keys(res.fieldErrors).forEach(field => {
-          setFieldError(field, res.fieldErrors![field])
+          const fieldErrorMsg = processApiErrorMessage(res.fieldErrors![field], res.fieldErrors![field])
+          setFieldError(field, fieldErrorMsg)
         })
       }
     }
@@ -257,10 +324,18 @@ export default function UsuariosPage() {
     if (!isValid || !passwordMatch) {
       // Mostrar toast cuando hay errores de validación
       if (!isValid) {
-        toast.error("Faltan campos por completar o existen datos incorrectos")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Faltan campos por completar o existen datos incorrectos",
+        })
       }
       if (!passwordMatch) {
-        toast.error("Las contraseñas no coinciden")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "Las contraseñas no coinciden",
+        })
       }
       setIsSubmitting(false)
       return
@@ -270,18 +345,28 @@ export default function UsuariosPage() {
     setIsSubmitting(false)
     
     if (res.success) {
-      toast.success(res.message || "Usuario actualizado correctamente")
+      showToast({
+        type: "success",
+        title: "¡Éxito!",
+        description: res.message || "Usuario actualizado correctamente",
+      })
       setIsCreateDialogOpen(false)
       setConfirmPassword("")
       clearAllErrors()
     } else {
       // Mostrar toast con el mensaje de error de la API
-      toast.error(res.message || "Error actualizando usuario")
+      const errorMsg = processApiErrorMessage(res.message, "Error actualizando usuario")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
       
       // Si hay errores de campos específicos del servidor, aplicarlos al estado de errores
       if (res.fieldErrors) {
         Object.keys(res.fieldErrors).forEach(field => {
-          setFieldError(field, res.fieldErrors![field])
+          const fieldErrorMsg = processApiErrorMessage(res.fieldErrors![field], res.fieldErrors![field])
+          setFieldError(field, fieldErrorMsg)
         })
       }
     }

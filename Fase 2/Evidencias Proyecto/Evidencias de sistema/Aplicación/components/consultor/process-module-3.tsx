@@ -17,17 +17,68 @@ import { estadoClienteService, solicitudService } from "@/lib/api"
 import { getStatusColor, formatCurrency, isProcessBlocked } from "@/lib/utils"
 import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Calendar, Save, Loader2, Settings, CheckCircle, AlertCircle } from "lucide-react"
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 interface ProcessModule3Props {
   process: Process
 }
 
 export function ProcessModule3({ process }: ProcessModule3Props) {
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -57,6 +108,12 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
+
   // Cargar datos reales desde el backend
   useEffect(() => {
     const loadData = async () => {
@@ -72,9 +129,14 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         const estadosResponse = await estadoClienteService.getAll()
         if (estadosResponse.success && estadosResponse.data) {
           setEstadosCliente(estadosResponse.data)
+        } else if (!estadosResponse.success) {
+          // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
+          const errorMsg = processApiErrorMessage(estadosResponse.message, "Error al cargar estados de cliente")
+          console.error('Error al cargar estados de cliente:', errorMsg)
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al cargar datos:', error)
+        // No mostrar toast aquí para no interrumpir la carga inicial, solo loguear
       } finally {
         setIsLoading(false)
       }
@@ -106,13 +168,21 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                    nombre === "cierre extraordinario"
           })
           setEstadosDisponibles(estadosCierre)
+        } else if (!response.success) {
+          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estados disponibles")
+          showToast({
+            type: "error",
+            title: "Error",
+            description: errorMsg,
+          })
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar estados de solicitud:", error)
-        toast({
+        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados disponibles")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al cargar estados disponibles",
-          variant: "destructive",
+          description: errorMsg,
         })
       } finally {
         setLoadingEstados(false)
@@ -189,6 +259,32 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       if (field === "client_feedback_date") {
         if (value && prev.client_response === "pendiente") {
           setFeedbackDateError("Debe actualizar la respuesta del cliente antes de agregar la fecha de feedback")
+        } else if (value && prev.presentation_date) {
+          // Validar que la fecha de feedback no sea anterior a la fecha de envío
+          const feedbackDate = new Date(value)
+          const presentationDate = new Date(prev.presentation_date)
+          feedbackDate.setHours(0, 0, 0, 0)
+          presentationDate.setHours(0, 0, 0, 0)
+          
+          if (feedbackDate < presentationDate) {
+            setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+          } else {
+            setFeedbackDateError("")
+          }
+        } else {
+          setFeedbackDateError("")
+        }
+      }
+      
+      // Si se cambia la fecha de envío, validar nuevamente la fecha de feedback
+      if (field === "presentation_date" && newData.client_feedback_date) {
+        const feedbackDate = new Date(newData.client_feedback_date)
+        const presentationDate = new Date(value)
+        feedbackDate.setHours(0, 0, 0, 0)
+        presentationDate.setHours(0, 0, 0, 0)
+        
+        if (feedbackDate < presentationDate) {
+          setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
         } else {
           setFeedbackDateError("")
         }
@@ -212,10 +308,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede actualizar candidatos en un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -224,10 +320,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     const isValid = validateAllFields(updateFormData, validationSchemas.module3UpdateCandidateForm)
     
     if (!isValid) {
-      toast({
+      showToast({
+        type: "error",
         title: "Faltan campos por completar",
         description: "Por favor, corrija los errores en el formulario",
-        variant: "destructive",
       })
       return
     }
@@ -238,12 +334,30 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       return
     }
     
+    // Validar que la fecha de feedback no sea anterior a la fecha de envío
+    if (updateFormData.client_feedback_date && updateFormData.presentation_date) {
+      const feedbackDate = new Date(updateFormData.client_feedback_date)
+      const presentationDate = new Date(updateFormData.presentation_date)
+      feedbackDate.setHours(0, 0, 0, 0)
+      presentationDate.setHours(0, 0, 0, 0)
+      
+      if (feedbackDate < presentationDate) {
+        setFeedbackDateError("La fecha de feedback no puede ser anterior a la fecha de envío al cliente")
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de feedback no puede ser anterior a la fecha de envío al cliente",
+        })
+        return
+      }
+    }
+    
     // Validar comentarios si es necesario
     if ((updateFormData.client_response === "observado" || updateFormData.client_response === "rechazado") && !updateFormData.client_comments?.trim()) {
-      toast({
+      showToast({
+        type: "error",
         title: "Validación requerida",
         description: `Los comentarios son obligatorios para el estado "${updateFormData.client_response}"`,
-        variant: "destructive",
       })
       return
     }
@@ -255,10 +369,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
 
     if (!estadoCliente) {
       console.error('Estado de cliente no encontrado:', updateFormData.client_response)
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Estado de cliente no encontrado",
-        variant: "destructive",
       })
       return
     }
@@ -312,25 +426,27 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         handleCloseUpdateModal()
 
         // Mostrar toast de éxito
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: `Estado del candidato ${updatingCandidate.name} actualizado correctamente`,
-          variant: "default",
         })
       } else {
         console.error('Error al guardar estado de cliente:', responseData.message)
-        toast({
+        const errorMsg = processApiErrorMessage(responseData.message, "No se pudo actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: responseData.message || "No se pudo actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al guardar estado de cliente:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Ocurrió un error al actualizar el estado del candidato")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Ocurrió un error al actualizar el estado del candidato",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setSavingState(prev => ({ ...prev, [updatingCandidate.id]: false }))
@@ -369,10 +485,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const handleAdvanceToModule4 = async () => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede avanzar un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -382,29 +498,31 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       const response = await solicitudService.avanzarAModulo4(parseInt(process.id))
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Proceso avanzado al Módulo 4 exitosamente",
-          variant: "default",
         })
         // Navegar al módulo 4 usando URL con parámetro
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set('tab', 'modulo-4')
         window.location.href = currentUrl.toString()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al avanzar al Módulo 4")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al avanzar al Módulo 4",
-          variant: "destructive",
+          description: errorMsg,
         })
         setIsAdvancingToModule4(false)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al avanzar al Módulo 4:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar al Módulo 4")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al avanzar al Módulo 4",
-        variant: "destructive",
+        description: errorMsg,
       })
       setIsAdvancingToModule4(false)
     }
@@ -478,10 +596,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede cambiar el estado de un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
@@ -493,10 +611,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Solicitud finalizada exitosamente",
-          variant: "default",
         })
         setShowStatusChange(false)
         setSelectedEstado("")
@@ -504,18 +622,20 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al finalizar la solicitud",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al finalizar la solicitud",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -625,7 +745,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={isBlocked || isAdvancingToModule4}
+                disabled={isBlocked || isAdvancingToModule4 || isInAdvancedModule}
               >
                 {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 4
@@ -1044,28 +1164,196 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
             {/* Fecha de Presentación */}
             <div className="space-y-2">
               <Label htmlFor="presentation_date">Fecha de Envío al Cliente</Label>
-              <Input
-                id="presentation_date"
-                type="date"
-                value={updateFormData.presentation_date}
-                onChange={(e) => handleUpdateFormChange("presentation_date", e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className={errors.presentation_date ? "border-destructive" : ""}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!updateFormData.presentation_date ? "text-muted-foreground" : ""} ${errors.presentation_date ? "border-destructive" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {updateFormData.presentation_date 
+                      ? (() => {
+                          try {
+                            const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return "Fecha inválida"
+                            }
+                            return format(dateObj, "PPP", { locale: es })
+                          } catch (error) {
+                            return "Fecha inválida"
+                          }
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return undefined
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return undefined
+                      }
+                    })() : undefined}
+                    defaultMonth={updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.presentation_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return new Date()
+                      }
+                    })() : new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        handleUpdateFormChange("presentation_date", selectedDate)
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      return date > today
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               <ValidationErrorDisplay error={errors.presentation_date} />
             </div>
 
             {/* Fecha de Feedback del Cliente */}
             <div className="space-y-2">
               <Label htmlFor="client_feedback_date">Fecha de Feedback del Cliente</Label>
-              <Input
-                id="client_feedback_date"
-                type="date"
-                value={updateFormData.client_feedback_date}
-                onChange={(e) => handleUpdateFormChange("client_feedback_date", e.target.value)}
-                max={new Date().toISOString().split('T')[0]}
-                className={errors.client_feedback_date || feedbackDateError ? "border-destructive" : ""}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!updateFormData.client_feedback_date ? "text-muted-foreground" : ""} ${errors.client_feedback_date || feedbackDateError ? "border-destructive" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {updateFormData.client_feedback_date 
+                      ? (() => {
+                          try {
+                            const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return "Fecha inválida"
+                            }
+                            return format(dateObj, "PPP", { locale: es })
+                          } catch (error) {
+                            return "Fecha inválida"
+                          }
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    key={`feedback-calendar-${updateFormData.presentation_date || 'no-date'}`}
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={updateFormData.client_feedback_date && updateFormData.client_feedback_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return undefined
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return undefined
+                      }
+                    })() : undefined}
+                    defaultMonth={updateFormData.client_feedback_date && updateFormData.client_feedback_date.trim() !== "" ? (() => {
+                      try {
+                        const [year, month, day] = updateFormData.client_feedback_date.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        if (isNaN(dateObj.getTime())) {
+                          return new Date()
+                        }
+                        return dateObj
+                      } catch (error) {
+                        return new Date()
+                      }
+                    })() : new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        handleUpdateFormChange("client_feedback_date", selectedDate)
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      if (date > today) {
+                        return true
+                      }
+                      
+                      // Deshabilitar fechas anteriores a la fecha de envío al cliente
+                      if (updateFormData.presentation_date && updateFormData.presentation_date.trim() !== "") {
+                        try {
+                          // Parsear la fecha de envío usando componentes locales para evitar problemas de zona horaria
+                          const [presentationYear, presentationMonth, presentationDay] = updateFormData.presentation_date.split('-').map(Number)
+                          
+                          // Validar que los valores sean válidos
+                          if (isNaN(presentationYear) || isNaN(presentationMonth) || isNaN(presentationDay)) {
+                            return false
+                          }
+                          
+                          const presentationDate = new Date(presentationYear, presentationMonth - 1, presentationDay)
+                          presentationDate.setHours(0, 0, 0, 0)
+                          
+                          // Obtener componentes de la fecha a comparar usando métodos locales
+                          const compareYear = date.getFullYear()
+                          const compareMonth = date.getMonth()
+                          const compareDay = date.getDate()
+                          const compareDate = new Date(compareYear, compareMonth, compareDay)
+                          compareDate.setHours(0, 0, 0, 0)
+                          
+                          // Deshabilitar si la fecha es anterior (no igual) a la fecha de envío
+                          // Comparar usando getTime() para asegurar comparación correcta
+                          const isBefore = compareDate.getTime() < presentationDate.getTime()
+                          if (isBefore) {
+                            return true
+                          }
+                        } catch (error) {
+                          // Si hay error parseando, no deshabilitar
+                          console.error('Error parseando fecha de envío:', error)
+                        }
+                      }
+                      
+                      return false
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
               {feedbackDateError && (
                 <p className="text-destructive text-sm">
                   {feedbackDateError}

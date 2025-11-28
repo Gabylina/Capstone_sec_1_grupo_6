@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { solicitudService } from "@/lib/api"
-import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo, Fragment } from "react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
+import * as XLSX from "xlsx"
 
 type WeekOption = {
   id: string
@@ -131,6 +133,66 @@ const COLORS = ["#00BCD4", "#1E3A8A", "#10b981", "#3b82f6", "#8b5cf6", "#f59e0b"
 
 export default function ReportesPage() {
   const { user } = useAuth()
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    
+    // Mensajes específicos de reportes (ya están en español y son amigables, mantenerlos)
+    if (message.includes('error al obtener carga operativa')) {
+      return 'Error al obtener carga operativa'
+    }
+    if (message.includes('error al obtener distribución por tipo de servicio')) {
+      return 'Error al obtener distribución por tipo de servicio'
+    }
+    if (message.includes('error al obtener fuentes de candidatos')) {
+      return 'Error al obtener fuentes de candidatos'
+    }
+    if (message.includes('error al obtener estadísticas')) {
+      return 'Error al obtener estadísticas'
+    }
+    if (message.includes('error al obtener tiempo promedio por servicio')) {
+      return 'Error al obtener tiempo promedio por servicio'
+    }
+    if (message.includes('error al obtener overview de procesos') || message.includes('error al obtener resumen de procesos')) {
+      return 'Error al obtener resumen de procesos'
+    }
+    if (message.includes('error al obtener procesos cerrados exitosos')) {
+      return 'Error al obtener procesos cerrados exitosos'
+    }
+    if (message.includes('error al obtener rendimiento por consultor')) {
+      return 'Error al obtener rendimiento por consultor'
+    }
+    if (message.includes('error al obtener estadísticas de cumplimiento')) {
+      return 'Error al obtener estadísticas de cumplimiento'
+    }
+    if (message.includes('error al obtener hitos vencidos')) {
+      return 'Error al obtener hitos vencidos'
+    }
+    
+    // Mensajes generales
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'No se encontraron los datos solicitados'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para acceder a estos datos'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('server error') || message.includes('error del servidor')) {
+      return 'Error en el servidor. Por favor intenta más tarde'
+    }
+    
+    // Si el mensaje ya está en español y es claro, devolverlo tal cual
+    return errorMessage || defaultMessage
+  }
+  
   const defaultWeek = getDefaultWeekInfo()
   const [timePeriod, setTimePeriod] = useState<"month" | "week">("month")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -178,6 +240,7 @@ export default function ReportesPage() {
       cliente: string
       contacto: string | null
       comuna: string | null
+      cargo: string | null
       total_candidatos: number
       candidatos_exitosos: Array<{ nombre: string; rut: string }>
     }>
@@ -238,9 +301,14 @@ export default function ReportesPage() {
         } else {
           setActiveProcesses({})
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar procesos activos:", error)
         setActiveProcesses({})
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar procesos activos por consultor"),
+        })
       } finally {
         setLoadingActiveProcesses(false)
       }
@@ -260,9 +328,14 @@ export default function ReportesPage() {
     } else {
           setServiceTypeData([])
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar distribución por tipo de servicio:", error)
         setServiceTypeData([])
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar distribución por tipo de servicio"),
+        })
       } finally {
         setLoadingServiceType(false)
       }
@@ -282,9 +355,14 @@ export default function ReportesPage() {
         } else {
           setCandidateSourceData([])
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar fuentes de candidatos:", error)
         setCandidateSourceData([])
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar fuentes de candidatos"),
+        })
       } finally {
         setLoadingCandidateSource(false)
       }
@@ -306,10 +384,15 @@ export default function ReportesPage() {
           // Fallback: usar valores por defecto
           setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("[FRONTEND] Error al cargar estadísticas de procesos:", error)
         // Fallback: usar valores por defecto
         setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar estadísticas de procesos"),
+        })
       } finally {
         setLoadingProcessStats(false)
       }
@@ -340,9 +423,14 @@ export default function ReportesPage() {
         } else {
           setAverageTimeData([])
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar tiempo promedio por servicio:", error)
         setAverageTimeData([])
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar tiempo promedio por servicio"),
+        })
       } finally {
         setLoadingAverageTime(false)
       }
@@ -378,13 +466,18 @@ export default function ReportesPage() {
             urgencySummary: { dueSoonCount: 0, overdueCount: 0, dueSoonProcesses: [], overdueProcesses: [] },
           })
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar overview de procesos:", error)
         setProcessOverview({
           processes: [],
           totals: { total: 0, inProgress: 0, completed: 0, paused: 0, cancelled: 0 },
           statusCounts: {},
           urgencySummary: { dueSoonCount: 0, overdueCount: 0, dueSoonProcesses: [], overdueProcesses: [] },
+        })
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar resumen de procesos"),
         })
         } finally {
           setLoadingProcessOverview(false)
@@ -441,9 +534,14 @@ export default function ReportesPage() {
         } else {
           setClosedSuccessfulProcesses([])
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar procesos cerrados exitosos:", error)
         setClosedSuccessfulProcesses([])
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar procesos cerrados exitosos"),
+        })
       } finally {
         setLoadingClosedProcesses(false)
       }
@@ -468,9 +566,14 @@ export default function ReportesPage() {
         } else {
           setPerformanceData([])
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar rendimiento por consultor:", error)
         setPerformanceData([])
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar rendimiento por consultor"),
+        })
       } finally {
         setLoadingPerformance(false)
       }
@@ -496,9 +599,14 @@ export default function ReportesPage() {
         } else {
           setCompletionStats([])
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar estadísticas de cumplimiento:", error)
         setCompletionStats([])
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar estadísticas de cumplimiento"),
+        })
       } finally {
         setLoadingCompletion(false)
       }
@@ -518,9 +626,14 @@ export default function ReportesPage() {
         } else {
           setOverdueHitos({})
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al cargar hitos vencidos:", error)
         setOverdueHitos({})
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processApiErrorMessage(error?.message, "Error al cargar hitos vencidos"),
+        })
       } finally {
         setLoadingOverdue(false)
       }
@@ -734,6 +847,96 @@ export default function ReportesPage() {
       years.push(year)
     }
     return years
+  }
+
+  // Función para exportar procesos cerrados exitosos a Excel
+  const exportToExcel = () => {
+    try {
+      // Preparar datos para el Excel
+      const excelData: any[] = []
+      
+      closedSuccessfulProcesses.forEach((process) => {
+        if (process.candidatos_exitosos.length > 0) {
+          // Si hay candidatos exitosos, crear una fila por cada candidato
+          process.candidatos_exitosos.forEach((candidato, index) => {
+            excelData.push({
+              'ID Solicitud': process.id_solicitud,
+              'Tipo de Servicio': process.tipo_servicio,
+              'Nombre del Servicio': process.nombre_servicio,
+              'Cliente': process.cliente,
+              'Cargo': process.cargo || 'Sin cargo',
+              'Contacto': process.contacto || 'Sin contacto',
+              'Comuna': process.comuna || 'Sin comuna',
+              'Total Candidatos': process.total_candidatos,
+              'Candidatos Exitosos (Total)': process.candidatos_exitosos.length,
+              'Candidato Exitoso - Nombre': candidato.nombre,
+              'Candidato Exitoso - RUT': candidato.rut,
+            })
+          })
+        } else {
+          // Si no hay candidatos exitosos, crear una sola fila sin datos de candidatos
+          excelData.push({
+            'ID Solicitud': process.id_solicitud,
+            'Tipo de Servicio': process.tipo_servicio,
+            'Nombre del Servicio': process.nombre_servicio,
+            'Cliente': process.cliente,
+            'Cargo': process.cargo || 'Sin cargo',
+            'Contacto': process.contacto || 'Sin contacto',
+            'Comuna': process.comuna || 'Sin comuna',
+            'Total Candidatos': process.total_candidatos,
+            'Candidatos Exitosos (Total)': 0,
+            'Candidato Exitoso - Nombre': '',
+            'Candidato Exitoso - RUT': '',
+          })
+        }
+      })
+
+      // Crear hoja de trabajo
+      const worksheet = XLSX.utils.json_to_sheet(excelData)
+      
+      // Ajustar ancho de columnas
+      const columnWidths = [
+        { wch: 12 }, // ID Solicitud
+        { wch: 20 }, // Tipo de Servicio
+        { wch: 30 }, // Nombre del Servicio
+        { wch: 30 }, // Cliente
+        { wch: 25 }, // Cargo
+        { wch: 25 }, // Contacto
+        { wch: 20 }, // Comuna
+        { wch: 18 }, // Total Candidatos
+        { wch: 22 }, // Candidatos Exitosos (Total)
+        { wch: 35 }, // Candidato Exitoso - Nombre
+        { wch: 15 }, // Candidato Exitoso - RUT
+      ]
+      worksheet['!cols'] = columnWidths
+
+      // Crear libro de trabajo
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Procesos Cerrados Exitosos')
+
+      // Generar nombre de archivo con fecha
+      const periodLabel = closedProcessesTimePeriod === "week" 
+        ? `Semana_${selectedClosedProcessesWeekOption?.label || 'actual'}`
+        : `${monthNames[closedProcessesMonth]}_${closedProcessesYear}`
+      
+      const fileName = `Procesos_Cerrados_Exitosos_${periodLabel}.xlsx`
+
+      // Descargar archivo
+      XLSX.writeFile(workbook, fileName)
+      
+      showToast({
+        type: "success",
+        title: "Exportación exitosa",
+        description: "El reporte se ha descargado correctamente",
+      })
+    } catch (error) {
+      console.error("Error al exportar a Excel:", error)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "No se pudo exportar el reporte a Excel",
+      })
+    }
   }
 
   return (
@@ -1760,10 +1963,26 @@ export default function ReportesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Procesos Cerrados Exitosos</CardTitle>
-              <CardDescription>
-                Procesos cerrados en el período seleccionado con detalles de candidatos exitosos
-              </CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Procesos Cerrados Exitosos</CardTitle>
+                  <CardDescription>
+                    Procesos cerrados en el período seleccionado con detalles de candidatos exitosos
+                  </CardDescription>
+                </div>
+                {closedSuccessfulProcesses.length > 0 && (
+                  <Button
+                    onClick={exportToExcel}
+                    size="sm"
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={loadingClosedProcesses}
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar Excel
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {loadingClosedProcesses ? (
@@ -1785,6 +2004,7 @@ export default function ReportesPage() {
                         <TableHead className="w-[50px]"></TableHead>
                         <TableHead>Tipo de Servicio</TableHead>
                         <TableHead>Cliente</TableHead>
+                        <TableHead>Cargo</TableHead>
                         <TableHead>Contacto</TableHead>
                         <TableHead>Comuna</TableHead>
                         <TableHead className="text-center">Total Candidatos</TableHead>
@@ -1819,6 +2039,7 @@ export default function ReportesPage() {
                               </TableCell>
                               <TableCell className="font-medium">{process.nombre_servicio}</TableCell>
                               <TableCell>{process.cliente}</TableCell>
+                              <TableCell>{process.cargo || "Sin cargo"}</TableCell>
                               <TableCell>{process.contacto || "Sin contacto"}</TableCell>
                               <TableCell>{process.comuna || "Sin comuna"}</TableCell>
                               <TableCell className="text-center">{process.total_candidatos}</TableCell>
@@ -1834,7 +2055,7 @@ export default function ReportesPage() {
                             </TableRow>
                             {isExpanded && process.candidatos_exitosos.length > 0 && (
                               <TableRow>
-                                <TableCell colSpan={7} className="bg-muted/50">
+                                <TableCell colSpan={8} className="bg-muted/50">
                                   <div className="p-4 space-y-2">
                                     <h4 className="font-semibold text-sm mb-3">Candidatos Exitosos:</h4>
                                     <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">

@@ -8,7 +8,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { publicacionService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { Globe } from "lucide-react"
+import { Globe, Calendar } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
+import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 interface AddPublicationDialogProps {
   open: boolean
@@ -19,7 +25,9 @@ interface AddPublicationDialogProps {
 
 export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSuccess }: AddPublicationDialogProps) {
   const { toast } = useToast()
+  const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [portales, setPortales] = useState<any[]>([])
   const [loadingPortales, setLoadingPortales] = useState(false)
   const [formData, setFormData] = useState({
@@ -28,6 +36,20 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
     estado_publicacion: "Activa",
     fecha_publicacion: new Date().toISOString().split('T')[0]
   })
+
+  // Limpiar errores cuando se cierra el diálogo
+  useEffect(() => {
+    if (!open) {
+      clearAllErrors()
+      setHasAttemptedSubmit(false)
+      setFormData({
+        id_portal_postulacion: "",
+        url_publicacion: "",
+        estado_publicacion: "Activa",
+        fecha_publicacion: new Date().toISOString().split('T')[0]
+      })
+    }
+  }, [open, clearAllErrors])
 
   // Cargar portales cuando se abre el diálogo
   useEffect(() => {
@@ -63,42 +85,15 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
   }
 
   const handleSubmit = async () => {
-    // Validaciones con mensajes específicos
-    if (!formData.id_portal_postulacion) {
-      toast({
-        title: "Campo obligatorio",
-        description: "El portal de postulación es obligatorio",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!formData.url_publicacion?.trim()) {
-      toast({
-        title: "Campo obligatorio",
-        description: "La URL de la publicación es obligatoria",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Validar formato URL
-    try {
-      new URL(formData.url_publicacion)
-    } catch (error) {
-      toast({
-        title: "Campo obligatorio",
-        description: "Ingresa una URL válida (ej: https://ejemplo.com)",
-        variant: "destructive",
-      })
-      return
-    }
+    setHasAttemptedSubmit(true)
     
-    // Validar que la URL tenga protocolo
-    if (!formData.url_publicacion.startsWith('http://') && !formData.url_publicacion.startsWith('https://')) {
+    // Validar todos los campos
+    const isValid = validateAllFields(formData, validationSchemas.publicationForm)
+    
+    if (!isValid) {
       toast({
-        title: "Campo obligatorio",
-        description: "La URL debe comenzar con http:// o https://",
+        title: "Campos incompletos",
+        description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
         variant: "destructive",
       })
       return
@@ -176,10 +171,16 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
             </Label>
             <Select
               value={formData.id_portal_postulacion}
-              onValueChange={(value) => setFormData({ ...formData, id_portal_postulacion: value })}
+              onValueChange={(value) => {
+                setFormData({ ...formData, id_portal_postulacion: value })
+                clearError('id_portal_postulacion')
+                if (hasAttemptedSubmit) {
+                  validateField('id_portal_postulacion', value, validationSchemas.publicationForm)
+                }
+              }}
               disabled={loadingPortales}
             >
-              <SelectTrigger>
+              <SelectTrigger className={errors.id_portal_postulacion ? "border-destructive" : ""}>
                 <SelectValue placeholder={loadingPortales ? "Cargando portales..." : "Selecciona un portal"} />
               </SelectTrigger>
               <SelectContent>
@@ -190,6 +191,7 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
                 ))}
               </SelectContent>
             </Select>
+            <ValidationErrorDisplay error={errors.id_portal_postulacion} />
           </div>
 
           {/* URL de Publicación */}
@@ -201,9 +203,24 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
               id="url"
               type="url"
               value={formData.url_publicacion}
-              onChange={(e) => setFormData({ ...formData, url_publicacion: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value
+                setFormData({ ...formData, url_publicacion: value })
+                if (hasAttemptedSubmit || value.trim()) {
+                  validateField('url_publicacion', value, validationSchemas.publicationForm)
+                } else {
+                  clearError('url_publicacion')
+                }
+              }}
+              onBlur={() => {
+                if (formData.url_publicacion) {
+                  validateField('url_publicacion', formData.url_publicacion, validationSchemas.publicationForm)
+                }
+              }}
               placeholder="https://ejemplo.com/oferta/12345"
+              className={errors.url_publicacion ? "border-destructive" : ""}
             />
+            <ValidationErrorDisplay error={errors.url_publicacion} />
           </div>
 
           {/* Estado */}
@@ -227,12 +244,57 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
           {/* Fecha de Publicación */}
           <div className="space-y-2">
             <Label htmlFor="fecha">Fecha de Publicación</Label>
-            <Input
-              id="fecha"
-              type="date"
-              value={formData.fecha_publicacion}
-              onChange={(e) => setFormData({ ...formData, fecha_publicacion: e.target.value })}
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${!formData.fecha_publicacion ? "text-muted-foreground" : ""} ${errors.fecha_publicacion ? "border-destructive" : ""}`}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {formData.fecha_publicacion 
+                    ? (() => {
+                        const [year, month, day] = formData.fecha_publicacion.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        return format(dateObj, "PPP", { locale: es })
+                      })()
+                    : "Seleccionar fecha"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  captionLayout="dropdown"
+                  fromYear={1900}
+                  toYear={new Date().getFullYear()}
+                  selected={formData.fecha_publicacion ? (() => {
+                    const [year, month, day] = formData.fecha_publicacion.split('-').map(Number)
+                    return new Date(year, month - 1, day)
+                  })() : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                      const year = date.getFullYear()
+                      const month = String(date.getMonth() + 1).padStart(2, '0')
+                      const day = String(date.getDate()).padStart(2, '0')
+                      const selectedDate = `${year}-${month}-${day}`
+                      setFormData({ ...formData, fecha_publicacion: selectedDate })
+                      clearError('fecha_publicacion')
+                      if (hasAttemptedSubmit) {
+                        validateField('fecha_publicacion', selectedDate, validationSchemas.publicationForm)
+                      }
+                    }
+                  }}
+                  disabled={(date) => {
+                    // Deshabilitar fechas futuras
+                    const today = new Date()
+                    today.setHours(23, 59, 59, 999)
+                    return date > today
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            <ValidationErrorDisplay error={errors.fecha_publicacion} />
           </div>
         </div>
 

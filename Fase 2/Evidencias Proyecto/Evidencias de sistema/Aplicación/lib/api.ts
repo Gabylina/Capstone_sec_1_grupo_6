@@ -536,6 +536,7 @@ export const solicitudService = {
         cliente: string;
         contacto: string | null;
         comuna: string | null;
+        cargo: string | null;
         total_candidatos: number;
         candidatos_exitosos: Array<{ nombre: string; rut: string }>;
       }>
@@ -1175,6 +1176,49 @@ export const institucionService = {
 };
 
 // ===========================================
+// SERVICIOS DE PORTALES DE POSTULACIÓN
+// ===========================================
+
+export const portalService = {
+  // Obtener todos los portales
+  async getAll(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/portales');
+  },
+
+  // Obtener un portal por ID
+  async getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`);
+  },
+
+  // Crear un nuevo portal
+  async create(data: {
+    nombre_portal_postulacion: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/portales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Actualizar un portal
+  async update(id: number, data: {
+    nombre_portal_postulacion: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Eliminar un portal
+  async delete(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/portales/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ===========================================
 // SERVICIOS DE PUBLICACIONES
 // ===========================================
 
@@ -1557,4 +1601,20 @@ export const logService = {
   async getHistorialRegistro(tabla: string, id: string): Promise<ApiResponse<LogCambio[]>> {
     return apiRequest(`/api/logs/historial/${tabla}/${id}`);
   }
+};
+
+// ===========================================
+// SERVICIOS DE TIPOS DE SERVICIO
+// ===========================================
+
+export const tipoServicioService = {
+  // Obtener todos los tipos de servicio
+  async getAll(): Promise<ApiResponse<Array<{ codigo: string; nombre: string }>>> {
+    return apiRequest('/api/tipos-servicio');
+  },
+
+  // Obtener un tipo de servicio por código
+  async getByCodigo(codigo: string): Promise<ApiResponse<{ codigo: string; nombre: string }>> {
+    return apiRequest(`/api/tipos-servicio/${codigo}`);
+  },
 };

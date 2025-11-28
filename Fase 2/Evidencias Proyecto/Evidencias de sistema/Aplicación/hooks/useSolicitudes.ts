@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import type { Process } from "@/lib/types"
+import { descripcionCargoService, tipoServicioService } from "@/lib/api"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -38,8 +39,8 @@ export function useSolicitudes() {
   const [totalPages, setTotalPages] = useState(0)
   const [totalSolicitudes, setTotalSolicitudes] = useState(0)
   
-  // Estado para almacenar todos los tipos de servicio disponibles
-  const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
+  // Estado para almacenar todos los tipos de servicio disponibles (con código y nombre)
+  const [allServiceTypes, setAllServiceTypes] = useState<Array<{codigo: string, nombre: string}>>([])
   
   // Estado para almacenar las estadísticas
   const [stats, setStats] = useState({
@@ -83,7 +84,11 @@ export function useSolicitudes() {
       const data = await res.json()
       
       if (res.ok && data?.success) {
-        const transformedSolicitudes = data.data.solicitudes.map((solicitud: any) => ({
+        // Manejar diferentes estructuras de respuesta después del merge
+        const solicitudesArray = data.data?.solicitudes || data.data || []
+        const paginationInfo = data.data?.pagination || { total: solicitudesArray.length, totalPages: 1 }
+        
+        const transformedSolicitudes = solicitudesArray.map((solicitud: any) => ({
           id: solicitud.id.toString(),
           client_id: solicitud.client_id || solicitud.id.toString(),
           client: solicitud.client || {
@@ -120,13 +125,19 @@ export function useSolicitudes() {
         }))
         
         setSolicitudes(transformedSolicitudes)
-        setTotalSolicitudes(data.data.pagination.total)
-        setTotalPages(data.data.pagination.totalPages)
+        setTotalSolicitudes(paginationInfo.total || transformedSolicitudes.length)
+        setTotalPages(paginationInfo.totalPages || 1)
       } else {
-        console.error("Error fetching solicitudes:", data?.message)
+        console.error("Error fetching solicitudes:", data?.message || "Error desconocido")
+        setSolicitudes([])
+        setTotalSolicitudes(0)
+        setTotalPages(0)
       }
     } catch (error) {
       console.error("Error fetching solicitudes:", error)
+      setSolicitudes([])
+      setTotalSolicitudes(0)
+      setTotalPages(0)
     } finally {
       setIsLoading(false)
     }
@@ -165,15 +176,21 @@ export function useSolicitudes() {
           completadas,
           pendientes,
         })
-        
-        // Extraer tipos de servicio
+      }
+      
+      // Obtener tipos de servicio completos desde la API
+      const serviceTypesResponse = await tipoServicioService.getAll()
+      if (serviceTypesResponse.success && serviceTypesResponse.data) {
+        setAllServiceTypes(serviceTypesResponse.data)
+      } else {
+        // Fallback: extraer tipos de servicio de las solicitudes si falla la API
         const serviceTypes = Array.from(
           new Set(
-            allSolicitudes
+            (data?.data || [])
               .map((s: any) => s.service_type || s.tipo_servicio)
               .filter(Boolean)
           )
-        ).sort() as string[]
+        ).sort().map((codigo: string) => ({ codigo, nombre: codigo }))
         
         setAllServiceTypes(serviceTypes)
       }

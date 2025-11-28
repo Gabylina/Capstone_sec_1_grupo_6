@@ -43,14 +43,14 @@ Sistema web integral para la gestión completa de procesos de reclutamiento, sel
 - **TailwindCSS** para estilos
 
 ### Base de Datos
-- **PostgreSQL** con 39 modelos de datos
+- **PostgreSQL** con 37 modelos de datos
 - **Triggers** para auditoría automática
 - **Funciones** almacenadas para lógica de negocio
 - **Migraciones** con Sequelize CLI
 
 ## Modelos de Datos
 
-El sistema incluye **39 modelos** que cubren:
+El sistema incluye **37 modelos** que cubren:
 
 - Usuarios y autenticación
 - Clientes y contactos

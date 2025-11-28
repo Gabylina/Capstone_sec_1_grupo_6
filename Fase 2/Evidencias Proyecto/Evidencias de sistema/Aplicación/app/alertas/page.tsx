@@ -20,10 +20,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateOnly } from "@/lib/utils"
 import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase } from "lucide-react"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 export default function AlertasPage() {
   const { user } = useAuth()
+  const { showToast } = useToastNotification()
   const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id, user?.role)
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
@@ -99,34 +100,28 @@ export default function AlertasPage() {
       const porVencer = hitosAlertas.filter(h => h.estado === 'por_vencer').length
       
       if (vencidas > 0 && porVencer > 0) {
-        toast.warning(
-          `Tienes ${hitosAlertas.length} notificaciones nuevas`,
-          {
-            description: `${vencidas} vencida${vencidas !== 1 ? 's' : ''} y ${porVencer} por vencer. Revisa tus alertas.`,
-            duration: 5000,
-          }
-        )
+        showToast({
+          type: "warning",
+          title: `Tienes ${hitosAlertas.length} notificaciones nuevas`,
+          description: `${vencidas} vencida${vencidas !== 1 ? 's' : ''} y ${porVencer} por vencer. Revisa tus alertas.`,
+        })
       } else if (vencidas > 0) {
-        toast.error(
-          `Tienes ${vencidas} notificación${vencidas !== 1 ? 'es' : ''} nueva${vencidas !== 1 ? 's' : ''}`,
-          {
-            description: `${vencidas} hito${vencidas !== 1 ? 's' : ''} vencido${vencidas !== 1 ? 's' : ''}. Revisa tus alertas urgentes.`,
-            duration: 5000,
-          }
-        )
+        showToast({
+          type: "error",
+          title: `Tienes ${vencidas} notificación${vencidas !== 1 ? 'es' : ''} nueva${vencidas !== 1 ? 's' : ''}`,
+          description: `${vencidas} hito${vencidas !== 1 ? 's' : ''} vencido${vencidas !== 1 ? 's' : ''}. Revisa tus alertas urgentes.`,
+        })
       } else if (porVencer > 0) {
-        toast.success(
-          `Tienes ${porVencer} notificación${porVencer !== 1 ? 'es' : ''} nueva${porVencer !== 1 ? 's' : ''}`,
-          {
-            description: `${porVencer} hito${porVencer !== 1 ? 's' : ''} próximo${porVencer !== 1 ? 's' : ''} a vencer. Revisa tus alertas.`,
-            duration: 5000,
-          }
-        )
+        showToast({
+          type: "success",
+          title: `Tienes ${porVencer} notificación${porVencer !== 1 ? 'es' : ''} nueva${porVencer !== 1 ? 's' : ''}`,
+          description: `${porVencer} hito${porVencer !== 1 ? 's' : ''} próximo${porVencer !== 1 ? 's' : ''} a vencer. Revisa tus alertas.`,
+        })
       }
       
       hasShownToast.current = true
     }
-  }, [loading, hitosAlertas])
+  }, [loading, hitosAlertas, showToast])
 
   const loadHitosData = async () => {
       if (!user) {

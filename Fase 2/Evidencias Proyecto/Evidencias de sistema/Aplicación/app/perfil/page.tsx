@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Mail, Briefcase, Save, Edit, Key, User, Phone, MapPin, Calendar, BarChart3, Users, FileText } from "lucide-react"
+import { Mail, Briefcase, Save, Edit, Key, User, Phone, MapPin, Calendar, BarChart3, Users, FileText, Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -19,12 +19,59 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ValidatedInput, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 export default function PerfilPage() {
   const { user } = useAuth()
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos'
+    }
+    if (message.includes('invalid') || message.includes('inválido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    if (message.includes('contraseña incorrecta') || message.includes('password incorrect')) {
+      return 'La contraseña actual es incorrecta'
+    }
+    if (message.includes('contraseña actual') || message.includes('current password')) {
+      return 'La contraseña actual no es correcta'
+    }
+    // Si el mensaje ya está en español y es claro, devolverlo capitalizado
+    if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+      return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+    }
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+  }
+  
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { errors, validateField, validateAllFields, clearAllErrors } = useFormValidation()
   const [consultorStats, setConsultorStats] = useState({
     totalProcesos: 0,
@@ -105,15 +152,24 @@ export default function PerfilPage() {
     
     // Validar que las contraseñas coincidan
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast.error("Las contraseñas nuevas no coinciden")
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Las contraseñas nuevas no coinciden",
+      })
       return
     }
 
     if (!isValid) {
-      toast.error("Por favor, complete todos los campos correctamente")
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Por favor, complete todos los campos correctamente",
+      })
       return
     }
 
+    setIsSubmitting(true)
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL
       const res = await fetch(`${API_URL}/api/users/change-password`, {
@@ -139,24 +195,40 @@ export default function PerfilPage() {
       }
 
       if (res.ok && data?.success) {
-        toast.success(data?.message || "Contraseña actualizada correctamente")
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: data?.message || "Contraseña actualizada correctamente",
+        })
         setIsPasswordDialogOpen(false)
         setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
         clearAllErrors()
       } else {
         // Usar el mensaje de la API o un mensaje genérico
         const errorMessage = data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente."
+        const processedErrorMessage = processApiErrorMessage(errorMessage, "Error al cambiar la contraseña")
         
         // Si es error 400 (contraseña incorrecta), limpiar solo el campo de contraseña actual
         if (res.status === 400) {
           setPasswordData({ ...passwordData, currentPassword: "" })
         }
         
-        toast.error(errorMessage)
+        showToast({
+          type: "error",
+          title: "Error",
+          description: processedErrorMessage,
+        })
       }
     } catch (error: any) {
       console.error('Error changing password:', error)
-      toast.error("Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.")
+      const errorMsg = processApiErrorMessage(error.message, "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -383,16 +455,29 @@ export default function PerfilPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => {
-                    setIsPasswordDialogOpen(false)
-                    setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
-                    clearAllErrors()
-                  }}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsPasswordDialogOpen(false)
+                      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+                      clearAllErrors()
+                    }}
+                    disabled={isSubmitting}
+                  >
                     Cancelar
                   </Button>
-                  <Button onClick={handleChangePassword}>
-                    <Key className="mr-2 h-4 w-4" />
-                    Cambiar Contraseña
+                  <Button onClick={handleChangePassword} disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cambiando...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="mr-2 h-4 w-4" />
+                        Cambiar Contraseña
+                      </>
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>

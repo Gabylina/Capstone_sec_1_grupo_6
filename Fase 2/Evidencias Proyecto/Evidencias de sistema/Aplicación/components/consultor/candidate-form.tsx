@@ -8,22 +8,24 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Trash2, Star, Loader2 } from "lucide-react"
-import DatePicker from "react-datepicker"
-import "react-datepicker/dist/react-datepicker.css"
-import { registerLocale } from "react-datepicker"
+import { Plus, Trash2, Star, Loader2, Calendar, RotateCcw } from "lucide-react"
 import { es } from "date-fns/locale"
+import { format } from "date-fns"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import type { Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
 
-registerLocale("es", es)
 
 interface ProfessionForm {
   id: string
   profession: string
   profession_institution: string
   profession_date: string
+  professionId?: string // ID de la BD si es una profesión existente
+  markedForDeletion?: boolean // Flag para marcar profesiones para eliminación
 }
 
 interface EducationForm {
@@ -31,6 +33,8 @@ interface EducationForm {
   title: string
   institution: string
   completion_date: string
+  educationId?: string // ID de la BD si es una educación existente
+  markedForDeletion?: boolean // Flag para marcar educación para eliminación
 }
 
 interface WorkExperienceForm {
@@ -40,6 +44,8 @@ interface WorkExperienceForm {
   start_date: string
   end_date: string
   description: string
+  workExperienceId?: string // ID de la BD si es una experiencia laboral existente
+  markedForDeletion?: boolean // Flag para marcar experiencia laboral para eliminación
 }
 
 interface CandidateFormData {
@@ -102,6 +108,7 @@ export function CandidateForm({
 }: CandidateFormProps) {
   
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
+  const { showToast } = useToastNotification()
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -157,6 +164,62 @@ export function CandidateForm({
 
   const [comunasFiltradas, setComunasFiltradas] = useState<any[]>([])
 
+  // Función helper para normalizar fechas a formato YYYY-MM-DD
+  // Esta función siempre extrae la fecha directamente del string si es posible
+  // para evitar problemas de zona horaria
+  const normalizeDate = (date: any): string => {
+    if (!date) return ""
+    
+    // Si ya es un string en formato YYYY-MM-DD, retornarlo directamente
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return date
+    }
+    
+    // Si es un string ISO o cualquier string con formato de fecha, extraer la fecha directamente
+    // Esto evita problemas de zona horaria al no crear un objeto Date
+    if (typeof date === 'string') {
+      const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})/)
+      if (dateMatch) {
+        // Validar que los valores sean razonables
+        const year = parseInt(dateMatch[1])
+        const month = parseInt(dateMatch[2])
+        const day = parseInt(dateMatch[3])
+        if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          return `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`
+        }
+      }
+    }
+    
+    // Si es un objeto Date, usar métodos locales para extraer la fecha
+    // Pero primero intentar crear el Date usando el constructor local (year, month, day)
+    try {
+      if (date instanceof Date && !isNaN(date.getTime())) {
+        // Usar métodos locales para evitar problemas de zona horaria
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        return `${year}-${month}-${day}`
+      }
+      
+      // Si es un string que no pudimos parsear antes, intentar crear Date
+      // pero solo como último recurso
+      if (typeof date === 'string') {
+        const dateObj = new Date(date)
+        if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
+          // Usar métodos locales
+          const year = dateObj.getFullYear()
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+          const day = String(dateObj.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        }
+      }
+    } catch (error) {
+      console.error('Error normalizando fecha:', error)
+    }
+    
+    return ""
+  }
+
   // Cargar datos iniciales si estamos en modo edición
   useEffect(() => {
     if (mode === 'edit' && initialData) {
@@ -175,7 +238,7 @@ export function CandidateForm({
         availability: initialData.availability || "",
         source_portal: initialData.source_portal || "",
         consultant_rating: initialData.consultant_rating || 3,
-        birth_date: initialData.birth_date || "",
+        birth_date: normalizeDate(initialData.birth_date),
         age: initialData.age || 0,
         region: initialData.region || "",
         comuna: initialData.comuna || "",
@@ -201,12 +264,19 @@ export function CandidateForm({
       // Cargar profesiones si existen
       if (initialData.professions && Array.isArray(initialData.professions) && initialData.professions.length > 0) {
         console.log('🔄 Cargando profesiones:', initialData.professions)
-        const loadedProfessions = initialData.professions.map((prof: any, index: number) => ({
-          id: (index + 1).toString(),
-          profession: prof.id_profesion?.toString() || '',
-          profession_institution: prof.institution || '',
-          profession_date: prof.date || ''
-        }))
+        const loadedProfessions = initialData.professions.map((prof: any, index: number) => {
+          // Crear un ID único para identificar esta profesión existente
+          // Usamos una combinación de id_profesion, institution y date para crear un identificador único
+          const professionId = `prof_${prof.id_profesion}_${prof.institution}_${prof.date || index}`
+          return {
+            id: `prof_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            profession: prof.id_profesion?.toString() || '',
+            profession_institution: prof.institution || '',
+            profession_date: normalizeDate(prof.date),
+            professionId: professionId, // ID para identificar profesiones existentes
+            markedForDeletion: false
+          }
+        })
         setProfessionForms(loadedProfessions)
         console.log('✅ Profesiones cargadas:', loadedProfessions)
       }
@@ -214,12 +284,18 @@ export function CandidateForm({
       // Cargar educación si existe
       if (initialData.education && Array.isArray(initialData.education) && initialData.education.length > 0) {
         console.log('🔄 Cargando educación:', initialData.education)
-        const loadedEducation = initialData.education.map((edu: any, index: number) => ({
-          id: (index + 1).toString(),
-          title: edu.title || '',
-          institution: edu.institution || '',
-          completion_date: edu.completion_date || ''
-        }))
+        const loadedEducation = initialData.education.map((edu: any, index: number) => {
+          // Crear un ID único para identificar esta educación existente
+          const educationId = `edu_${edu.title}_${edu.institution}_${edu.completion_date || index}`
+          return {
+            id: `edu_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            title: edu.title || '',
+            institution: edu.institution || '',
+            completion_date: normalizeDate(edu.completion_date),
+            educationId: educationId, // ID para identificar educación existente
+            markedForDeletion: false
+          }
+        })
         setEducationForms(loadedEducation)
         console.log('✅ Educación cargada:', loadedEducation)
       }
@@ -227,14 +303,20 @@ export function CandidateForm({
       // Cargar experiencia laboral si existe
       if (initialData.work_experience && Array.isArray(initialData.work_experience) && initialData.work_experience.length > 0) {
         console.log('🔄 Cargando experiencia laboral:', initialData.work_experience)
-        const loadedWorkExperience = initialData.work_experience.map((exp: any, index: number) => ({
-          id: (index + 1).toString(),
-          company: exp.company || '',
-          position: exp.position || '',
-          start_date: exp.start_date || '',
-          end_date: exp.end_date || '',
-          description: exp.description || ''
-        }))
+        const loadedWorkExperience = initialData.work_experience.map((exp: any, index: number) => {
+          // Crear un ID único para identificar esta experiencia laboral existente
+          const workExperienceId = `exp_${exp.company}_${exp.position}_${exp.start_date || index}`
+          return {
+            id: `exp_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+            company: exp.company || '',
+            position: exp.position || '',
+            start_date: normalizeDate(exp.start_date),
+            end_date: normalizeDate(exp.end_date),
+            description: exp.description || '',
+            workExperienceId: workExperienceId, // ID para identificar experiencia laboral existente
+            markedForDeletion: false
+          }
+        })
         setWorkExperienceForms(loadedWorkExperience)
         console.log('✅ Experiencia laboral cargada:', loadedWorkExperience)
       }
@@ -262,12 +344,13 @@ export function CandidateForm({
 
   // Funciones para manejar profesiones
   const addProfessionForm = () => {
-    const newId = (professionForms.length + 1).toString()
+    const newId = `prof_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     setProfessionForms([...professionForms, {
       id: newId,
       profession: '',
       profession_institution: '',
-      profession_date: ''
+      profession_date: '',
+      markedForDeletion: false
     }])
   }
 
@@ -279,19 +362,33 @@ export function CandidateForm({
   }
 
   const handleDiscardSingleProfession = (formId: string) => {
-    if (professionForms.length === 1) {
-      setProfessionForms([{
-        id: '1',
-        profession: '',
-        profession_institution: '',
-        profession_date: ''
-      }])
+    const form = professionForms.find(f => f.id === formId)
+    if (!form) return
+
+    // Si es una profesión existente, marcarla para eliminación en lugar de eliminarla directamente
+    if (form.professionId) {
+      setProfessionForms(professionForms.map(f =>
+        f.id === formId
+          ? { ...f, markedForDeletion: true }
+          : f
+      ))
     } else {
-      setProfessionForms(professionForms.filter(form => form.id !== formId))
+      // Si es una nueva profesión, eliminarla directamente
+      if (professionForms.length === 1) {
+        setProfessionForms([{
+          id: `prof_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          profession: '',
+          profession_institution: '',
+          profession_date: '',
+          markedForDeletion: false
+        }])
+      } else {
+        setProfessionForms(professionForms.filter(form => form.id !== formId))
+      }
+      clearError(`profession_${formId}_profession`)
+      clearError(`profession_${formId}_institution`)
+      clearError(`profession_${formId}_date`)
     }
-    clearError(`profession_${formId}_profession`)
-    clearError(`profession_${formId}_institution`)
-    clearError(`profession_${formId}_date`)
   }
 
   const validateProfessionField = (formId: string, field: string, value: string, form: ProfessionForm) => {
@@ -325,12 +422,13 @@ export function CandidateForm({
 
   // Funciones para manejar educación
   const addEducationForm = () => {
-    const newId = (educationForms.length + 1).toString()
+    const newId = `edu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     setEducationForms([...educationForms, {
       id: newId,
       title: '',
       institution: '',
-      completion_date: ''
+      completion_date: '',
+      markedForDeletion: false
     }])
   }
 
@@ -342,19 +440,33 @@ export function CandidateForm({
   }
 
   const handleDiscardSingleEducation = (formId: string) => {
-    if (educationForms.length === 1) {
-      setEducationForms([{
-        id: '1',
-        title: '',
-        institution: '',
-        completion_date: ''
-      }])
+    const form = educationForms.find(f => f.id === formId)
+    if (!form) return
+
+    // Si es una educación existente, marcarla para eliminación en lugar de eliminarla directamente
+    if (form.educationId) {
+      setEducationForms(educationForms.map(f =>
+        f.id === formId
+          ? { ...f, markedForDeletion: true }
+          : f
+      ))
     } else {
-      setEducationForms(educationForms.filter(form => form.id !== formId))
+      // Si es una nueva educación, eliminarla directamente
+      if (educationForms.length === 1) {
+        setEducationForms([{
+          id: `edu_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: '',
+          institution: '',
+          completion_date: '',
+          markedForDeletion: false
+        }])
+      } else {
+        setEducationForms(educationForms.filter(form => form.id !== formId))
+      }
+      clearError(`education_${formId}_title`)
+      clearError(`education_${formId}_institution`)
+      clearError(`education_${formId}_completion_date`)
     }
-    clearError(`education_${formId}_title`)
-    clearError(`education_${formId}_institution`)
-    clearError(`education_${formId}_completion_date`)
   }
 
   const validateEducationField = (formId: string, field: string, value: string, form: EducationForm) => {
@@ -398,41 +510,110 @@ export function CandidateForm({
 
   // Funciones para manejar experiencia laboral
   const addWorkExperienceForm = () => {
-    const newId = (workExperienceForms.length + 1).toString()
+    const newId = `exp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     setWorkExperienceForms([...workExperienceForms, {
       id: newId,
       company: '',
       position: '',
       start_date: '',
       end_date: '',
-      description: ''
+      description: '',
+      markedForDeletion: false
     }])
   }
 
   const updateWorkExperienceForm = (id: string, field: keyof WorkExperienceForm, value: string) => {
-    setWorkExperienceForms(workExperienceForms.map(form =>
-      form.id === id ? { ...form, [field]: value } : form
-    ))
-    validateWorkExperienceField(id, field, value, workExperienceForms.find(f => f.id === id)!)
+    setWorkExperienceForms(prevForms => {
+      const updatedForms = prevForms.map(form =>
+        form.id === id ? { ...form, [field]: value } : form
+      )
+      const updatedForm = updatedForms.find(f => f.id === id)!
+      
+      // Validar que la fecha fin no sea anterior a la fecha inicio
+      if (field === 'end_date' && value && updatedForm.start_date) {
+        try {
+          const [endYear, endMonth, endDay] = value.split('-').map(Number)
+          const [startYear, startMonth, startDay] = updatedForm.start_date.split('-').map(Number)
+          
+          if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay) &&
+              !isNaN(startYear) && !isNaN(startMonth) && !isNaN(startDay)) {
+            const endDate = new Date(endYear, endMonth - 1, endDay)
+            const startDate = new Date(startYear, startMonth - 1, startDay)
+            endDate.setHours(0, 0, 0, 0)
+            startDate.setHours(0, 0, 0, 0)
+            
+            if (endDate.getTime() < startDate.getTime()) {
+              setFieldError(`work_experience_${id}_end_date`, 'La fecha fin no puede ser anterior a la fecha inicio')
+            } else {
+              clearError(`work_experience_${id}_end_date`)
+            }
+          }
+        } catch (error) {
+          console.error('Error validando fecha fin:', error)
+        }
+      }
+      
+      // Si se cambia la fecha inicio, validar nuevamente la fecha fin
+      if (field === 'start_date' && updatedForm.end_date) {
+        try {
+          const [endYear, endMonth, endDay] = updatedForm.end_date.split('-').map(Number)
+          const [startYear, startMonth, startDay] = value.split('-').map(Number)
+          
+          if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay) &&
+              !isNaN(startYear) && !isNaN(startMonth) && !isNaN(startDay)) {
+            const endDate = new Date(endYear, endMonth - 1, endDay)
+            const startDate = new Date(startYear, startMonth - 1, startDay)
+            endDate.setHours(0, 0, 0, 0)
+            startDate.setHours(0, 0, 0, 0)
+            
+            if (endDate.getTime() < startDate.getTime()) {
+              setFieldError(`work_experience_${id}_end_date`, 'La fecha fin no puede ser anterior a la fecha inicio')
+            } else {
+              clearError(`work_experience_${id}_end_date`)
+            }
+          }
+        } catch (error) {
+          console.error('Error validando fecha fin:', error)
+        }
+      }
+      
+      validateWorkExperienceField(id, field, value, updatedForm)
+      return updatedForms
+    })
   }
 
   const handleDiscardSingleWorkExperience = (formId: string) => {
-    if (workExperienceForms.length === 1) {
-      setWorkExperienceForms([{
-        id: '1',
-        company: '',
-        position: '',
-        start_date: '',
-        end_date: '',
-        description: ''
-      }])
+    const form = workExperienceForms.find(f => f.id === formId)
+    if (!form) return
+
+    // Si es una experiencia laboral existente, marcarla para eliminación en lugar de eliminarla directamente
+    if (form.workExperienceId) {
+      setWorkExperienceForms(workExperienceForms.map(f =>
+        f.id === formId
+          ? { ...f, markedForDeletion: true }
+          : f
+      ))
     } else {
-      setWorkExperienceForms(workExperienceForms.filter(form => form.id !== formId))
+      // Si es una nueva experiencia laboral, eliminarla directamente
+      if (workExperienceForms.length === 1) {
+        setWorkExperienceForms([{
+          id: `exp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          company: '',
+          position: '',
+          start_date: '',
+          end_date: '',
+          description: '',
+          markedForDeletion: false
+        }])
+      } else {
+        setWorkExperienceForms(workExperienceForms.filter(form => form.id !== formId))
+      }
+      clearError(`work_experience_${formId}_company`)
+      clearError(`work_experience_${formId}_position`)
+      clearError(`work_experience_${formId}_start_date`)
+      clearError(`work_experience_${formId}_end_date`)
+      clearError(`work_experience_${formId}_description`)
     }
-    clearError(`work_experience_${formId}_company`)
-    clearError(`work_experience_${formId}_position`)
-    clearError(`work_experience_${formId}_start_date`)
-    clearError(`work_experience_${formId}_description`)
   }
 
   const validateWorkExperienceField = (formId: string, field: string, value: string, form: WorkExperienceForm) => {
@@ -518,14 +699,25 @@ export function CandidateForm({
     
     const isValid = validateAllFields(fieldsToValidate, validationSchemas.module2CandidateForm)
     
+    // Validación condicional: si hay región, comuna es obligatoria
+    let regionComunaValidationPassed = true
+    if (formData.region && !formData.comuna) {
+      setFieldError('comuna', 'La comuna es obligatoria cuando se selecciona una región')
+      regionComunaValidationPassed = false
+    }
+    
     // Validar que el portal de origen esté seleccionado
     if (!formData.source_portal) {
       setFieldError('source_portal', 'El portal de origen es obligatorio')
     }
     
     // Validar profesiones (si hay algún campo lleno, todos deben estar llenos)
+    // No validar profesiones marcadas para eliminación
     let professionValidationPassed = true
     for (const form of professionForms) {
+      // Saltar validación si está marcada para eliminación
+      if (form.markedForDeletion) continue
+      
       const hasAnyField = !!(form.profession?.trim() || form.profession_institution?.trim() || form.profession_date?.trim())
       if (hasAnyField) {
         if (!form.profession?.trim()) {
@@ -544,8 +736,12 @@ export function CandidateForm({
     }
     
     // Validar educación
+    // No validar educación marcada para eliminación
     let educationValidationPassed = true
     for (const form of educationForms) {
+      // Saltar validación si está marcada para eliminación
+      if (form.markedForDeletion) continue
+      
       const hasAnyField = !!(form.title?.trim() || form.institution?.trim() || form.completion_date?.trim())
       if (hasAnyField) {
         if (!form.title?.trim()) {
@@ -572,10 +768,37 @@ export function CandidateForm({
     }
     
     // Validar experiencia laboral
+    // No validar experiencia laboral marcada para eliminación
     let workExperienceValidationPassed = true
     for (const form of workExperienceForms) {
+      // Saltar validación si está marcada para eliminación
+      if (form.markedForDeletion) continue
+      
       const hasAnyField = !!(form.company?.trim() || form.position?.trim() || form.start_date?.trim() || form.description?.trim())
       if (hasAnyField) {
+        // Validar que la fecha fin no sea anterior a la fecha inicio
+        if (form.start_date && form.end_date) {
+          try {
+            const [endYear, endMonth, endDay] = form.end_date.split('-').map(Number)
+            const [startYear, startMonth, startDay] = form.start_date.split('-').map(Number)
+            
+            if (!isNaN(endYear) && !isNaN(endMonth) && !isNaN(endDay) &&
+                !isNaN(startYear) && !isNaN(startMonth) && !isNaN(startDay)) {
+              const endDate = new Date(endYear, endMonth - 1, endDay)
+              const startDate = new Date(startYear, startMonth - 1, startDay)
+              endDate.setHours(0, 0, 0, 0)
+              startDate.setHours(0, 0, 0, 0)
+              
+              if (endDate.getTime() < startDate.getTime()) {
+                setFieldError(`work_experience_${form.id}_end_date`, 'La fecha fin no puede ser anterior a la fecha inicio')
+                workExperienceValidationPassed = false
+              }
+            }
+          } catch (error) {
+            console.error('Error validando fechas de experiencia laboral:', error)
+          }
+        }
+        
         if (!form.company?.trim()) {
           setFieldError(`work_experience_${form.id}_company`, 'La empresa es obligatoria si completa algún campo')
           workExperienceValidationPassed = false
@@ -617,18 +840,29 @@ export function CandidateForm({
     }
     
     const allValidationsPassed = isValid && 
+      regionComunaValidationPassed &&
       formData.source_portal && 
       professionValidationPassed &&
       educationValidationPassed &&
       workExperienceValidationPassed
     
     if (!allValidationsPassed) {
+      showToast({
+        type: "error",
+        title: "Campos incompletos",
+        description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
+      })
       return // No enviar el formulario si hay errores
     }
     
+    // Establecer estado de carga antes de enviar
     setIsSubmitting(true)
     try {
-      await onSubmit(formData, professionForms, educationForms, workExperienceForms)
+      // Filtrar profesiones, educación y experiencia laboral marcadas para eliminación antes de enviar
+      const professionFormsToSubmit = professionForms.filter(form => !form.markedForDeletion)
+      const educationFormsToSubmit = educationForms.filter(form => !form.markedForDeletion)
+      const workExperienceFormsToSubmit = workExperienceForms.filter(form => !form.markedForDeletion)
+      await onSubmit(formData, professionFormsToSubmit, educationFormsToSubmit, workExperienceFormsToSubmit)
     } finally {
       setIsSubmitting(false)
     }
@@ -739,34 +973,106 @@ export function CandidateForm({
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="birth_date">Fecha de Nacimiento</Label>
-            <DatePicker
-              selected={formData.birth_date ? new Date(formData.birth_date) : null}
-              onChange={(date) => {
-                if (date) {
-                  const birthDateStr = date.toISOString().split('T')[0]
-                  const age = calculateAge(birthDateStr)
-                  setFormData({
-                    ...formData,
-                    birth_date: birthDateStr,
-                    age: age,
-                  })
-                  validateField('birth_date', birthDateStr, validationSchemas.module2CandidateForm)
-                } else {
-                  clearError('birth_date')
-                  setFormData({ ...formData, birth_date: "", age: 0 })
-                }
-              }}
-              dateFormat="dd/MM/yyyy"
-              showYearDropdown
-              showMonthDropdown
-              dropdownMode="select"
-              placeholderText="Selecciona fecha de nacimiento"
-              className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              maxDate={new Date()}
-              minDate={new Date("1900-01-01")}
-              yearDropdownItemNumber={100}
-              locale="es"
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${!formData.birth_date ? "text-muted-foreground" : ""} ${errors.birth_date ? "border-destructive" : ""}`}
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {formData.birth_date && formData.birth_date.trim() !== ""
+                    ? (() => {
+                        try {
+                          const [year, month, day] = formData.birth_date.split('-').map(Number)
+                          const dateObj = new Date(year, month - 1, day)
+                          // Validar que la fecha sea válida
+                          if (isNaN(dateObj.getTime())) {
+                            return "Fecha inválida"
+                          }
+                          return format(dateObj, "PPP", { locale: es })
+                        } catch (error) {
+                          return "Fecha inválida"
+                        }
+                      })()
+                    : "Seleccionar fecha de nacimiento"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  captionLayout="dropdown"
+                  fromYear={(() => {
+                    // Calcular el año mínimo permitido (año actual - 85 años)
+                    const currentYear = new Date().getFullYear()
+                    return currentYear - 85
+                  })()}
+                  toYear={new Date().getFullYear()}
+                  selected={formData.birth_date && formData.birth_date.trim() !== "" ? (() => {
+                    try {
+                      const [year, month, day] = formData.birth_date.split('-').map(Number)
+                      const dateObj = new Date(year, month - 1, day)
+                      // Validar que la fecha sea válida
+                      if (isNaN(dateObj.getTime())) {
+                        return undefined
+                      }
+                      return dateObj
+                    } catch (error) {
+                      return undefined
+                    }
+                  })() : undefined}
+                  defaultMonth={formData.birth_date && formData.birth_date.trim() !== "" ? (() => {
+                    try {
+                      const [year, month, day] = formData.birth_date.split('-').map(Number)
+                      const dateObj = new Date(year, month - 1, day)
+                      if (isNaN(dateObj.getTime())) {
+                        return new Date()
+                      }
+                      return dateObj
+                    } catch (error) {
+                      return new Date()
+                    }
+                  })() : new Date()}
+                  onSelect={(date) => {
+                    if (date) {
+                      // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                      const year = date.getFullYear()
+                      const month = String(date.getMonth() + 1).padStart(2, '0')
+                      const day = String(date.getDate()).padStart(2, '0')
+                      const birthDateStr = `${year}-${month}-${day}`
+                      const age = calculateAge(birthDateStr)
+                      setFormData({
+                        ...formData,
+                        birth_date: birthDateStr,
+                        age: age,
+                      })
+                      validateField('birth_date', birthDateStr, validationSchemas.module2CandidateForm)
+                    } else {
+                      clearError('birth_date')
+                      setFormData({ ...formData, birth_date: "", age: 0 })
+                    }
+                  }}
+                  disabled={(date) => {
+                    // Deshabilitar fechas futuras y anteriores a 1900
+                    const today = new Date()
+                    today.setHours(23, 59, 59, 999)
+                    const minDate = new Date("1900-01-01")
+                    
+                    // Deshabilitar fechas que resulten en más de 85 años (validación por año)
+                    const currentYear = today.getFullYear()
+                    const maxAllowedYear = currentYear - 85
+                    const dateYear = date.getFullYear()
+                    
+                    // Si el año de la fecha es menor al año máximo permitido, deshabilitar
+                    if (dateYear < maxAllowedYear) {
+                      return true
+                    }
+                    
+                    return date > today || date < minDate
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-2">
@@ -784,17 +1090,24 @@ export function CandidateForm({
 
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="region">Región <span className="text-red-500">*</span></Label>
+            <Label htmlFor="region">Región</Label>
             <Select
               value={formData.region}
               onValueChange={(value) => {
-                setFormData({ ...formData, region: value, comuna: "" })
-                validateField('region', value, validationSchemas.module2CandidateForm)
+                const newFormData = { ...formData, region: value, comuna: "" }
+                setFormData(newFormData)
+                validateField('region', value, validationSchemas.module2CandidateForm, newFormData)
+                // Validar comuna cuando cambia la región
+                if (value) {
+                  validateField('comuna', "", validationSchemas.module2CandidateForm, newFormData)
+                } else {
+                  clearError('comuna')
+                }
               }}
               disabled={loadingLists}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccione región" />
+                <SelectValue placeholder="Seleccione región (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {regiones.map((region) => (
@@ -808,12 +1121,12 @@ export function CandidateForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="comuna">Comuna <span className="text-red-500">*</span></Label>
+            <Label htmlFor="comuna">Comuna {formData.region && <span className="text-red-500">*</span>}</Label>
             <Select
               value={formData.comuna}
               onValueChange={(value) => {
                 setFormData({ ...formData, comuna: value })
-                validateField('comuna', value, validationSchemas.module2CandidateForm)
+                validateField('comuna', value, validationSchemas.module2CandidateForm, formData)
               }}
               disabled={loadingLists || !formData.region}
             >
@@ -832,7 +1145,7 @@ export function CandidateForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="nacionalidad">Nacionalidad <span className="text-red-500">*</span></Label>
+            <Label htmlFor="nacionalidad">Nacionalidad</Label>
             <Select
               value={formData.nacionalidad}
               onValueChange={(value) => {
@@ -842,7 +1155,7 @@ export function CandidateForm({
               disabled={loadingLists}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccione nacionalidad" />
+                <SelectValue placeholder="Seleccione nacionalidad (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {nacionalidades.map((nac) => (
@@ -858,7 +1171,7 @@ export function CandidateForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="rubro">Rubro <span className="text-red-500">*</span></Label>
+            <Label htmlFor="rubro">Rubro</Label>
             <Select
               value={formData.rubro}
               onValueChange={(value) => {
@@ -868,7 +1181,7 @@ export function CandidateForm({
               disabled={loadingLists}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccione rubro" />
+                <SelectValue placeholder="Seleccione rubro (opcional)" />
               </SelectTrigger>
               <SelectContent>
                 {rubros.map((rubro) => (
@@ -880,35 +1193,35 @@ export function CandidateForm({
             </Select>
             <ValidationErrorDisplay error={errors.rubro} />
           </div>
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="source_portal">
-            Portal de Origen <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={formData.source_portal}
-            onValueChange={(value) => {
-              setFormData({ ...formData, source_portal: value })
-              clearError('source_portal')
-            }}
-            disabled={loadingLists}
-          >
-            <SelectTrigger className={errors.source_portal ? "border-destructive" : ""}>
-              <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
-            </SelectTrigger>
-            <SelectContent>
-              {portalesDB.map((portal) => (
-                <SelectItem key={portal.id} value={portal.id.toString()}>
-                  {portal.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <ValidationErrorDisplay error={errors.source_portal} />
-          <p className="text-xs text-muted-foreground">
-            Portal desde donde proviene el candidato
-          </p>
+          <div className="space-y-2">
+            <Label htmlFor="source_portal">
+              Portal de Origen <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={formData.source_portal}
+              onValueChange={(value) => {
+                setFormData({ ...formData, source_portal: value })
+                clearError('source_portal')
+              }}
+              disabled={loadingLists}
+            >
+              <SelectTrigger className={errors.source_portal ? "border-destructive" : ""}>
+                <SelectValue placeholder={loadingLists ? "Cargando portales..." : "Seleccionar portal"} />
+              </SelectTrigger>
+              <SelectContent>
+                {portalesDB.map((portal) => (
+                  <SelectItem key={portal.id} value={portal.id.toString()}>
+                    {portal.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <ValidationErrorDisplay error={errors.source_portal} />
+            <p className="text-xs text-muted-foreground">
+              Portal desde donde proviene el candidato
+            </p>
+          </div>
         </div>
 
         {mode === 'create' && (
@@ -981,17 +1294,6 @@ export function CandidateForm({
           </div>
         )}
 
-        <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <Checkbox
-            id="has_disability_credential"
-            checked={formData.has_disability_credential}
-            onCheckedChange={(checked) => setFormData({ ...formData, has_disability_credential: checked === true })}
-            className="border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-          />
-          <Label htmlFor="has_disability_credential" className="text-sm font-medium text-blue-800 cursor-pointer">
-            Cuenta con credencial de discapacidad
-          </Label>
-        </div>
       </div>
 
       {/* Profesión */}
@@ -1017,15 +1319,54 @@ export function CandidateForm({
           )
           const showDiscardButton = professionForms.length > 1 ? true : hasFormFields
           
+          // Verificar si es una profesión existente
+          const isExistingProfession = !!form.professionId
+          const isMarkedForDeletion = form.markedForDeletion === true
+          
+          // Calcular el número de profesión (contando solo las del mismo tipo)
+          const existingProfessions = professionForms.filter(f => f.professionId)
+          const newProfessions = professionForms.filter(f => !f.professionId)
+          const professionNumber = isExistingProfession 
+            ? existingProfessions.indexOf(form) + 1
+            : newProfessions.indexOf(form) + 1
+          
           return (
-            <Card key={form.id}>
+            <Card key={form.id} className={`${isExistingProfession ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    Profesión {index + 1}
+                    {isMarkedForDeletion ? (
+                      <span className="text-destructive line-through">
+                        {isExistingProfession ? `Profesión ${professionNumber} (Existente) - Se eliminará al guardar` : `Profesión ${professionNumber} - Se eliminará al guardar`}
+                      </span>
+                    ) : (
+                      <>
+                        {isExistingProfession ? `Profesión ${professionNumber} (Existente)` : `Profesión ${professionNumber}`}
+                      </>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    {showDiscardButton && (
+                    {isMarkedForDeletion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Deshacer la eliminación
+                          setProfessionForms(forms => 
+                            forms.map(f => 
+                              f.id === form.id 
+                                ? { ...f, markedForDeletion: false }
+                                : f
+                            )
+                          )
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Deshacer
+                      </Button>
+                    ) : showDiscardButton ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1034,13 +1375,13 @@ export function CandidateForm({
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Descartar profesión
+                        {isExistingProfession ? "Eliminar" : "Descartar"}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Profesión</Label>
@@ -1049,7 +1390,7 @@ export function CandidateForm({
                       onValueChange={(value) => updateProfessionForm(form.id, 'profession', value)}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger className={errors[`profession_${form.id}_profession`] ? "border-destructive" : ""}>
+                      <SelectTrigger className={`bg-white ${errors[`profession_${form.id}_profession`] ? "border-destructive" : ""}`}>
                         <SelectValue placeholder="Seleccione profesión" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1069,7 +1410,7 @@ export function CandidateForm({
                       onValueChange={(value) => updateProfessionForm(form.id, 'profession_institution', value)}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger className={errors[`profession_${form.id}_institution`] ? "border-destructive" : ""}>
+                      <SelectTrigger className={`bg-white ${errors[`profession_${form.id}_institution`] ? "border-destructive" : ""}`}>
                         <SelectValue placeholder="Seleccione institución" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1085,27 +1426,84 @@ export function CandidateForm({
                 </div>
                 <div className="space-y-2">
                   <Label>Fecha de Obtención</Label>
-                  <DatePicker
-                    selected={form.profession_date ? new Date(form.profession_date) : null}
-                    onChange={(date) => {
-                      if (date) {
-                        const dateStr = date.toISOString().split('T')[0]
-                        updateProfessionForm(form.id, 'profession_date', dateStr)
-                      } else {
-                        updateProfessionForm(form.id, 'profession_date', '')
-                      }
-                    }}
-                    dateFormat="dd/MM/yyyy"
-                    showYearDropdown
-                    showMonthDropdown
-                    dropdownMode="select"
-                    placeholderText="Selecciona fecha de obtención"
-                    className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors[`profession_${form.id}_date`] ? "border-destructive" : "border-input"}`}
-                    maxDate={new Date()}
-                    minDate={new Date("1900-01-01")}
-                    yearDropdownItemNumber={100}
-                    locale="es"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`bg-white w-full justify-start text-left font-normal ${!form.profession_date ? "text-muted-foreground" : ""} ${errors[`profession_${form.id}_date`] ? "border-destructive" : ""}`}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {form.profession_date && form.profession_date.trim() !== ""
+                          ? (() => {
+                              try {
+                                const [year, month, day] = form.profession_date.split('-').map(Number)
+                                const dateObj = new Date(year, month - 1, day)
+                                // Validar que la fecha sea válida
+                                if (isNaN(dateObj.getTime())) {
+                                  return "Fecha inválida"
+                                }
+                                return format(dateObj, "PPP", { locale: es })
+                              } catch (error) {
+                                return "Fecha inválida"
+                              }
+                            })()
+                          : "Seleccionar fecha de obtención"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        captionLayout="dropdown"
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
+                        selected={form.profession_date && form.profession_date.trim() !== "" ? (() => {
+                          try {
+                            const [year, month, day] = form.profession_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            // Validar que la fecha sea válida
+                            if (isNaN(dateObj.getTime())) {
+                              return undefined
+                            }
+                            return dateObj
+                          } catch (error) {
+                            return undefined
+                          }
+                        })() : undefined}
+                        defaultMonth={form.profession_date && form.profession_date.trim() !== "" ? (() => {
+                          try {
+                            const [year, month, day] = form.profession_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return new Date()
+                            }
+                            return dateObj
+                          } catch (error) {
+                            return new Date()
+                          }
+                        })() : new Date()}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                            const year = date.getFullYear()
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const dateStr = `${year}-${month}-${day}`
+                            updateProfessionForm(form.id, 'profession_date', dateStr)
+                          } else {
+                            updateProfessionForm(form.id, 'profession_date', '')
+                          }
+                        }}
+                        disabled={(date) => {
+                          // Deshabilitar fechas futuras y anteriores a 1900
+                          const today = new Date()
+                          today.setHours(23, 59, 59, 999)
+                          const minDate = new Date("1900-01-01")
+                          return date > today || date < minDate
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <ValidationErrorDisplay error={errors[`profession_${form.id}_date`]} />
                 </div>
               </CardContent>
@@ -1137,15 +1535,54 @@ export function CandidateForm({
           )
           const showDiscardButton = educationForms.length > 1 ? true : hasFormFields
           
+          // Verificar si es una educación existente
+          const isExistingEducation = !!form.educationId
+          const isMarkedForDeletion = form.markedForDeletion === true
+          
+          // Calcular el número de capacitación (contando solo las del mismo tipo)
+          const existingEducations = educationForms.filter(f => f.educationId)
+          const newEducations = educationForms.filter(f => !f.educationId)
+          const educationNumber = isExistingEducation 
+            ? existingEducations.indexOf(form) + 1
+            : newEducations.indexOf(form) + 1
+          
           return (
-            <Card key={form.id}>
+            <Card key={form.id} className={`${isExistingEducation ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    Capacitación {index + 1}
+                    {isMarkedForDeletion ? (
+                      <span className="text-destructive line-through">
+                        {isExistingEducation ? `Capacitación ${educationNumber} (Existente) - Se eliminará al guardar` : `Capacitación ${educationNumber} - Se eliminará al guardar`}
+                      </span>
+                    ) : (
+                      <>
+                        {isExistingEducation ? `Capacitación ${educationNumber} (Existente)` : `Capacitación ${educationNumber}`}
+                      </>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    {showDiscardButton && (
+                    {isMarkedForDeletion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Deshacer la eliminación
+                          setEducationForms(forms => 
+                            forms.map(f => 
+                              f.id === form.id 
+                                ? { ...f, markedForDeletion: false }
+                                : f
+                            )
+                          )
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Deshacer
+                      </Button>
+                    ) : showDiscardButton ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1154,13 +1591,13 @@ export function CandidateForm({
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Descartar capacitación
+                        {isExistingEducation ? "Eliminar" : "Descartar"}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nombre del Postgrado/Capacitación (mínimo 2 caracteres)</Label>
@@ -1169,7 +1606,7 @@ export function CandidateForm({
                       onChange={(e) => updateEducationForm(form.id, 'title', e.target.value)}
                       placeholder="Ej: Magíster en Administración (mínimo 2 caracteres)"
                       maxLength={100}
-                      className={errors[`education_${form.id}_title`] ? "border-destructive" : ""}
+                      className={`bg-white ${errors[`education_${form.id}_title`] ? "border-destructive" : ""}`}
                     />
                     <div className="text-sm text-muted-foreground text-right">
                       {(form.title || "").length}/100 caracteres (mínimo 2)
@@ -1184,7 +1621,7 @@ export function CandidateForm({
                       onValueChange={(value) => updateEducationForm(form.id, 'institution', value)}
                       disabled={loadingLists}
                     >
-                      <SelectTrigger className={errors[`education_${form.id}_institution`] ? "border-destructive" : ""}>
+                      <SelectTrigger className={`bg-white ${errors[`education_${form.id}_institution`] ? "border-destructive" : ""}`}>
                         <SelectValue placeholder="Seleccione institución" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1201,26 +1638,84 @@ export function CandidateForm({
 
                 <div className="space-y-2">
                   <Label>Fecha de Obtención</Label>
-                  <DatePicker
-                    selected={form.completion_date ? new Date(form.completion_date) : null}
-                    onChange={(date) => {
-                      if (date) {
-                        updateEducationForm(form.id, 'completion_date', date.toISOString().split('T')[0])
-                      } else {
-                        updateEducationForm(form.id, 'completion_date', '')
-                      }
-                    }}
-                    dateFormat="dd/MM/yyyy"
-                    showYearDropdown
-                    showMonthDropdown
-                    dropdownMode="select"
-                    placeholderText="Selecciona fecha de obtención"
-                    className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors[`education_${form.id}_completion_date`] ? "border-destructive" : "border-input"}`}
-                    maxDate={new Date()}
-                    minDate={new Date("1900-01-01")}
-                    yearDropdownItemNumber={100}
-                    locale="es"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`bg-white w-full justify-start text-left font-normal ${!form.completion_date ? "text-muted-foreground" : ""} ${errors[`education_${form.id}_completion_date`] ? "border-destructive" : ""}`}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {form.completion_date && form.completion_date.trim() !== ""
+                          ? (() => {
+                              try {
+                                const [year, month, day] = form.completion_date.split('-').map(Number)
+                                const dateObj = new Date(year, month - 1, day)
+                                // Validar que la fecha sea válida
+                                if (isNaN(dateObj.getTime())) {
+                                  return "Fecha inválida"
+                                }
+                                return format(dateObj, "PPP", { locale: es })
+                              } catch (error) {
+                                return "Fecha inválida"
+                              }
+                            })()
+                          : "Seleccionar fecha de obtención"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        captionLayout="dropdown"
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
+                        selected={form.completion_date && form.completion_date.trim() !== "" ? (() => {
+                          try {
+                            const [year, month, day] = form.completion_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            // Validar que la fecha sea válida
+                            if (isNaN(dateObj.getTime())) {
+                              return undefined
+                            }
+                            return dateObj
+                          } catch (error) {
+                            return undefined
+                          }
+                        })() : undefined}
+                        defaultMonth={form.completion_date && form.completion_date.trim() !== "" ? (() => {
+                          try {
+                            const [year, month, day] = form.completion_date.split('-').map(Number)
+                            const dateObj = new Date(year, month - 1, day)
+                            if (isNaN(dateObj.getTime())) {
+                              return new Date()
+                            }
+                            return dateObj
+                          } catch (error) {
+                            return new Date()
+                          }
+                        })() : new Date()}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                            const year = date.getFullYear()
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const dateStr = `${year}-${month}-${day}`
+                            updateEducationForm(form.id, 'completion_date', dateStr)
+                          } else {
+                            updateEducationForm(form.id, 'completion_date', '')
+                          }
+                        }}
+                        disabled={(date) => {
+                          // Deshabilitar fechas futuras y anteriores a 1900
+                          const today = new Date()
+                          today.setHours(23, 59, 59, 999)
+                          const minDate = new Date("1900-01-01")
+                          return date > today || date < minDate
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <ValidationErrorDisplay error={errors[`education_${form.id}_completion_date`]} />
                 </div>
               </CardContent>
@@ -1254,15 +1749,54 @@ export function CandidateForm({
           )
           const showDiscardButton = workExperienceForms.length > 1 ? true : hasFormFields
           
+          // Verificar si es una experiencia laboral existente
+          const isExistingWorkExperience = !!form.workExperienceId
+          const isMarkedForDeletion = form.markedForDeletion === true
+          
+          // Calcular el número de experiencia (contando solo las del mismo tipo)
+          const existingWorkExperiences = workExperienceForms.filter(f => f.workExperienceId)
+          const newWorkExperiences = workExperienceForms.filter(f => !f.workExperienceId)
+          const workExperienceNumber = isExistingWorkExperience 
+            ? existingWorkExperiences.indexOf(form) + 1
+            : newWorkExperiences.indexOf(form) + 1
+          
           return (
-            <Card key={form.id}>
+            <Card key={form.id} className={`${isExistingWorkExperience ? "border-l-4 border-l-blue-500" : ""} ${isMarkedForDeletion ? "opacity-50 bg-gray-100" : ""}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    Experiencia {index + 1}
+                    {isMarkedForDeletion ? (
+                      <span className="text-destructive line-through">
+                        {isExistingWorkExperience ? `Experiencia ${workExperienceNumber} (Existente) - Se eliminará al guardar` : `Experiencia ${workExperienceNumber} - Se eliminará al guardar`}
+                      </span>
+                    ) : (
+                      <>
+                        {isExistingWorkExperience ? `Experiencia ${workExperienceNumber} (Existente)` : `Experiencia ${workExperienceNumber}`}
+                      </>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-2">
-                    {showDiscardButton && (
+                    {isMarkedForDeletion ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Deshacer la eliminación
+                          setWorkExperienceForms(forms => 
+                            forms.map(f => 
+                              f.id === form.id 
+                                ? { ...f, markedForDeletion: false }
+                                : f
+                            )
+                          )
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Deshacer
+                      </Button>
+                    ) : showDiscardButton ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1271,13 +1805,13 @@ export function CandidateForm({
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Descartar experiencia
+                        {isExistingWorkExperience ? "Eliminar" : "Descartar"}
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isMarkedForDeletion ? "pointer-events-none" : ""}`}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Empresa (mínimo 2 caracteres)</Label>
@@ -1286,7 +1820,7 @@ export function CandidateForm({
                       onChange={(e) => updateWorkExperienceForm(form.id, 'company', e.target.value)}
                       placeholder="Nombre de la empresa (mínimo 2 caracteres)"
                       maxLength={100}
-                      className={errors[`work_experience_${form.id}_company`] ? "border-destructive" : ""}
+                      className={`bg-white ${errors[`work_experience_${form.id}_company`] ? "border-destructive" : ""}`}
                     />
                     <div className="text-sm text-muted-foreground text-right">
                       {(form.company || "").length}/100 caracteres (mínimo 2)
@@ -1301,7 +1835,7 @@ export function CandidateForm({
                       onChange={(e) => updateWorkExperienceForm(form.id, 'position', e.target.value)}
                       placeholder="Título del cargo (mínimo 2 caracteres)"
                       maxLength={100}
-                      className={errors[`work_experience_${form.id}_position`] ? "border-destructive" : ""}
+                      className={`bg-white ${errors[`work_experience_${form.id}_position`] ? "border-destructive" : ""}`}
                     />
                     <div className="text-sm text-muted-foreground text-right">
                       {(form.position || "").length}/100 caracteres (mínimo 2)
@@ -1313,50 +1847,204 @@ export function CandidateForm({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Fecha Inicio</Label>
-                    <DatePicker
-                      selected={form.start_date ? new Date(form.start_date) : null}
-                      onChange={(date) => {
-                        if (date) {
-                          updateWorkExperienceForm(form.id, 'start_date', date.toISOString().split('T')[0])
-                        } else {
-                          updateWorkExperienceForm(form.id, 'start_date', '')
-                        }
-                      }}
-                      dateFormat="dd/MM/yyyy"
-                      showYearDropdown
-                      showMonthDropdown
-                      dropdownMode="select"
-                      placeholderText="Selecciona fecha"
-                      className={`w-full p-2 border bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors[`work_experience_${form.id}_start_date`] ? "border-destructive" : "border-input"}`}
-                      maxDate={new Date()}
-                      yearDropdownItemNumber={50}
-                      locale="es"
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={`bg-white w-full justify-start text-left font-normal ${!form.start_date ? "text-muted-foreground" : ""} ${errors[`work_experience_${form.id}_start_date`] ? "border-destructive" : ""}`}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {form.start_date && form.start_date.trim() !== ""
+                            ? (() => {
+                                try {
+                                  const [year, month, day] = form.start_date.split('-').map(Number)
+                                  const dateObj = new Date(year, month - 1, day)
+                                  // Validar que la fecha sea válida
+                                  if (isNaN(dateObj.getTime())) {
+                                    return "Fecha inválida"
+                                  }
+                                  return format(dateObj, "PPP", { locale: es })
+                                } catch (error) {
+                                  return "Fecha inválida"
+                                }
+                              })()
+                            : "Seleccionar fecha"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          captionLayout="dropdown"
+                          fromYear={1900}
+                          toYear={new Date().getFullYear()}
+                          selected={form.start_date && form.start_date.trim() !== "" ? (() => {
+                            try {
+                              const [year, month, day] = form.start_date.split('-').map(Number)
+                              const dateObj = new Date(year, month - 1, day)
+                              // Validar que la fecha sea válida
+                              if (isNaN(dateObj.getTime())) {
+                                return undefined
+                              }
+                              return dateObj
+                            } catch (error) {
+                              return undefined
+                            }
+                          })() : undefined}
+                          defaultMonth={form.start_date && form.start_date.trim() !== "" ? (() => {
+                            try {
+                              const [year, month, day] = form.start_date.split('-').map(Number)
+                              const dateObj = new Date(year, month - 1, day)
+                              if (isNaN(dateObj.getTime())) {
+                                return new Date()
+                              }
+                              return dateObj
+                            } catch (error) {
+                              return new Date()
+                            }
+                          })() : new Date()}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                              const year = date.getFullYear()
+                              const month = String(date.getMonth() + 1).padStart(2, '0')
+                              const day = String(date.getDate()).padStart(2, '0')
+                              const dateStr = `${year}-${month}-${day}`
+                              updateWorkExperienceForm(form.id, 'start_date', dateStr)
+                            } else {
+                              updateWorkExperienceForm(form.id, 'start_date', '')
+                            }
+                          }}
+                          disabled={(date) => {
+                            // Deshabilitar fechas futuras
+                            const today = new Date()
+                            today.setHours(23, 59, 59, 999)
+                            return date > today
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <ValidationErrorDisplay error={errors[`work_experience_${form.id}_start_date`]} />
                   </div>
 
                   <div className="space-y-2">
                     <Label>Fecha Fin</Label>
-                    <DatePicker
-                      selected={form.end_date ? new Date(form.end_date) : null}
-                      onChange={(date) => {
-                        if (date) {
-                          updateWorkExperienceForm(form.id, 'end_date', date.toISOString().split('T')[0])
-                        } else {
-                          updateWorkExperienceForm(form.id, 'end_date', '')
-                        }
-                      }}
-                      dateFormat="dd/MM/yyyy"
-                      showYearDropdown
-                      showMonthDropdown
-                      dropdownMode="select"
-                      placeholderText="Selecciona fecha"
-                      className="w-full p-2 border border-input bg-background rounded-md text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      maxDate={new Date()}
-                      minDate={form.start_date ? new Date(form.start_date) : undefined}
-                      yearDropdownItemNumber={50}
-                      locale="es"
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={`bg-white w-full justify-start text-left font-normal ${!form.end_date ? "text-muted-foreground" : ""} ${errors[`work_experience_${form.id}_end_date`] ? "border-destructive" : ""}`}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {form.end_date && form.end_date.trim() !== ""
+                            ? (() => {
+                                try {
+                                  const [year, month, day] = form.end_date.split('-').map(Number)
+                                  const dateObj = new Date(year, month - 1, day)
+                                  // Validar que la fecha sea válida
+                                  if (isNaN(dateObj.getTime())) {
+                                    return "Fecha inválida"
+                                  }
+                                  return format(dateObj, "PPP", { locale: es })
+                                } catch (error) {
+                                  return "Fecha inválida"
+                                }
+                              })()
+                            : "Seleccionar fecha"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          key={`end-date-calendar-${form.id}-${form.start_date || 'no-date'}`}
+                          mode="single"
+                          captionLayout="dropdown"
+                          fromYear={1900}
+                          toYear={new Date().getFullYear()}
+                          selected={form.end_date && form.end_date.trim() !== "" ? (() => {
+                            try {
+                              const [year, month, day] = form.end_date.split('-').map(Number)
+                              const dateObj = new Date(year, month - 1, day)
+                              // Validar que la fecha sea válida
+                              if (isNaN(dateObj.getTime())) {
+                                return undefined
+                              }
+                              return dateObj
+                            } catch (error) {
+                              return undefined
+                            }
+                          })() : undefined}
+                          defaultMonth={form.end_date && form.end_date.trim() !== "" ? (() => {
+                            try {
+                              const [year, month, day] = form.end_date.split('-').map(Number)
+                              const dateObj = new Date(year, month - 1, day)
+                              if (isNaN(dateObj.getTime())) {
+                                return new Date()
+                              }
+                              return dateObj
+                            } catch (error) {
+                              return new Date()
+                            }
+                          })() : new Date()}
+                          onSelect={(date) => {
+                            if (date) {
+                              // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                              const year = date.getFullYear()
+                              const month = String(date.getMonth() + 1).padStart(2, '0')
+                              const day = String(date.getDate()).padStart(2, '0')
+                              const dateStr = `${year}-${month}-${day}`
+                              updateWorkExperienceForm(form.id, 'end_date', dateStr)
+                            } else {
+                              updateWorkExperienceForm(form.id, 'end_date', '')
+                            }
+                          }}
+                          disabled={(date) => {
+                            // Deshabilitar fechas futuras
+                            const today = new Date()
+                            today.setHours(23, 59, 59, 999)
+                            if (date > today) {
+                              return true
+                            }
+                            
+                            // Deshabilitar fechas anteriores a la fecha de inicio
+                            if (form.start_date && form.start_date.trim() !== "") {
+                              try {
+                                // Parsear la fecha de inicio usando componentes locales para evitar problemas de zona horaria
+                                const [startYear, startMonth, startDay] = form.start_date.split('-').map(Number)
+                                
+                                // Validar que los valores sean válidos
+                                if (isNaN(startYear) || isNaN(startMonth) || isNaN(startDay)) {
+                                  return false
+                                }
+                                
+                                const startDate = new Date(startYear, startMonth - 1, startDay)
+                                startDate.setHours(0, 0, 0, 0)
+                                
+                                // Obtener componentes de la fecha a comparar usando métodos locales
+                                const compareYear = date.getFullYear()
+                                const compareMonth = date.getMonth()
+                                const compareDay = date.getDate()
+                                const compareDate = new Date(compareYear, compareMonth, compareDay)
+                                compareDate.setHours(0, 0, 0, 0)
+                                
+                                // Deshabilitar si la fecha es anterior (no igual) a la fecha de inicio
+                                // Comparar usando getTime() para asegurar comparación correcta
+                                const isBefore = compareDate.getTime() < startDate.getTime()
+                                if (isBefore) {
+                                  return true
+                                }
+                              } catch (error) {
+                                // Si hay error parseando, no deshabilitar
+                                console.error('Error parseando fecha de inicio:', error)
+                              }
+                            }
+                            
+                            return false
+                          }}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <ValidationErrorDisplay error={errors[`work_experience_${form.id}_end_date`]} />
                   </div>
                 </div>
 
@@ -1368,7 +2056,7 @@ export function CandidateForm({
                     placeholder="Principales responsabilidades y logros (mínimo 10 caracteres)"
                     maxLength={500}
                     rows={3}
-                    className={errors[`work_experience_${form.id}_description`] ? "border-destructive" : ""}
+                    className={`bg-white ${errors[`work_experience_${form.id}_description`] ? "border-destructive" : ""}`}
                   />
                   <div className="text-sm text-muted-foreground text-right">
                     {(form.description || "").length}/500 caracteres (mínimo 10)
@@ -1510,6 +2198,18 @@ export function CandidateForm({
             <div className="text-sm text-muted-foreground text-right">
               {(formData.portal_responses.software_tools || "").length}/100 caracteres
             </div>
+          </div>
+
+          <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <Checkbox
+              id="has_disability_credential"
+              checked={formData.has_disability_credential}
+              onCheckedChange={(checked) => setFormData({ ...formData, has_disability_credential: checked === true })}
+              className="border-blue-300 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+            />
+            <Label htmlFor="has_disability_credential" className="text-sm font-medium text-blue-800 cursor-pointer">
+              Cuenta con credencial de discapacidad
+            </Label>
           </div>
 
           <div className="flex items-center space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">

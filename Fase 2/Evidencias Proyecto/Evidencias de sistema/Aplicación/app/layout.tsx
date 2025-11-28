@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   title: "LLConsulting - Plataforma de Reclutamiento",
   description: "Sistema de gestión de procesos de reclutamiento",
   generator: 'v0.app',
+  icons: {
+    icon: '/images/icon_2.png',
+  },
 }
 
 export default function RootLayout({

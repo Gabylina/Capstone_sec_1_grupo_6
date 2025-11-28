@@ -529,11 +529,21 @@ export class EvaluacionPsicolaboralService {
                 fechaEnvio = parsed;
             }
 
-            await evaluacion.update({
+            // Preparar datos de actualización
+            const updateData: any = {
                 estado_informe: estadoInforme,
-                conclusion_global: conclusionGlobal,
                 fecha_envio_informe: fechaEnvio ?? new Date()
-            }, { transaction });
+            };
+
+            // Actualizar conclusión global: si se proporciona y tiene contenido, usar el valor; si no, establecer a null
+            if (conclusionGlobal !== undefined && conclusionGlobal !== null && conclusionGlobal.trim().length > 0) {
+                updateData.conclusion_global = conclusionGlobal.trim();
+            } else {
+                // Si se envía undefined, null o cadena vacía, establecer a null para eliminar el valor
+                updateData.conclusion_global = null;
+            }
+
+            await evaluacion.update(updateData, { transaction });
 
             await transaction.commit();
             return evaluacion;

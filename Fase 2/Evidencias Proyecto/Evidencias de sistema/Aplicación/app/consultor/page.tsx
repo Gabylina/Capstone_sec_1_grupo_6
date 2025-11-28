@@ -5,7 +5,7 @@ import type { KeyboardEvent } from "react"
 import { useAuth } from "@/hooks/auth"
 import { useConsultorProcesses } from "@/hooks/useConsultorProcesses"
 import { solicitudService } from "@/lib/api"
-import { toast } from "sonner"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -34,6 +34,46 @@ import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 export default function ConsultorPage() {
   const { user } = useAuth()
   const router = useRouter()
+  const { showToast } = useToastNotification()
+  
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos'
+    }
+    if (message.includes('invalid') || message.includes('inválido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    // Si el mensaje ya está en español y es claro, devolverlo capitalizado
+    if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+      return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+    }
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+  }
+  
   const [startingProcess, setStartingProcess] = useState<string | null>(null)
   
   // Estado local para el término de búsqueda (antes de aplicarlo)
@@ -115,15 +155,29 @@ export default function ConsultorPage() {
       const response = await solicitudService.updateEstado(parseInt(processId), "en_progreso")
       
       if (response.success) {
-        toast.success("Proceso iniciado exitosamente")
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: "Proceso iniciado exitosamente",
+        })
         await refreshData() // Recargar procesos usando el hook
         router.push(`/consultor/proceso/${processId}`)
       } else {
-        toast.error("Error al iniciar proceso")
+        const errorMsg = processApiErrorMessage(response.message, "Error al iniciar proceso")
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al iniciar proceso:", error)
-      toast.error("Error al iniciar proceso")
+      const errorMsg = processApiErrorMessage(error.message, "Error al iniciar proceso")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
     } finally {
       setStartingProcess(null)
     }

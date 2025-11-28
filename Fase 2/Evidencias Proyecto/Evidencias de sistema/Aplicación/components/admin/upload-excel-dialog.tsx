@@ -17,6 +17,53 @@ import { descripcionCargoService } from "@/lib/api"
 import * as XLSX from 'xlsx'
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
+
 interface UploadExcelDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -156,14 +203,16 @@ export function UploadExcelDialog({ open, onOpenChange, descripcionCargoId }: Up
       } else {
         setAlertType("error")
         setAlertTitle("Error al cargar")
-        setAlertDescription(response.message || 'Error al cargar los datos')
+        const errorMsg = processApiErrorMessage(response.message, 'Error al cargar los datos')
+        setAlertDescription(errorMsg)
       }
       setAlertOpen(true)
     } catch (error: any) {
       console.error('Error uploading Excel:', error)
       setAlertType("error")
       setAlertTitle("Error al procesar")
-      setAlertDescription(error.message || 'Error al procesar el archivo Excel')
+      const errorMsg = processApiErrorMessage(error.message, 'Error al procesar el archivo Excel')
+      setAlertDescription(errorMsg)
       setAlertOpen(true)
     } finally {
       setIsUploading(false)

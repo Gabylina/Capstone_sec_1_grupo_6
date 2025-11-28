@@ -264,7 +264,7 @@ export const validationSchemas = {
     birth_date: {
       required: false,
       custom: (value: string) => {
-        // Es opcional, pero si se proporciona, debe ser mayor de 18 años
+        // Es opcional, pero si se proporciona, debe ser mayor de 18 años y menor o igual a 85 años
         if (!value || !value.trim()) {
           return null // Campo opcional, no hay error si está vacío
         }
@@ -275,9 +275,13 @@ export const validationSchemas = {
           return 'La fecha de nacimiento no es válida'
         }
         
-        // Calcular edad
+        // Calcular edad basándose solo en el año (validación por año, no por día)
         const today = new Date()
-        let age = today.getFullYear() - birthDate.getFullYear()
+        const birthYear = birthDate.getFullYear()
+        const currentYear = today.getFullYear()
+        let age = currentYear - birthYear
+        
+        // Ajustar si aún no ha cumplido años este año (comparación por mes y día)
         const monthDiff = today.getMonth() - birthDate.getMonth()
         if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
           age--
@@ -288,13 +292,48 @@ export const validationSchemas = {
           return 'El candidato debe ser mayor de 18 años'
         }
         
+        // Validar que no tenga más de 85 años (validación por año)
+        // Si nació en un año que resultaría en más de 85 años, no permitir
+        const maxAllowedYear = currentYear - 85
+        if (birthYear < maxAllowedYear) {
+          return 'El candidato no puede tener más de 85 años'
+        }
+        
         return null
       }
     },
-    region: validationRules.required('La región es obligatoria'),
-    comuna: validationRules.required('La comuna es obligatoria'),
-    rubro: validationRules.required('El rubro es obligatorio'),
-    nacionalidad: validationRules.required('La nacionalidad es obligatoria'),
+    region: {
+      required: false,
+      custom: (value: string) => {
+        // La región es opcional, no hay validación
+        return null
+      }
+    },
+    comuna: {
+      required: false,
+      custom: (value: string, allData?: any) => {
+        // Si hay una región seleccionada, la comuna es obligatoria
+        const region = allData?.region?.trim() || ''
+        if (region && (!value || !value.trim())) {
+          return 'La comuna es obligatoria cuando se selecciona una región'
+        }
+        return null
+      }
+    },
+    rubro: {
+      required: false,
+      custom: (value: string) => {
+        // El rubro es opcional, no hay validación
+        return null
+      }
+    },
+    nacionalidad: {
+      required: false,
+      custom: (value: string) => {
+        // La nacionalidad es opcional, no hay validación
+        return null
+      }
+    },
     profession: {
       required: false,
       custom: (value: string, allData?: any) => {
@@ -463,13 +502,15 @@ export const validationSchemas = {
   module4ReferenceForm: {
     nombre_referencia: {
       required: false,
+      minLength: 2,
       maxLength: 100,
-      message: 'El nombre de la referencia no puede exceder 100 caracteres'
+      message: 'El nombre de la referencia debe tener entre 2 y 100 caracteres'
     },
     cargo_referencia: {
       required: false,
+      minLength: 2,
       maxLength: 100,
-      message: 'El cargo de la referencia no puede exceder 100 caracteres'
+      message: 'El cargo de la referencia debe tener entre 2 y 100 caracteres'
     },
     relacion_postulante_referencia: {
       required: false,
@@ -478,8 +519,9 @@ export const validationSchemas = {
     },
     empresa_referencia: {
       required: false,
+      minLength: 2,
       maxLength: 100,
-      message: 'El nombre de la empresa no puede exceder 100 caracteres'
+      message: 'El nombre de la empresa debe tener entre 2 y 100 caracteres'
     },
     telefono_referencia: {
       required: false,
@@ -525,6 +567,53 @@ export const validationSchemas = {
       required: false,
       maxLength: 800,
       message: 'Los comentarios no pueden exceder 800 caracteres'
+    }
+  },
+
+  // Validaciones para formulario de publicación
+  publicationForm: {
+    id_portal_postulacion: validationRules.required('El portal de postulación es obligatorio'),
+    url_publicacion: {
+      required: true,
+      custom: (value: string) => {
+        if (!value || !value.trim()) {
+          return 'La URL de la publicación es obligatoria'
+        }
+        
+        // Validar formato URL
+        try {
+          new URL(value)
+        } catch (error) {
+          return 'Ingresa una URL válida (ej: https://ejemplo.com)'
+        }
+        
+        // Validar que la URL tenga protocolo
+        if (!value.startsWith('http://') && !value.startsWith('https://')) {
+          return 'La URL debe comenzar con http:// o https://'
+        }
+        
+        return null
+      }
+    },
+    fecha_publicacion: {
+      required: false,
+      custom: (value: string) => {
+        // Es opcional, pero si se proporciona, no puede ser futura
+        if (!value || !value.trim()) {
+          return null // Campo opcional, no hay error si está vacío
+        }
+        
+        const selectedDate = new Date(value)
+        const today = new Date()
+        today.setHours(23, 59, 59, 999) // Resetear horas para comparar solo fechas
+        selectedDate.setHours(0, 0, 0, 0)
+        
+        if (selectedDate > today) {
+          return 'La fecha de publicación no puede ser posterior al día actual'
+        }
+        
+        return null
+      }
     }
   }
 }

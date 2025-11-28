@@ -169,11 +169,24 @@ export function getFinalStateDescription(processStatus: string): string {
 
 // Service Type Labels
 export const serviceTypeLabels: Record<string, string> = {
+  // Códigos cortos
+  PC: "Proceso Completo",
+  LL: "Long List",
+  TR: "Targeted Recruitment",
+  HS: "Headhunting",
+  AO: "Filtro Inteligente",
+  ES: "Evaluación Psicolaboral",
+  TS: "Test Psicolaboral",
+  AP: "Evaluación de Potencial",
+  // Nombres completos (para compatibilidad)
   proceso_completo: "Proceso Completo",
   long_list: "Long List",
   targeted_recruitment: "Targeted Recruitment",
+  headhunting: "Headhunting",
+  filtro_inteligente: "Filtro Inteligente",
   evaluacion_psicolaboral: "Evaluación Psicolaboral",
   test_psicolaboral: "Test Psicolaboral",
+  evaluacion_potencial: "Evaluación de Potencial",
 }
 
 // Process Status Labels

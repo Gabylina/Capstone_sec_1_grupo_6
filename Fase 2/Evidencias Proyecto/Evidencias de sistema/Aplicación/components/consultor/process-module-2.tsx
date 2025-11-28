@@ -61,15 +61,63 @@ import type { Process, Publication, Candidate, WorkExperience, Education, Portal
 
 import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService, solicitudService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
 import { AddPublicationDialog } from "./add-publication-dialog"
+import { EditPublicationDialog } from "./edit-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
 import { CandidateForm } from "./candidate-form"
 
+// Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+  if (!errorMessage) return defaultMessage
+  
+  const message = errorMessage.toLowerCase()
+  
+  // Mensajes técnicos que deben ser reemplazados
+  if (message.includes('validate') && message.includes('field')) {
+    return 'Por favor verifica que todos los campos estén completos correctamente'
+  }
+  if (message.includes('validation error')) {
+    return 'Error de validación. Por favor verifica los datos ingresados'
+  }
+  if (message.includes('required field')) {
+    return 'Faltan campos obligatorios. Por favor completa todos los campos requeridos'
+  }
+  if (message.includes('invalid') && message.includes('format')) {
+    return 'El formato de algunos datos es incorrecto. Por favor verifica la información'
+  }
+  if (message.includes('duplicate') || message.includes('duplicado')) {
+    return 'Ya existe un registro con estos datos. Por favor verifica la información'
+  }
+  if (message.includes('not found') || message.includes('no encontrado')) {
+    return 'No se encontró el recurso solicitado'
+  }
+  if (message.includes('unauthorized') || message.includes('no autorizado')) {
+    return 'No tienes permisos para realizar esta acción'
+  }
+  if (message.includes('network') || message.includes('red')) {
+    return 'Error de conexión. Por favor verifica tu conexión a internet'
+  }
+  if (message.includes('timeout')) {
+    return 'La operación tardó demasiado. Por favor intenta nuevamente'
+  }
+  if (message.includes('server error') || message.includes('error del servidor')) {
+    return 'Error en el servidor. Por favor intenta más tarde'
+  }
+  
+  // Si el mensaje parece técnico pero no coincide con ningún patrón, usar el mensaje por defecto
+  if (message.includes('error') && (message.includes('code') || message.includes('status'))) {
+    return defaultMessage
+  }
+  
+  // Si el mensaje parece amigable, devolverlo tal cual (capitalizado)
+  return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+}
 
 interface ProcessModule2Props {
 
@@ -82,7 +130,7 @@ interface ProcessModule2Props {
 export function ProcessModule2({ process }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
 
   
@@ -123,6 +171,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([])
 
   const [showAddPublication, setShowAddPublication] = useState(false)
+  const [editingPublication, setEditingPublication] = useState<any | null>(null)
+  const [showEditPublication, setShowEditPublication] = useState(false)
 
   const [showAddCandidate, setShowAddCandidate] = useState(false)
 
@@ -159,6 +209,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
+
+  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = process.etapa && (
+    process.etapa.includes("Módulo 4") || 
+    process.etapa.includes("Módulo 5")
+  )
 
   // Verificar si hay al menos un candidato presentado
   const hasPresentedCandidates = useMemo(() => {
@@ -275,10 +331,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         console.error('Error al cargar datos:', error)
 
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Error al cargar datos del módulo",
-        variant: "destructive",
       })
       } finally {
 
@@ -310,6 +366,42 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   const [portalesDB, setPortalesDB] = useState<any[]>([]) // Portales de la BD
   const [newPortalName, setNewPortalName] = useState("")
+
+  // Filtrar portales para mostrar solo los que tienen publicaciones activas
+  // Si estamos editando un candidato, también incluimos su portal actual aunque no esté activo
+  const portalesConPublicacionesActivas = useMemo(() => {
+    // Si portalesDB aún no está cargado, retornar array vacío
+    if (!portalesDB || portalesDB.length === 0) {
+      return []
+    }
+
+    // Obtener IDs de portales que tienen publicaciones activas
+    const portalesActivosIds = new Set(
+      publications
+        .filter((pub: any) => pub.estado_publicacion === "Activa")
+        .map((pub: any) => pub.id_portal_postulacion)
+    )
+    
+    // Si estamos editando un candidato, obtener su portal actual
+    let portalActualId: number | null = null
+    if (editingCandidate && editingCandidate.source_portal) {
+      // Buscar el portal en portalesDB por nombre o ID
+      const portalActual = portalesDB.find((p: any) => 
+        p.nombre === editingCandidate.source_portal || 
+        p.id.toString() === editingCandidate.source_portal?.toString()
+      )
+      if (portalActual) {
+        portalActualId = portalActual.id
+      }
+    }
+    
+    // Filtrar portalesDB para incluir solo los que tienen publicaciones activas
+    // o el portal actual del candidato que se está editando
+    return portalesDB.filter((portal: any) => 
+      portalesActivosIds.has(portal.id) || 
+      (portalActualId !== null && portal.id === portalActualId)
+    )
+  }, [publications, portalesDB, editingCandidate])
 
 
 
@@ -792,20 +884,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     const processId = parseInt(process.id)
     if (isNaN(processId)) {
       console.error('ID de proceso inválido en handleAddCandidateSubmit:', process.id)
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "ID de proceso inválido",
-        variant: "destructive",
       })
       return
     }
 
     // Validar que se haya seleccionado un portal
     if (!formData.source_portal || formData.source_portal.trim() === "") {
-      toast({
+      showToast({
+        type: "error",
         title: "Campo obligatorio",
         description: "El portal de origen es obligatorio",
-        variant: "destructive",
       })
       return
     }
@@ -817,10 +909,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     )
     
     if (!portalExistsInPublications) {
-      toast({
+      showToast({
+        type: "error",
         title: "Portal no publicado",
         description: "Debes publicar en este portal antes de agregar candidatos desde él. Ve a la sección 'Publicaciones en Portales' y agrega una publicación para este portal.",
-        variant: "destructive",
       })
       return
     }
@@ -831,10 +923,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         // Validar formato de archivo CV
         const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessorml.document']
         if (!allowedTypes.includes(formData.cv_file.type)) {
-          toast({
+          showToast({
+            type: "error",
             title: "Campo obligatorio",
             description: "El CV debe ser un archivo PDF o Word (.pdf, .doc, .docx)",
-            variant: "destructive",
           })
           return
         }
@@ -842,10 +934,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         // Validar tamaño del archivo (máximo 5MB)
         const maxSize = 5 * 1024 * 1024 // 5MB
         if (formData.cv_file.size > maxSize) {
-          toast({
+          showToast({
+            type: "error",
             title: "Campo obligatorio",
             description: "El archivo CV no puede superar los 5MB",
-            variant: "destructive",
           })
           return
         }
@@ -965,27 +1057,25 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           
           if (postulacionResponse.success) {
             // console.log('¡Postulación creada exitosamente!')
-        toast({
-
-          title: "¡Éxito!",
-
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
               description: "¡Candidato y postulación creados correctamente!",
-              variant: "default",
             })
           } else {
             console.error('Error al crear postulación:', postulacionResponse)
-            toast({
+            showToast({
+              type: "error",
               title: "Campo obligatorio",
               description: "Candidato creado, pero hubo un error al crear la postulación",
-              variant: "destructive",
             })
           }
         } catch (postError) {
           console.error('Error al crear postulación:', postError)
-          toast({
+          showToast({
+            type: "error",
             title: "Campo obligatorio",
             description: "Candidato creado, pero hubo un error al crear la postulación",
-            variant: "destructive",
           })
         }
 
@@ -1001,13 +1091,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         console.error('La respuesta no fue exitosa:', response)
 
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al guardar candidato")
+        showToast({
+
+          type: "error",
 
           title: "Error",
 
-          description: response.message || "Error al guardar candidato",
-
-          variant: "destructive",
+          description: errorMsg,
 
         })
 
@@ -1025,13 +1116,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       
 
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo agregar el candidato. Intenta nuevamente.")
+      showToast({
+
+        type: "error",
 
         title: "Error",
 
-        description: error.message || "No se pudo agregar el candidato. Intenta nuevamente.",
-
-        variant: "destructive",
+        description: errorMsg,
 
       })
 
@@ -1271,20 +1363,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       if (!formData.nombre || formData.nombre.trim().length < 2) {
         console.error('❌ Error: El nombre está vacío o es muy corto')
         console.error('❌ formData completo:', JSON.stringify(formData, null, 2))
-        toast({
+        showToast({
+          type: "error",
           title: "Error de validación",
           description: "El nombre del candidato no puede estar vacío. Por favor verifica los campos de nombre.",
-          variant: "destructive",
         })
         return
       }
 
       if (!formData.primer_apellido || formData.primer_apellido.trim().length < 2) {
         console.error('❌ Error: El primer apellido está vacío o es muy corto')
-        toast({
+        showToast({
+          type: "error",
           title: "Error de validación",
           description: "El primer apellido del candidato no puede estar vacío. Por favor verifica los campos de apellido.",
-          variant: "destructive",
         })
         return
       }
@@ -1351,10 +1443,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       const candidateResponse = await candidatoService.update(parseInt(editingCandidate.id), candidateData)
 
       if (!candidateResponse.success) {
-        toast({
+        const errorMsg = processApiErrorMessage(candidateResponse.message, 'Error al actualizar candidato')
+        showToast({
+          type: "error",
           title: "Error",
-          description: candidateResponse.message || 'Error al actualizar candidato',
-          variant: "destructive",
+          description: errorMsg,
         })
         return
       }
@@ -1410,10 +1503,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         }
       }
 
-      toast({
+      showToast({
+        type: "success",
         title: "¡Éxito!",
         description: "Candidato y postulación actualizados exitosamente",
-        variant: "default",
       })
       
       // Recargar los candidatos desde el backend
@@ -1425,10 +1518,11 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     } catch (error: any) {
       console.error('Error al actualizar:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, 'Error al actualizar')
+      showToast({
+        type: "error",
         title: "Error",
-        description: error.message || 'Error al actualizar',
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -1449,10 +1543,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const handleAdvanceToModule3 = async () => {
     // Validar que haya al menos un candidato presentado
     if (!hasPresentedCandidates) {
-      toast({
+      showToast({
+        type: "error",
         title: "No se puede avanzar",
         description: "Debe tener al menos un candidato con estado 'Presentado' para avanzar al Módulo 3",
-        variant: "destructive",
       })
       return
     }
@@ -1462,29 +1556,29 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       const response = await solicitudService.avanzarAModulo3(parseInt(process.id))
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Proceso avanzado al Módulo 3 exitosamente",
-          variant: "default",
         })
         // Navegar al módulo 3 usando URL con parámetro
         const currentUrl = new URL(window.location.href)
         currentUrl.searchParams.set('tab', 'modulo-3')
         window.location.href = currentUrl.toString()
       } else {
-        toast({
+        showToast({
+          type: "error",
           title: "Error",
           description: "Error al avanzar al Módulo 3",
-          variant: "destructive",
         })
         setIsAdvancingToModule3(false)
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 3:", error)
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Error al avanzar al Módulo 3",
-        variant: "destructive",
       })
       setIsAdvancingToModule3(false)
     }
@@ -1584,10 +1678,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     // Validaciones
     if (!newPortalName || newPortalName.trim() === "") {
-      toast({
+      showToast({
+        type: "error",
         title: "Campo obligatorio",
         description: "El nombre del portal es obligatorio",
-        variant: "destructive",
       })
       return
     }
@@ -1596,20 +1690,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     
     // Validar longitud mínima
     if (portalName.length < 3) {
-      toast({
+      showToast({
+        type: "error",
         title: "Nombre muy corto",
         description: "El nombre del portal debe tener al menos 3 caracteres",
-        variant: "destructive",
       })
       return
     }
     
     // Validar que no exista
     if (customPortals.includes(portalName)) {
-      toast({
+      showToast({
+        type: "error",
         title: "Portal duplicado",
         description: "Este portal ya existe en la lista",
-        variant: "destructive",
       })
       return
     }
@@ -1617,10 +1711,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     // Validar que no sea un portal por defecto
     const defaultPortals = ["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"]
     if (defaultPortals.includes(portalName)) {
-      toast({
+      showToast({
+        type: "error",
         title: "Portal por defecto",
         description: "Este portal ya está disponible por defecto",
-        variant: "destructive",
       })
       return
     }
@@ -1629,10 +1723,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     setCustomPortals([...customPortals, portalName])
     setNewPortalName("")
     
-    toast({
+    showToast({
+      type: "success",
       title: "¡Éxito!",
       description: `Portal "${portalName}" agregado correctamente`,
-      variant: "default",
     })
   }
 
@@ -2319,15 +2413,17 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         );
 
         if (!response.success) {
-          throw new Error(response.message || 'Error al actualizar comentario');
+          const errorMsg = processApiErrorMessage(response.message, 'Error al actualizar comentario')
+          throw new Error(errorMsg);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar comentario:', error);
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo actualizar el comentario")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "No se pudo actualizar el comentario",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -2376,32 +2472,9 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
     <div className="space-y-6">
 
-      <div className="flex items-center justify-between">
       <div>
         <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
         <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
-        </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>
-                <Button
-                  onClick={handleAdvanceToModule3}
-                  className="bg-primary hover:bg-primary/90"
-                  disabled={isBlocked || isAdvancingToModule3 || !hasPresentedCandidates}
-                >
-                  {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Pasar a Módulo 3
-                </Button>
-              </div>
-            </TooltipTrigger>
-            {!hasPresentedCandidates && !isBlocked && (
-              <TooltipContent>
-                <p>Debe tener al menos un candidato con estado &quot;Presentado&quot;</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -2410,196 +2483,60 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         moduleName="Módulo 2" 
       />
 
+      {/* Card para avanzar al siguiente módulo */}
+      {hasPresentedCandidates && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-blue-800">Candidatos presentados</h3>
+                <p className="text-sm text-blue-600">
+                  Tienes candidatos con estado "Presentado". Puedes avanzar al Módulo 3 para presentación al cliente.
+                </p>
+              </div>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={handleAdvanceToModule3}
+                disabled={isBlocked || isAdvancingToModule3 || isInAdvancedModule}
+              >
+                {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Avanzar a Módulo 3
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasPresentedCandidates && !isBlocked && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-orange-800">Acción requerida</h3>
+                <p className="text-sm text-orange-600">
+                  Debe tener al menos un candidato con estado "Presentado" para avanzar al Módulo 3.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
 
         <CardHeader>
 
-          <div className="flex items-center justify-between">
+          <div>
 
-            <div>
+            <CardTitle className="flex items-center gap-2">
 
-              <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
 
-                <Settings className="h-5 w-5" />
+              Portales
 
-                Gestión de Portales
+            </CardTitle>
 
-              </CardTitle>
-
-              <CardDescription>Administra los portales de publicación disponibles</CardDescription>
-
-            </div>
-
-            <Dialog open={showPortalManager} onOpenChange={setShowPortalManager}>
-
-              <DialogTrigger asChild>
-
-                <Button variant="outline">
-
-                  <Settings className="mr-2 h-4 w-4" />
-
-                  Gestionar Portales
-
-                </Button>
-
-              </DialogTrigger>
-
-              <DialogContent className="max-w-2xl">
-
-                <DialogHeader>
-
-                  <DialogTitle>Gestión de Portales de Publicación</DialogTitle>
-
-                  <DialogDescription>
-
-                    Agrega nuevos portales o gestiona los existentes para las publicaciones
-
-                  </DialogDescription>
-
-                </DialogHeader>
-
-                <div className="space-y-4">
-
-                  <div className="flex gap-2">
-
-                    <div className="flex-1">
-
-                      <Label htmlFor="new_portal">Nuevo Portal <span className="text-red-500">*</span></Label>
-                      <Input
-
-                        id="new_portal"
-
-                        value={newPortalName}
-
-                        onChange={(e) => setNewPortalName(e.target.value)}
-
-                        placeholder="Nombre del portal (ej: CompuTrabajo, ZonaJobs)"
-
-                        onKeyPress={(e) => e.key === "Enter" && handleAddPortal()}
-
-                      />
-
-                    </div>
-
-                    <div className="flex items-end">
-
-                      <Button onClick={handleAddPortal} disabled={!newPortalName.trim()}>
-
-                        <Plus className="h-4 w-4" />
-
-                      </Button>
-
-                    </div>
-
-                  </div>
-
-
-
-                  <div className="space-y-2">
-
-                    <Label>Portales Disponibles</Label>
-
-                    <div className="border rounded-lg p-4 max-h-60 overflow-y-auto">
-
-                      {customPortals.length > 0 ? (
-
-                        <div className="space-y-2">
-
-                          {customPortals.map((portal) => {
-
-                            const isDefault = [
-
-                              "LinkedIn",
-
-                              "GetOnBoard",
-
-                              "Indeed",
-
-                              "Trabajando.com",
-
-                              "Laborum",
-
-                              "Behance",
-
-                            ].includes(portal)
-
-                            return (
-
-                              <div key={portal} className="flex items-center justify-between p-2 border rounded">
-
-                                <div className="flex items-center gap-2">
-
-                                  <Globe className="h-4 w-4 text-muted-foreground" />
-
-                                  <span className="font-medium">{portal}</span>
-
-                                  {isDefault && (
-
-                                    <Badge variant="secondary" className="text-xs">
-
-                                      Por defecto
-
-                                    </Badge>
-
-                                  )}
-
-                                </div>
-
-                                {!isDefault && (
-
-                                  <Button
-
-                                    variant="ghost"
-
-                                    size="sm"
-
-                                    onClick={() => handleDeletePortal(portal)}
-
-                                    className="text-destructive hover:text-destructive"
-
-                                  >
-
-                                    <Trash2 className="h-4 w-4" />
-
-                                  </Button>
-
-                                )}
-
-                              </div>
-
-                            )
-
-                          })}
-
-                        </div>
-
-                      ) : (
-
-                        <div className="text-center py-4">
-
-                          <Globe className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-
-                          <p className="text-muted-foreground">No hay portales configurados</p>
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-                  </div>
-
-                </div>
-
-                <DialogFooter>
-
-                  <Button onClick={() => setShowPortalManager(false)}>Cerrar</Button>
-
-                </DialogFooter>
-
-              </DialogContent>
-
-            </Dialog>
+            <CardDescription>Portales de publicación disponibles</CardDescription>
 
           </div>
 
@@ -2607,7 +2544,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
         <CardContent>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 
             <div className="text-center p-4 border rounded-lg">
 
@@ -2616,28 +2553,6 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               <p className="text-2xl font-bold">{customPortals.length}</p>
 
               <p className="text-sm text-muted-foreground">Portales Disponibles</p>
-
-            </div>
-
-            <div className="text-center p-4 border rounded-lg">
-
-              <Settings className="h-8 w-8 text-blue-500 mx-auto mb-2" />
-
-              <p className="text-2xl font-bold">
-
-                {
-
-                  customPortals.filter(
-
-                    (p) => !["LinkedIn", "GetOnBoard", "Indeed", "Trabajando.com", "Laborum", "Behance"].includes(p),
-
-                  ).length
-
-                }
-
-              </p>
-
-              <p className="text-sm text-muted-foreground">Portales Personalizados</p>
 
             </div>
 
@@ -2709,6 +2624,22 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               onOpenChange={setShowAddPublication}
               solicitudId={parseInt(process.id) || 0}
               onSuccess={loadData}
+            />
+
+            {/* Diálogo de Editar Publicación */}
+            <EditPublicationDialog
+              open={showEditPublication}
+              onOpenChange={(open) => {
+                setShowEditPublication(open)
+                if (!open) {
+                  setEditingPublication(null)
+                }
+              }}
+              publication={editingPublication}
+              onSuccess={() => {
+                loadData()
+                setEditingPublication(null)
+              }}
             />
           </div>
 
@@ -2786,29 +2717,13 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={async () => {
-                            try {
-                              const response = await publicacionService.delete(publication.id)
-                              if (response.success) {
-                                toast({
-                                  title: "¡Éxito!",
-                                  description: "Publicación eliminada",
-                                  variant: "default",
-                                })
-                                loadData()
-                              }
-                            } catch (error) {
-                              toast({
-                                title: "Error",
-                                description: "Error al eliminar publicación",
-                                variant: "destructive",
-                              })
-                            }
+                          onClick={() => {
+                            setEditingPublication(publication)
+                            setShowEditPublication(true)
                           }}
                           disabled={isBlocked}
                         >
-                          <Trash2 className="h-4 w-4" />
-
+                          <Edit className="h-4 w-4" />
                         </Button>
 
                       </div>
@@ -2911,7 +2826,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     rubros={rubros}
                     nacionalidades={nacionalidades}
                     instituciones={instituciones}
-                    portalesDB={portalesDB}
+                    portalesDB={portalesConPublicacionesActivas}
                     loadingLists={loadingLists}
                     calculateAge={calculateAge}
                   />
@@ -3132,7 +3047,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               rubros={rubros}
               nacionalidades={nacionalidades}
               instituciones={instituciones}
-              portalesDB={portalesDB}
+              portalesDB={portalesConPublicacionesActivas}
               loadingLists={loadingLists}
               calculateAge={calculateAge}
             />

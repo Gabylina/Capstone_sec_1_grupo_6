@@ -19,10 +19,14 @@ import {
 } from "@/components/ui/dialog"
 import { getCandidatesByProcess, estadoClienteM5Service, solicitudService } from "@/lib/api"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
-import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil } from "lucide-react"
+import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil, Loader2 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface ProcessModule5Props {
   process: Process
@@ -51,7 +55,68 @@ interface ContractedCandidate {
 }
 
 export function ProcessModule5({ process }: ProcessModule5Props) {
-  const { toast } = useToast()
+  const { showToast } = useToastNotification()
+
+  // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
+  const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
+    if (!errorMessage) return defaultMessage
+    const message = errorMessage.toLowerCase()
+    
+    // Mensajes específicos del módulo 5
+    if (message.includes('los comentarios son obligatorios')) {
+      return errorMessage // Ya es un mensaje amigable
+    }
+    if (message.includes('estado de contratación no válido')) {
+      return 'El estado de contratación seleccionado no es válido. Por favor selecciona un estado válido'
+    }
+    if (message.includes('estado de contratación es requerido')) {
+      return 'Debes seleccionar un estado de contratación'
+    }
+    if (message.includes('postulación no encontrada')) {
+      return 'No se encontró la postulación del candidato'
+    }
+    if (message.includes('estado de cliente no encontrado')) {
+      return 'No se encontró el estado del cliente'
+    }
+    
+    // Mensajes generales
+    if (message.includes('validate') && message.includes('field')) {
+      return 'Por favor verifica que todos los campos estén completos correctamente'
+    }
+    if (message.includes('not found') || message.includes('no encontrado')) {
+      return 'El recurso solicitado no fue encontrado'
+    }
+    if (message.includes('unauthorized') || message.includes('no autorizado')) {
+      return 'No tienes permisos para realizar esta acción'
+    }
+    if (message.includes('forbidden') || message.includes('prohibido')) {
+      return 'Acceso denegado'
+    }
+    if (message.includes('network') || message.includes('red')) {
+      return 'Error de conexión. Por favor verifica tu conexión a internet'
+    }
+    if (message.includes('timeout')) {
+      return 'La operación tardó demasiado. Por favor intenta nuevamente'
+    }
+    if (message.includes('duplicate') || message.includes('duplicado')) {
+      return 'Ya existe un registro con esta información'
+    }
+    if (message.includes('constraint') || message.includes('restricción')) {
+      return 'No se puede realizar esta acción debido a restricciones de datos'
+    }
+    if (message.includes('invalid') || message.includes('inválido')) {
+      return 'Los datos proporcionados no son válidos'
+    }
+    if (message.includes('requerido') || message.includes('required')) {
+      return errorMessage // Ya es un mensaje amigable en español
+    }
+    
+    // Si el mensaje ya está en español y es claro, devolverlo capitalizado
+    if (message.length > 0 && message[0] === message[0].toLowerCase()) {
+      return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+    }
+    return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
+  }
   // Incluir candidatos que pasaron el módulo 4 (aprobados por el consultor) o que fueron aprobados por el cliente
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -76,17 +141,21 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             client_response_date: candidate.client_response_date || '',
             continues: true,
             observations: candidate.observations || '',
+            observaciones_contratacion: candidate.observaciones_contratacion || '',
+            comentario_modulo5_cliente: candidate.comentario_modulo5_cliente || '',
             satisfaction_survey_pending: candidate.hiring_status === "contratado",
             contratacion_status: candidate.contratacion_status
           }))
         
         setContractedCandidates(contractedData)
       } else {
-        console.error('Error al cargar candidatos del módulo 5:', response.message)
+        const errorMsg = processApiErrorMessage(response.message, "Error al cargar candidatos del módulo 5")
+        console.error('Error al cargar candidatos del módulo 5:', errorMsg)
         setCandidates([])
       }
-    } catch (error) {
-      console.error('Error al cargar candidatos:', error)
+    } catch (error: any) {
+      const errorMsg = processApiErrorMessage(error.message, "Error al cargar candidatos")
+      console.error('Error al cargar candidatos:', errorMsg)
       setCandidates([])
     } finally {
       setIsLoading(false)
@@ -124,6 +193,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             client_response_date: candidate.client_response_date || '',
             continues: true,
             observations: candidate.observations || '',
+            observaciones_contratacion: candidate.observaciones_contratacion || '',
+            comentario_modulo5_cliente: candidate.comentario_modulo5_cliente || '',
             satisfaction_survey_pending: candidate.hiring_status === "contratado",
             contratacion_status: candidate.contratacion_status
           }))
@@ -131,10 +202,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         console.log('[DEBUG FRONTEND] Contracted candidates actualizados:', contractedData)
         setContractedCandidates(contractedData)
       } else {
-        console.error('Error al recargar candidatos del módulo 5:', response.message)
+        const errorMsg = processApiErrorMessage(response.message, "Error al recargar candidatos del módulo 5")
+        console.error('Error al recargar candidatos del módulo 5:', errorMsg)
       }
-    } catch (error) {
-      console.error('Error al recargar candidatos:', error)
+    } catch (error: any) {
+      const errorMsg = processApiErrorMessage(error.message, "Error al recargar candidatos")
+      console.error('Error al recargar candidatos:', errorMsg)
     }
   }
 
@@ -159,9 +232,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                    nombre.includes('extraordinario')
           })
           setEstadosDisponibles(estadosFinales)
+        } else if (!response.success) {
+          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estados de solicitud")
+          console.error("Error al cargar estados de solicitud:", errorMsg)
         }
-      } catch (error) {
-        console.error("Error al cargar estados de solicitud:", error)
+      } catch (error: any) {
+        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados de solicitud")
+        console.error("Error al cargar estados de solicitud:", errorMsg)
       } finally {
         setLoadingEstados(false)
       }
@@ -187,6 +264,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   })
   const [contratacionAction, setContratacionAction] = useState<"contratado" | "no_contratado">("contratado")
   const [isSavingContratacion, setIsSavingContratacion] = useState(false)
+  const [isSavingContract, setIsSavingContract] = useState(false)
 
   const handleContractSubmit = async () => {
     if (!selectedCandidate) return
@@ -198,6 +276,35 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       return
     }
     setObservationsError("")
+
+    // Validar que las observaciones no excedan 500 caracteres
+    if (contractForm.observations.length > 500) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Las observaciones no pueden exceder 500 caracteres",
+      })
+      return
+    }
+
+    // Validar que la fecha de respuesta del cliente no sea posterior a hoy
+    if (contractForm.client_response_date) {
+      const selectedDate = new Date(contractForm.client_response_date)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate > today) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de respuesta del cliente no puede ser posterior al día de hoy",
+        })
+        return
+      }
+    }
+
+    setIsSavingContract(true)
 
     try {
       // Llamar al API para actualizar el candidato en el backend
@@ -216,7 +323,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         setObservationsError("")
         
         // Mostrar mensaje de éxito
-        toast({
+        showToast({
+          type: "success",
           title: "Éxito",
           description: "Estado del candidato actualizado exitosamente",
         })
@@ -230,19 +338,23 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Forzar un re-render adicional
         setCandidates(prev => [...prev])
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: response.message || "Error al actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar candidato:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al actualizar el estado del candidato")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al actualizar el estado del candidato",
-        variant: "destructive",
+        description: errorMsg,
       })
+    } finally {
+      setIsSavingContract(false)
     }
 
     setShowContractDialog(false)
@@ -270,7 +382,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         contract_date: existingData.contract_date || "",
         client_response_date: existingData.client_response_date || null,
         continues: existingData.continues,
-        observations: existingData.observations || "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: (existingData as any).comentario_modulo5_cliente || "",
       })
     } else {
       // Si no hay datos, usar los datos del candidato si están disponibles
@@ -282,7 +395,8 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         contract_date: candidateData.contract_date || "",
         client_response_date: candidateData.client_response_date || null,
         continues: true,
-        observations: candidateData.observations || "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: candidateData.comentario_modulo5_cliente || "",
       })
     }
     
@@ -303,15 +417,19 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         contract_date: contractedCandidate.contract_date ?? "",
         client_response_date: contractedCandidate.client_response_date ?? null,
         continues: contractedCandidate.continues,
-        observations: contractedCandidate.observations ?? "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: (contractedCandidate as any).comentario_modulo5_cliente ?? "",
       })
     } else {
+      // Si no está en contractedCandidates, buscar en candidates
+      const candidateData = candidate as any
       setContractForm({
-        hiring_status: "en_espera_feedback",
-        contract_date: "",
-        client_response_date: null,
+        hiring_status: candidateData.hiring_status || "en_espera_feedback",
+        contract_date: candidateData.contract_date || "",
+        client_response_date: candidateData.client_response_date || null,
         continues: true,
-        observations: "",
+        // Usar comentario_modulo5_cliente en lugar de observations para el formulario de gestión de estado
+        observations: candidateData.comentario_modulo5_cliente || "",
       })
     }
     setSelectedCandidate(candidate)
@@ -389,19 +507,29 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const handleProcessClosure = async () => {
     // Validar que el proceso no esté bloqueado
     if (isBlocked) {
-      toast({
+      showToast({
+        type: "error",
         title: "Acción Bloqueada",
         description: "No se puede cambiar el estado de un proceso finalizado",
-        variant: "destructive",
       })
       return
     }
 
     if (!selectedEstado) {
-      toast({
+      showToast({
+        type: "error",
         title: "Error",
         description: "Debes seleccionar un estado",
-        variant: "destructive",
+      })
+      return
+    }
+
+    // Validar que el motivo no exceda 500 caracteres
+    if (statusChangeReason.length > 500) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "El motivo del cambio no puede exceder 500 caracteres",
       })
       return
     }
@@ -414,10 +542,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       )
 
       if (response.success) {
-        toast({
+        showToast({
+          type: "success",
           title: "¡Éxito!",
           description: "Solicitud finalizada exitosamente",
-          variant: "default",
         })
         setShowStatusChange(false)
         setSelectedEstado("")
@@ -425,18 +553,20 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
           title: "Error",
-          description: "Error al finalizar la solicitud",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al finalizar la solicitud",
-        variant: "destructive",
+        description: errorMsg,
       })
     }
   }
@@ -468,6 +598,34 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   const handleSaveContratacion = async () => {
     if (!selectedCandidate) return
 
+    // Validaciones antes de guardar
+    // Validar que las observaciones no excedan 500 caracteres
+    if (contratacionForm.observaciones_contratacion.length > 500) {
+      showToast({
+        type: "error",
+        title: "Error de validación",
+        description: "Las observaciones no pueden exceder 500 caracteres",
+      })
+      return
+    }
+
+    // Validar que la fecha de ingreso no sea posterior a hoy (solo si es contratado y hay fecha)
+    if (contratacionAction === "contratado" && contratacionForm.fecha_ingreso_contratacion) {
+      const selectedDate = new Date(contratacionForm.fecha_ingreso_contratacion)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Resetear horas para comparar solo fechas
+      selectedDate.setHours(0, 0, 0, 0)
+      
+      if (selectedDate > today) {
+        showToast({
+          type: "error",
+          title: "Error de validación",
+          description: "La fecha de ingreso no puede ser posterior al día de hoy",
+        })
+        return
+      }
+    }
+
     setIsSavingContratacion(true)
 
     try {
@@ -490,11 +648,26 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       console.log('[DEBUG] Respuesta del backend:', response)
 
       if (response.success) {
-        const mensajeExito = contratacionAction === "contratado" 
-          ? "Candidato registrado como contratado exitosamente"
-          : "Candidato registrado como no contratado exitosamente"
+        const estadoAnterior = (selectedCandidate as any)?.contratacion_status
+        const cambioEstado = estadoAnterior && estadoAnterior !== contratacionAction
         
-        toast({
+        let mensajeExito: string
+        if (cambioEstado) {
+          mensajeExito = contratacionAction === "contratado"
+            ? "Estado cambiado a contratado exitosamente"
+            : "Estado cambiado a no contratado exitosamente"
+        } else {
+          mensajeExito = contratacionAction === "contratado" 
+            ? estadoAnterior 
+              ? "Información de contratación actualizada exitosamente"
+              : "Candidato registrado como contratado exitosamente"
+            : estadoAnterior
+              ? "Información de no contratado actualizada exitosamente"
+              : "Candidato registrado como no contratado exitosamente"
+        }
+        
+        showToast({
+          type: "success",
           title: "Éxito",
           description: mensajeExito,
         })
@@ -506,20 +679,26 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         })
         setSelectedCandidate(null)
         
+        // Esperar un momento para asegurar que la transacción del backend terminó
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        // Recargar datos para actualizar el conteo de vacantes
         await reloadData()
       } else {
-        toast({
+        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el estado del candidato")
+        showToast({
+          type: "error",
           title: "Error",
-          description: response.message || "Error al actualizar el estado del candidato",
-          variant: "destructive",
+          description: errorMsg,
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ERROR] Error al guardar contratación:', error)
-      toast({
+      const errorMsg = processApiErrorMessage(error.message, "Error al guardar la contratación")
+      showToast({
+        type: "error",
         title: "Error",
-        description: "Error al guardar la contratación",
-        variant: "destructive",
+        description: errorMsg,
       })
     } finally {
       setIsSavingContratacion(false)
@@ -527,9 +706,11 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
   }
 
   // Variables de conteo
-  const contractedCount = contractedCandidates.filter((c) => c.hiring_status === "contratado").length
+  // Usar contratacion_status en lugar de hiring_status para contar candidatos contratados
+  // porque contratacion_status es el que se actualiza cuando se marca como contratado
+  const contractedCount = candidates.filter((c: any) => c.contratacion_status === 'contratado').length
   const totalVacancies = process.vacancies || 1
-  const hasContracted = contractedCandidates.some((c) => c.hiring_status === "contratado")
+  const hasContracted = candidates.some((c: any) => c.contratacion_status === 'contratado')
 
   // 🎯 LÓGICA PARA "VOLVER A MÓDULO 2" - SOLO PARA FLUJO COMPLETO
   // Verificar si el servicio es de flujo completo (PC, HS, TR)
@@ -661,7 +842,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Módulo 5 - Seguimiento y Control</h2>
+          <h2 className="text-2xl font-bold mb-2">Módulo 5 - Gestión de contrataciones</h2>
           <p className="text-muted-foreground">Gestiona la contratación final y seguimiento de candidatos</p>
         </div>
         <Card>
@@ -707,8 +888,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                 variant="outline" 
                 className="border-cyan-300 text-cyan-700 hover:bg-cyan-100 bg-transparent"
                 onClick={() => {
-                  // Aquí podrías implementar la navegación al Módulo 2
-                  console.log("Navegando al Módulo 2...")
+                  // Redirigir al módulo 2 cambiando el parámetro tab en la URL
+                  const currentUrl = new URL(window.location.href)
+                  currentUrl.searchParams.set('tab', 'modulo-2')
+                  window.location.href = currentUrl.toString()
                 }}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -903,12 +1086,14 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                         </div>
                       </div>
                     )}
-                    {candidate.observations && (
+                    {(candidate as any).comentario_modulo5_cliente && (candidate as any).comentario_modulo5_cliente.trim() && (
                       <div className="flex items-start gap-2 col-span-2">
                         <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
                         <div>
                           <p className="font-medium">Observaciones</p>
-                          <p className="text-muted-foreground">{candidate.observations}</p>
+                          <p className="text-muted-foreground">
+                            {(candidate as any).comentario_modulo5_cliente}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -967,9 +1152,10 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
                           }}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar Contratación
                         </Button>
-                        </div>
+                      </div>
                       <p className="text-sm text-green-600">El candidato ha sido contratado exitosamente.</p>
                       
                       <div className="grid grid-cols-1 gap-4 mt-4">
@@ -983,12 +1169,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           </div>
                         )}
                         
-                        {candidate.observations && (
+                        {(candidate as any).observaciones_contratacion && (
                           <div className="flex items-start gap-2">
                             <MessageSquare className="h-4 w-4 text-green-600 mt-1" />
                             <div>
                               <p className="text-sm font-medium text-gray-700">Observaciones</p>
-                              <p className="text-sm text-gray-600">{candidate.observations}</p>
+                              <p className="text-sm text-gray-600">{(candidate as any).observaciones_contratacion}</p>
                             </div>
                           </div>
                         )}
@@ -1004,26 +1190,27 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                           <XCircle className="h-5 w-5 text-orange-600" />
                           <h4 className="font-medium text-orange-800">Candidato No Contratado</h4>
                         </div>
-                            <Button 
-                              size="sm" 
+                        <Button 
+                          size="sm" 
                           variant="ghost"
                           className="text-orange-700 hover:text-orange-800 hover:bg-orange-100"
-                              onClick={() => {
+                          onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
                           }}
                         >
-                          <Pencil className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar Contratación
+                        </Button>
+                      </div>
                       <p className="text-sm text-orange-600">El candidato no fue contratado.</p>
                       
-                      {candidate.observations && (
+                      {(candidate as any).observaciones_contratacion && (
                         <div className="flex items-start gap-2 mt-4">
                           <MessageSquare className="h-4 w-4 text-orange-600 mt-1" />
                           <div>
                             <p className="text-sm font-medium text-gray-700">Razón</p>
-                            <p className="text-sm text-gray-600">{candidate.observations}</p>
+                            <p className="text-sm text-gray-600">{(candidate as any).observaciones_contratacion}</p>
                       </div>
                         </div>
                       )}
@@ -1080,30 +1267,89 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
 
             <div className="space-y-2">
               <Label htmlFor="client_response_date">Fecha de Respuesta del Cliente</Label>
-              <Input
-                id="client_response_date"
-                type="date"
-                value={contractForm.client_response_date || ''}
-                onChange={(e) => setContractForm({ ...contractForm, client_response_date: e.target.value || null })}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={`w-full justify-start text-left font-normal ${!contractForm.client_response_date ? "text-muted-foreground" : ""}`}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {contractForm.client_response_date 
+                      ? (() => {
+                          const [year, month, day] = contractForm.client_response_date.split('-').map(Number)
+                          const dateObj = new Date(year, month - 1, day)
+                          return format(dateObj, "PPP", { locale: es })
+                        })()
+                      : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    captionLayout="dropdown"
+                    fromYear={1900}
+                    toYear={new Date().getFullYear()}
+                    selected={contractForm.client_response_date ? (() => {
+                      const [year, month, day] = contractForm.client_response_date.split('-').map(Number)
+                      return new Date(year, month - 1, day)
+                    })() : undefined}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                        const year = date.getFullYear()
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const selectedDate = `${year}-${month}-${day}`
+                        
+                        const today = new Date()
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                        
+                        // Validar que la fecha no sea después de hoy
+                        if (selectedDate <= todayStr) {
+                          setContractForm({ ...contractForm, client_response_date: selectedDate || null })
+                        }
+                      }
+                    }}
+                    disabled={(date) => {
+                      // Deshabilitar fechas futuras
+                      const today = new Date()
+                      today.setHours(23, 59, 59, 999)
+                      return date > today
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                La fecha no puede ser posterior al día de hoy
+              </p>
             </div>
 
 
 
             <div className="space-y-2">
-              <Label htmlFor="observations">
-                Observaciones del Módulo 5
-                {(contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta") && (
-                  <span className="text-destructive ml-1">*</span>
-                )}
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="observations">
+                  Observaciones del Módulo 5
+                  {(contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta") && (
+                    <span className="text-destructive ml-1">*</span>
+                  )}
+                </Label>
+                <span className={`text-xs ${contractForm.observations.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  {contractForm.observations.length}/500
+                </span>
+              </div>
               <Textarea
                 id="observations"
                 value={contractForm.observations}
                 onChange={(e) => {
-                  setContractForm({ ...contractForm, observations: e.target.value })
-                  // Limpiar error cuando el usuario empiece a escribir
-                  if (observationsError) setObservationsError("")
+                  const value = e.target.value
+                  // Limitar a 500 caracteres
+                  if (value.length <= 500) {
+                    setContractForm({ ...contractForm, observations: value })
+                    // Limpiar error cuando el usuario empiece a escribir
+                    if (observationsError) setObservationsError("")
+                  }
                 }}
                 placeholder={
                   contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta"
@@ -1111,7 +1357,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                     : "Comentarios adicionales sobre el proceso..."
                 }
                 rows={3}
+                maxLength={500}
               />
+              {contractForm.observations.length > 500 && (
+                <p className="text-xs text-red-600">
+                  El texto no puede exceder 500 caracteres
+                </p>
+              )}
               {observationsError && (
                 <p className="text-destructive text-sm">{observationsError}</p>
               )}
@@ -1141,10 +1393,20 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowContractDialog(false)}>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowContractDialog(false)}
+              disabled={isSavingContract}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleContractSubmit}>Guardar Estado</Button>
+            <Button 
+              onClick={handleContractSubmit}
+              disabled={isSavingContract}
+            >
+              {isSavingContract && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSavingContract ? "Guardando..." : "Guardar Estado"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1171,7 +1433,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                 </p>
                 <p>
                   Candidatos que continúan:{" "}
-                  <strong>{contractedCandidates.filter((c) => c.hiring_status === "contratado" && c.continues).length}</strong>
+                  <strong>{candidates.filter((c: any) => c.contratacion_status === 'contratado').length}</strong>
                 </p>
               </div>
             </div>
@@ -1196,15 +1458,32 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             </div>
 
             <div>
-              <Label htmlFor="status_reason">{getReasonLabel()}</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="status_reason">{getReasonLabel()}</Label>
+                <span className={`text-xs ${statusChangeReason.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                  {statusChangeReason.length}/500
+                </span>
+              </div>
               <Textarea
                 id="status_reason"
                 value={statusChangeReason}
-                onChange={(e) => setStatusChangeReason(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  // Limitar a 500 caracteres
+                  if (value.length <= 500) {
+                    setStatusChangeReason(value)
+                  }
+                }}
                 placeholder={getReasonPlaceholder()}
                 className="mt-1"
                 rows={3}
+                maxLength={500}
               />
+              {statusChangeReason.length > 500 && (
+                <p className="text-xs text-red-600 mt-1">
+                  El texto no puede exceder 500 caracteres
+                </p>
+              )}
             </div>
           </div>
 
@@ -1235,7 +1514,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           <DialogHeader>
             <DialogTitle>
               {(selectedCandidate as any)?.contratacion_status ? (
-                // Modo edición
+                // Modo edición - puede cambiar el estado
                 contratacionAction === "contratado" ? "Editar Información de Contratación" : "Editar Información de No Contratado"
               ) : (
                 // Modo crear nuevo
@@ -1257,6 +1536,49 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Selector de estado - solo mostrar si el candidato ya tiene un estado de contratación */}
+            {(selectedCandidate as any)?.contratacion_status && (
+              <div className="space-y-2">
+                <Label htmlFor="estado_contratacion_dialog">
+                  Estado de Contratación
+                </Label>
+                <Select
+                  value={contratacionAction}
+                  onValueChange={(value: "contratado" | "no_contratado") => {
+                    setContratacionAction(value)
+                    // Si cambia a "no_contratado", limpiar la fecha de ingreso
+                    if (value === "no_contratado") {
+                      setContratacionForm({
+                        ...contratacionForm,
+                        fecha_ingreso_contratacion: ""
+                      })
+                    }
+                    // Si cambia a "contratado" y no hay fecha, mantener la fecha anterior si existe
+                    if (value === "contratado" && !contratacionForm.fecha_ingreso_contratacion) {
+                      const candidate = selectedCandidate as ContractedCandidate
+                      if (candidate.contract_date) {
+                        setContratacionForm({
+                          ...contratacionForm,
+                          fecha_ingreso_contratacion: candidate.contract_date
+                        })
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger id="estado_contratacion_dialog">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="contratado">Contratado</SelectItem>
+                    <SelectItem value="no_contratado">No Contratado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Puedes cambiar el estado de contratación del candidato
+                </p>
+              </div>
+            )}
+
             {contratacionAction === "contratado" ? (
               // Formulario para CONTRATADO
               <>
@@ -1264,42 +1586,126 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   <Label htmlFor="fecha_ingreso_contratacion_dialog">
                     Fecha de Ingreso
                   </Label>
-                  <Input
-                    id="fecha_ingreso_contratacion_dialog"
-                    type="date"
-                    value={contratacionForm.fecha_ingreso_contratacion}
-                    onChange={(e) => setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: e.target.value })}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${!contratacionForm.fecha_ingreso_contratacion ? "text-muted-foreground" : ""}`}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {contratacionForm.fecha_ingreso_contratacion 
+                          ? (() => {
+                              const [year, month, day] = contratacionForm.fecha_ingreso_contratacion.split('-').map(Number)
+                              const dateObj = new Date(year, month - 1, day)
+                              return format(dateObj, "PPP", { locale: es })
+                            })()
+                          : "Seleccionar fecha"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        captionLayout="dropdown"
+                        fromYear={1900}
+                        toYear={new Date().getFullYear()}
+                        selected={contratacionForm.fecha_ingreso_contratacion ? (() => {
+                          const [year, month, day] = contratacionForm.fecha_ingreso_contratacion.split('-').map(Number)
+                          return new Date(year, month - 1, day)
+                        })() : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            // Convertir Date a formato YYYY-MM-DD usando métodos locales
+                            const year = date.getFullYear()
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const selectedDate = `${year}-${month}-${day}`
+                            
+                            const today = new Date()
+                            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                            
+                            // Validar que la fecha no sea después de hoy
+                            if (selectedDate <= todayStr) {
+                              setContratacionForm({ ...contratacionForm, fecha_ingreso_contratacion: selectedDate })
+                            }
+                          }
+                        }}
+                        disabled={(date) => {
+                          // Deshabilitar fechas futuras
+                          const today = new Date()
+                          today.setHours(23, 59, 59, 999)
+                          return date > today
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <p className="text-xs text-muted-foreground">
+                    La fecha no puede ser posterior al día de hoy
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="observaciones_contratacion_dialog">
-                    Observaciones <span className="text-muted-foreground">(Opcional)</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="observaciones_contratacion_dialog">
+                      Observaciones <span className="text-muted-foreground">(Opcional)</span>
+                    </Label>
+                    <span className={`text-xs ${contratacionForm.observaciones_contratacion.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                      {contratacionForm.observaciones_contratacion.length}/500
+                    </span>
+                  </div>
                   <Textarea
                     id="observaciones_contratacion_dialog"
                     value={contratacionForm.observaciones_contratacion}
-                    onChange={(e) => setContratacionForm({ ...contratacionForm, observaciones_contratacion: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Limitar a 500 caracteres
+                      if (value.length <= 500) {
+                        setContratacionForm({ ...contratacionForm, observaciones_contratacion: value })
+                      }
+                    }}
                     placeholder="Ej: Cargo asignado, área de trabajo, condiciones especiales..."
                     rows={4}
+                    maxLength={500}
                   />
+                  {contratacionForm.observaciones_contratacion.length > 500 && (
+                    <p className="text-xs text-red-600">
+                      El texto no puede exceder 500 caracteres
+                    </p>
+                  )}
                 </div>
               </>
             ) : (
               // Formulario para NO CONTRATADO
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="observaciones_contratacion_dialog">
-                    Razón por la que no fue contratado <span className="text-muted-foreground">(Opcional)</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="observaciones_contratacion_dialog">
+                      Razón por la que no fue contratado <span className="text-muted-foreground">(Opcional)</span>
+                    </Label>
+                    <span className={`text-xs ${contratacionForm.observaciones_contratacion.length > 500 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                      {contratacionForm.observaciones_contratacion.length}/500
+                    </span>
+                  </div>
                   <Textarea
                     id="observaciones_contratacion_dialog"
                     value={contratacionForm.observaciones_contratacion}
-                    onChange={(e) => setContratacionForm({ ...contratacionForm, observaciones_contratacion: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      // Limitar a 500 caracteres
+                      if (value.length <= 500) {
+                        setContratacionForm({ ...contratacionForm, observaciones_contratacion: value })
+                      }
+                    }}
                     placeholder="Ej: No cumplió con las expectativas del cargo, rechazó la oferta final, se encontró un candidato más adecuado..."
                     rows={4}
                     className="resize-none"
+                    maxLength={500}
                   />
+                  {contratacionForm.observaciones_contratacion.length > 500 && (
+                    <p className="text-xs text-red-600">
+                      El texto no puede exceder 500 caracteres
+                    </p>
+                  )}
                 </div>
               </>
             )}
