@@ -30,12 +30,12 @@ services:
       DB_PORT: ${DB_PORT:-23264}
       DB_NAME: ${DB_NAME:-defaultdb}
       DB_USER: ${DB_USER:-avnadmin}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
       PORT: 3001
       NODE_ENV: production
-      JWT_SECRET: ${JWT_SECRET:-tu_jwt_secret_muy_seguro_cambiar_en_produccion}
+      JWT_SECRET: ${JWT_SECRET:-secret}
       JWT_EXPIRES_IN: 24h
-      FRONTEND_URL: https://grande-rat-logs-regarding.trycloudflare.com
+      FRONTEND_URL: https://reduces-loose-flash-decade.trycloudflare.com
       UPLOAD_PATH: ./uploads
       MAX_FILE_SIZE: 10485760
       RATE_LIMIT_WINDOW_MS: 900000
@@ -56,10 +56,10 @@ services:
       context: ./Aplicación
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://charles-inside-drops-sized.trycloudflare.com
+        NEXT_PUBLIC_API_URL: https://suspended-fifteen-earlier-exempt.trycloudflare.com
     container_name: llconsulting_frontend
     environment:
-      NEXT_PUBLIC_API_URL: https://charles-inside-drops-sized.trycloudflare.com
+      NEXT_PUBLIC_API_URL: https://suspended-fifteen-earlier-exempt.trycloudflare.com
       NODE_ENV: production
     ports:
       - "3000:3000"
