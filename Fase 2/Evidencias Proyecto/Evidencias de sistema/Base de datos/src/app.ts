@@ -45,6 +45,13 @@ import logRoutes from '@/routes/logs';
 const app = express();
 
 // ===========================================
+// CONFIGURACIÓN DE PROXY (necesario para cloudflared y rate limiting)
+// ===========================================
+// Habilitar trust proxy para que Express confíe en los headers X-Forwarded-*
+// Esto es necesario cuando se usa detrás de un proxy como cloudflared
+app.set('trust proxy', true);
+
+// ===========================================
 // MIDDLEWARE DE SEGURIDAD
 // ===========================================
 
@@ -53,13 +60,49 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS
-app.use(cors({
-  origin: config.server.frontendUrl,
+// CORS - Permitir localhost y URLs de localtunnel
+const allowedOrigins = [
+  config.server.frontendUrl,
+  'http://localhost:3000',
+  'https://localhost:3000'
+];
+
+// Agregar cualquier URL de localtunnel si está configurada
+if (process.env.FRONTEND_URL && process.env.FRONTEND_URL.includes('.loca.lt')) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+// Función para verificar el origen
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Permitir requests sin origen (como Postman o aplicaciones móviles)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Permitir localhost
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
+    // Permitir cualquier URL de localtunnel
+    if (origin.includes('.loca.lt')) {
+      return callback(null, true);
+    }
+    
+    // Verificar si el origen está en la lista permitida
+    if (allowedOrigins.some(allowed => origin === allowed)) {
+      return callback(null, true);
+    }
+    
+    callback(new Error('No permitido por CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
+};
+
+app.use(cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({

@@ -20,10 +20,8 @@ const startServer = async (): Promise<void> => {
         // Probar conexión a la base de datos
         await testConnection();
 
-        // Sincronizar modelos (solo en desarrollo)
-        if (config.server.nodeEnv === 'development') {
-            await syncDatabase();
-        }
+        // Sincronizar modelos (crear tablas si no existen)
+        await syncDatabase();
 
         // Pre-cargar feriados de Chile para mejorar rendimiento
         try {

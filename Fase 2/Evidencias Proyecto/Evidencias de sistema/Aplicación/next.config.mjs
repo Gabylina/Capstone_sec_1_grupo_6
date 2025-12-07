@@ -9,11 +9,17 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Habilitar modo standalone para Docker
+  output: 'standalone',
   async rewrites() {
+    // En Docker, usar el nombre del servicio; en desarrollo, usar localhost
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 
+      (process.env.NODE_ENV === 'production' ? 'http://backend:3001' : 'http://localhost:3001');
+    
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:3001/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
     ]
   },
