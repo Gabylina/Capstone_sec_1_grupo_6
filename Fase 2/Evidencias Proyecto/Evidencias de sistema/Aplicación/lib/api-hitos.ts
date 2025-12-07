@@ -3,7 +3,16 @@
  * Usa los endpoints existentes de hitoSolicitudService
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+// Función para obtener la URL base de la API
+// En Next.js 16, es mejor obtener las variables de entorno en tiempo de ejecución
+function getApiBaseUrl(): string {
+  // En el cliente, usar window.location.origin si no hay variable de entorno
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  }
+  // En el servidor
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+}
 
 export interface HitoAlert {
   id_hito_solicitud: number
@@ -65,14 +74,23 @@ export interface HitosDashboard {
  */
 export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]> {
   try {
+    const API_BASE_URL = getApiBaseUrl()
     const url = consultorId 
       ? `${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`
       : `${API_BASE_URL}/api/hitos-solicitud/alertas`
     
     console.log(`🔍 [API-HITOS] Obteniendo alertas para consultor: ${consultorId || 'TODOS (admin)'}`)
     console.log(`🔍 [API-HITOS] URL: ${url}`)
+    console.log(`🔍 [API-HITOS] API_BASE_URL: ${API_BASE_URL}`)
     
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // En Next.js 16, puede ser necesario especificar cache y credentials
+      cache: 'no-store',
+    })
     
     console.log(`🔍 [API-HITOS] Response status: ${response.status}`)
     
@@ -101,7 +119,18 @@ export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]
     console.log(`📊 [API-HITOS] Total alertas: ${alertas.length}`)
     return alertas
   } catch (error) {
-    console.error('❌ [API-HITOS] Error al obtener alertas de hitos:', error)
+    // Mejorar el manejo de errores para identificar el problema
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      const API_BASE_URL = getApiBaseUrl()
+      console.error('❌ [API-HITOS] Error de conexión - Failed to fetch')
+      console.error('❌ [API-HITOS] Verifica que:')
+      console.error(`   1. El backend esté corriendo en: ${API_BASE_URL}`)
+      console.error(`   2. La variable NEXT_PUBLIC_API_URL esté configurada correctamente`)
+      console.error(`   3. No haya problemas de CORS`)
+      console.error('❌ [API-HITOS] Error completo:', error)
+    } else {
+      console.error('❌ [API-HITOS] Error al obtener alertas de hitos:', error)
+    }
     return []
   }
 }
@@ -112,9 +141,16 @@ export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]
  */
 export async function getHitosDashboard(consultorId: string | undefined): Promise<HitosDashboard | null> {
   try {
+    const API_BASE_URL = getApiBaseUrl()
     // Si es admin, usar 'all' como parámetro
     const idParam = consultorId || 'all'
-    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/dashboard/${idParam}`)
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/dashboard/${idParam}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
     
     if (!response.ok) {
       throw new Error(`Error al obtener dashboard: ${response.statusText}`)
@@ -133,7 +169,14 @@ export async function getHitosDashboard(consultorId: string | undefined): Promis
  */
 export async function getHitosBySolicitud(solicitudId: number): Promise<HitoAlert[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/solicitud/${solicitudId}`)
+    const API_BASE_URL = getApiBaseUrl()
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/solicitud/${solicitudId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
     
     if (!response.ok) {
       throw new Error(`Error al obtener hitos: ${response.statusText}`)
@@ -152,6 +195,7 @@ export async function getHitosBySolicitud(solicitudId: number): Promise<HitoAler
  */
 export async function completarHito(hitoId: number, fechaCumplimiento?: string): Promise<boolean> {
   try {
+    const API_BASE_URL = getApiBaseUrl()
     const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/${hitoId}/completar`, {
       method: 'PUT',
       headers: {
@@ -159,7 +203,8 @@ export async function completarHito(hitoId: number, fechaCumplimiento?: string):
       },
       body: JSON.stringify({
         fecha_cumplimiento: fechaCumplimiento || new Date().toISOString()
-      })
+      }),
+      cache: 'no-store',
     })
     
     if (!response.ok) {
@@ -178,7 +223,14 @@ export async function completarHito(hitoId: number, fechaCumplimiento?: string):
  */
 export async function getHitosEstadisticas() {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/estadisticas`)
+    const API_BASE_URL = getApiBaseUrl()
+    const response = await fetch(`${API_BASE_URL}/api/hitos-solicitud/estadisticas`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
     
     if (!response.ok) {
       throw new Error(`Error al obtener estadísticas: ${response.statusText}`)
