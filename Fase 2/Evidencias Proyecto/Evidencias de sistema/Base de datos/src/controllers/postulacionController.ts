@@ -83,7 +83,7 @@ export class PostulacionController {
                     comentario_no_presentado,
                     situacion_familiar,
                     cv_file: cvFile
-                });
+                }, req.user?.id);
 
                 Logger.info(`Postulación creada para candidato existente: ${nuevaPostulacion.id}`);
                 return sendSuccess(res, nuevaPostulacion, 'Postulación creada exitosamente', 201);
@@ -242,7 +242,7 @@ export class PostulacionController {
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            await PostulacionService.deletePostulacion(parseInt(id));
+            await PostulacionService.deletePostulacion(parseInt(id), req.user?.id);
 
             Logger.info(`Postulación eliminada: ${id}`);
             return sendSuccess(res, null, 'Postulación eliminada exitosamente');
@@ -269,7 +269,7 @@ export class PostulacionController {
                 return sendError(res, 'No se proporcionó ningún archivo', 400);
             }
 
-            await PostulacionService.uploadCV(parseInt(id), req.file.buffer);
+            await PostulacionService.uploadCV(parseInt(id), req.file.buffer, req.user?.id);
 
             Logger.info(`CV actualizado para postulación ${id}`);
             return sendSuccess(res, null, 'CV actualizado exitosamente');

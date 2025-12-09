@@ -345,10 +345,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Agregar resultado de test a una evaluación
      */
-    static async addTestResultado(idEvaluacion: number, idTest: number, resultado: string) {
+    static async addTestResultado(idEvaluacion: number, idTest: number, resultado: string, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(idEvaluacion);
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');
@@ -390,10 +395,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Eliminar resultado de test de una evaluación
      */
-    static async deleteTestResultado(idEvaluacion: number, idTest: number) {
+    static async deleteTestResultado(idEvaluacion: number, idTest: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacionTest = await EvaluacionTest.findOne({
                 where: {
                     id_evaluacion_psicolaboral: idEvaluacion,
@@ -556,10 +566,15 @@ export class EvaluacionPsicolaboralService {
     /**
      * Eliminar una evaluación psicolaboral
      */
-    static async deleteEvaluacion(id: number) {
+    static async deleteEvaluacion(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const evaluacion = await EvaluacionPsicolaboral.findByPk(id);
             if (!evaluacion) {
                 throw new Error('Evaluación no encontrada');

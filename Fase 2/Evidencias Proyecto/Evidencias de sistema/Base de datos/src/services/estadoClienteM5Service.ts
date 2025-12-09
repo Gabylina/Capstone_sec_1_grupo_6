@@ -42,8 +42,12 @@ export default class EstadoClienteM5Service {
 
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
+            console.log(`[AUDIT] cambiarEstado M5 - usuarioRut recibido: "${usuarioRut}" (tipo: ${typeof usuarioRut})`);
             if (usuarioRut) {
                 await setDatabaseUser(usuarioRut, transaction);
+                console.log(`[AUDIT] setDatabaseUser llamado con: ${usuarioRut}`);
+            } else {
+                console.warn(`[AUDIT] ⚠️ NO se estableció usuario para auditoría - usuarioRut es: ${usuarioRut}`);
             }
             const { id_estado_cliente_postulacion_m5, fecha_feedback_cliente_m5, comentario_modulo5_cliente } = data;
 
@@ -404,8 +408,12 @@ export default class EstadoClienteM5Service {
         const transaction: Transaction = await sequelize.transaction();
         try {
             // Establecer el usuario en la transacción para los triggers de auditoría
+            console.log(`[AUDIT] actualizarCandidatoModulo5 - usuarioRut recibido: "${usuarioRut}"`);
             if (usuarioRut) {
                 await setDatabaseUser(usuarioRut, transaction);
+                console.log(`[AUDIT] setDatabaseUser llamado en actualizarCandidatoModulo5 con: ${usuarioRut}`);
+            } else {
+                console.warn(`[AUDIT] ⚠️ NO se estableció usuario en actualizarCandidatoModulo5 - usuarioRut es: ${usuarioRut}`);
             }
             Logger.info(`[DEBUG] actualizarCandidatoModulo5 - Postulación: ${id_postulacion}`);
             Logger.info(`[DEBUG] Datos recibidos:`, JSON.stringify(data, null, 2));

@@ -56,6 +56,8 @@ export default class EstadoClienteM5Controller {
             // Se validará automáticamente en el servicio
 
             const usuarioRut = (req as any).user?.id;
+            console.log(`[CONTROLLER] cambiarEstado M5 - req.user:`, (req as any).user);
+            console.log(`[CONTROLLER] cambiarEstado M5 - usuarioRut extraído: "${usuarioRut}"`);
             const result = await EstadoClienteM5Service.cambiarEstado(
                 parseInt(id_postulacion),
                 {
@@ -192,6 +194,8 @@ static async actualizarCandidatoModulo5(req: Request, res: Response): Promise<Re
         }
 
         const usuarioRut = (req as any).user?.id;
+        console.log(`[CONTROLLER] actualizarCandidatoModulo5 - req.user:`, (req as any).user);
+        console.log(`[CONTROLLER] actualizarCandidatoModulo5 - usuarioRut extraído: "${usuarioRut}"`);
         const result = await EstadoClienteM5Service.actualizarCandidatoModulo5(
             parseInt(id_postulacion),
             {

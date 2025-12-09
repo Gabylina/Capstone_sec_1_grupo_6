@@ -112,7 +112,8 @@ export class EvaluacionPsicolaboralController {
             const evaluacion = await EvaluacionPsicolaboralService.addTestResultado(
                 parseInt(id),
                 parseInt(id_test),
-                resultado
+                resultado,
+                req.user?.id
             );
             
             return sendSuccess(res, evaluacion, 'Resultado de test agregado exitosamente');
@@ -132,7 +133,8 @@ export class EvaluacionPsicolaboralController {
             
             await EvaluacionPsicolaboralService.deleteTestResultado(
                 parseInt(id),
-                parseInt(idTest)
+                parseInt(idTest),
+                req.user?.id
             );
             
             return sendSuccess(res, null, 'Resultado de test eliminado exitosamente');
@@ -228,7 +230,7 @@ export class EvaluacionPsicolaboralController {
             const fechaEnvio = fecha_envio_informe ? new Date(fecha_envio_informe) : undefined;
             // Pasar conclusión global como undefined si está vacía o null
             const conclusionToSave = (conclusion_global && conclusion_global.trim().length > 0) ? conclusion_global.trim() : undefined;
-            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusionToSave, fechaEnvio);
+            const evaluacion = await EvaluacionPsicolaboralService.actualizarInformeCompleto(parseInt(id), estado_informe, conclusionToSave, fechaEnvio, req.user?.id);
             return sendSuccess(res, evaluacion, 'Informe actualizado completamente');
         } catch (error) {
             Logger.error('Error al actualizar informe completo:', error);
@@ -243,7 +245,7 @@ export class EvaluacionPsicolaboralController {
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            await EvaluacionPsicolaboralService.deleteEvaluacion(parseInt(id));
+            await EvaluacionPsicolaboralService.deleteEvaluacion(parseInt(id), req.user?.id);
             return sendSuccess(res, null, 'Evaluación eliminada exitosamente');
         } catch (error) {
             Logger.error('Error al eliminar evaluación:', error);

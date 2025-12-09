@@ -202,10 +202,15 @@ export class PostulacionService {
         comentario_no_presentado?: string;
         situacion_familiar?: string;
         cv_file?: Buffer;
-    }) {
+    }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             // Validar campos requeridos (id_portal_postulacion es opcional)
             if (!data.id_candidato || !data.id_solicitud || !data.id_estado_candidato) {
                 throw new Error('Faltan campos requeridos: id_candidato, id_solicitud, id_estado_candidato');
@@ -525,10 +530,15 @@ export class PostulacionService {
     /**
      * Eliminar postulación
      */
-    static async deletePostulacion(id: number) {
+    static async deletePostulacion(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const postulacion = await Postulacion.findByPk(id);
             if (!postulacion) {
                 throw new Error('Postulación no encontrada');
@@ -547,8 +557,15 @@ export class PostulacionService {
     /**
      * Subir o actualizar CV de postulación
      */
-    static async uploadCV(id: number, cvBuffer: Buffer) {
+    static async uploadCV(id: number, cvBuffer: Buffer, usuarioRut?: string) {
+        const transaction: Transaction = await sequelize.transaction();
+
         try {
+            // Establecer el usuario en la transacción para los triggers de auditoría
+            if (usuarioRut) {
+                await setDatabaseUser(usuarioRut, transaction);
+            }
+
             const postulacion = await Postulacion.findByPk(id);
             if (!postulacion) {
                 throw new Error('Postulación no encontrada');
@@ -556,10 +573,12 @@ export class PostulacionService {
 
             await postulacion.update({
                 cv_postulacion: cvBuffer
-            });
+            }, { transaction });
 
+            await transaction.commit();
             return { id, message: 'CV actualizado exitosamente' };
         } catch (error) {
+            await transaction.rollback();
             throw error;
         }
     }
