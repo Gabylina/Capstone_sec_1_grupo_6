@@ -22,6 +22,125 @@ import { setDatabaseUser } from '@/utils/databaseUser';
 
 export class CandidatoService {
     /**
+     * Obtener candidatos con paginación y filtros
+     */
+    static async getCandidatosPaginados(filters: {
+        page?: number;
+        limit?: number;
+        search?: string;
+        rut?: string;
+        email?: string;
+        nombre?: string;
+        comuna?: string;
+        profesion?: string;
+    }) {
+        const { Op } = require('sequelize');
+        const page = filters.page || 1;
+        const limit = filters.limit || 20;
+        const offset = (page - 1) * limit;
+
+        const whereClause: any = {};
+
+        // Filtro de búsqueda general (nombre, email, rut)
+        if (filters.search) {
+            const searchTerm = `%${filters.search.trim()}%`;
+            whereClause[Op.or] = [
+                { nombre_candidato: { [Op.iLike]: searchTerm } },
+                { primer_apellido_candidato: { [Op.iLike]: searchTerm } },
+                { segundo_apellido_candidato: { [Op.iLike]: searchTerm } },
+                { email_candidato: { [Op.iLike]: searchTerm } },
+                { rut_candidato: { [Op.iLike]: searchTerm } }
+            ];
+        }
+
+        // Filtros específicos
+        if (filters.rut) {
+            whereClause.rut_candidato = { [Op.iLike]: `%${filters.rut}%` };
+        }
+        if (filters.email) {
+            whereClause.email_candidato = { [Op.iLike]: `%${filters.email}%` };
+        }
+        if (filters.nombre) {
+            const nombreTerm = `%${filters.nombre.trim()}%`;
+            whereClause[Op.or] = [
+                { nombre_candidato: { [Op.iLike]: nombreTerm } },
+                { primer_apellido_candidato: { [Op.iLike]: nombreTerm } },
+                { segundo_apellido_candidato: { [Op.iLike]: nombreTerm } }
+            ];
+        }
+
+        const { count, rows: candidatos } = await Candidato.findAndCountAll({
+            where: whereClause,
+            include: [
+                {
+                    model: Comuna,
+                    as: 'comuna',
+                    attributes: ['id_comuna', 'nombre_comuna'],
+                    ...(filters.comuna ? { where: { nombre_comuna: { [Op.iLike]: `%${filters.comuna}%` } } } : {})
+                },
+                {
+                    model: Nacionalidad,
+                    as: 'nacionalidad',
+                    attributes: ['id_nacionalidad', 'nombre_nacionalidad']
+                },
+                {
+                    model: Profesion,
+                    as: 'profesiones',
+                    through: { attributes: [] },
+                    ...(filters.profesion ? { where: { nombre_profesion: { [Op.iLike]: `%${filters.profesion}%` } } } : {})
+                },
+                {
+                    model: Postulacion,
+                    as: 'postulaciones',
+                    attributes: ['id_postulacion', 'id_solicitud', 'id_estado_candidato'],
+                    separate: true,
+                    limit: 5,
+                    order: [['id_postulacion', 'DESC']]
+                }
+            ],
+            order: [['id_candidato', 'DESC']],
+            limit,
+            offset,
+            distinct: true
+        });
+
+        const totalPages = Math.ceil(count / limit);
+
+        return {
+            data: candidatos.map(candidato => this.transformCandidatoBasico(candidato)),
+            pagination: {
+                currentPage: page,
+                totalPages,
+                totalItems: count,
+                itemsPerPage: limit,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            }
+        };
+    }
+
+    /**
+     * Transformar candidato a formato básico para listado
+     */
+    private static transformCandidatoBasico(candidato: any) {
+        return {
+            id: candidato.id_candidato.toString(),
+            name: candidato.getNombreCompleto(),
+            nombre: candidato.nombre_candidato,
+            primer_apellido: candidato.primer_apellido_candidato,
+            segundo_apellido: candidato.segundo_apellido_candidato,
+            email: candidato.email_candidato,
+            phone: candidato.telefono_candidato,
+            rut: candidato.rut_candidato || '',
+            edad: candidato.edad_candidato,
+            comuna: candidato.comuna?.nombre_comuna || '',
+            nacionalidad: candidato.nacionalidad?.nombre_nacionalidad || '',
+            profesion: candidato.profesiones?.[0]?.nombre_profesion || '',
+            total_postulaciones: candidato.postulaciones?.length || 0
+        };
+    }
+
+    /**
      * Obtener todos los candidatos con información completa
      */
     static async getAllCandidatos(filters?: {

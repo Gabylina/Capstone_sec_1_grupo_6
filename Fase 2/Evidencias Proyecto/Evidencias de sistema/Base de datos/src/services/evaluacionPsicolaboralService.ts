@@ -225,8 +225,8 @@ export class EvaluacionPsicolaboralService {
                     const tipoServicio = solicitud.get('tipoServicio') as any;
                     if (tipoServicio) {
                         const codigoServicio = tipoServicio.codigo_servicio;
-                        // Solo marcar para servicios de evaluación/test (ES, EP, AP, TS)
-                        if (['ES', 'EP', 'AP', 'TS'].includes(codigoServicio)) {
+                        // Solo marcar para servicios de evaluación/test (ES, EP, TS)
+                        if (['ES', 'EP', 'TS'].includes(codigoServicio)) {
                             await HitoHelperService.marcarHitoAgendarEntrevista(
                                 solicitud.id_solicitud,
                                 codigoServicio,
@@ -324,8 +324,8 @@ export class EvaluacionPsicolaboralService {
                         const tipoServicio = solicitud.get('tipoServicio') as any;
                         if (tipoServicio) {
                             const codigoServicio = tipoServicio.codigo_servicio;
-                            // Solo marcar para servicios de evaluación/test (ES, AP, TS)
-                            if (['ES', 'AP', 'TS'].includes(codigoServicio)) {
+                            // Solo marcar para servicios de evaluación/test (ES, EP, TS)
+                            if (['ES', 'EP', 'TS'].includes(codigoServicio)) {
                                 await HitoHelperService.marcarHitoAgendarEntrevista(
                                     solicitud.id_solicitud,
                                     codigoServicio,

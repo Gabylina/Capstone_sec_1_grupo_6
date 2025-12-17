@@ -10,6 +10,9 @@ const router = Router();
  */
 
 // Rutas públicas de lectura (GET)
+// Historial de candidatos con paginación y filtros
+router.get('/historial', CandidatoController.getHistorial);
+
 // Buscar candidato por email
 router.get('/email/:email', CandidatoController.getByEmail);
 

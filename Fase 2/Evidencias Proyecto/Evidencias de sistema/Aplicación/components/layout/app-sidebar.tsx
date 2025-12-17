@@ -54,6 +54,11 @@ const consultorMenuItems = [
     icon: Briefcase,
     href: "/consultor",
   },
+  {
+    title: "Historial Candidatos",
+    icon: Users,
+    href: "/consultor/candidatos",
+  },
 ]
 
 const commonMenuItems = [

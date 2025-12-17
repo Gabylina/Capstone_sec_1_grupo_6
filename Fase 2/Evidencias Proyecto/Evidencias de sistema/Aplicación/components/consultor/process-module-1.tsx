@@ -975,7 +975,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       />
 
       {/* Card para avanzar al siguiente módulo */}
-      {(process.service_type === 'ES' || process.service_type === 'EP' || process.service_type === 'TS' || process.service_type === 'AP') ? (
+      {(process.service_type === 'ES' || process.service_type === 'EP' || process.service_type === 'TS') ? (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">

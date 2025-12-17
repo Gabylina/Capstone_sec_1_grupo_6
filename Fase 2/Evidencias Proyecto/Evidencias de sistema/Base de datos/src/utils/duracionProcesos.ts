@@ -10,11 +10,9 @@ const DURACION_PROCESOS: Record<string, number> = {
     'HH': 26,  // Hunting: 26 días hábiles
     'ES': 2,   // Evaluación Psicolaboral / Remota: 2 días hábiles
     'EP': 2,   // Evaluación Potencial: 2 días hábiles (igual que ES)
-    'AP': 4,   // Evaluación de Potencial: 4 días hábiles
     'TS': 1,   // Test Psicolaboral: 1 día hábil
     'LL': 11,  // Long List: 11 días hábiles
     'FI': 11,  // Filtro Inteligente: 11 días hábiles (igual que Long List)
-    'AO': 9,   // Análisis Organizacional: 9 días hábiles
     'TR': 11,  // Target Recruitment: 11 días hábiles
     'PP': 6    // Publicación en Portales: 6 días hábiles
 };

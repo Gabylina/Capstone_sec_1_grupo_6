@@ -1548,7 +1548,6 @@ export class SolicitudService {
                     'ES': 'Evaluación Psicolaboral',
                     'EP': 'Evaluación Potencial',
                     'TS': 'Test Psicolaboral',
-                    'AO': 'Filtro Inteligente',
                 };
 
                 const serviceLabel = serviceMapping[codigoServicio] || nombreServicio;

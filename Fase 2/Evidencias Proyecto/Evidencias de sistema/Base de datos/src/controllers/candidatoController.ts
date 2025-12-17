@@ -31,6 +31,32 @@ export class CandidatoController {
     }
 
     /**
+     * GET /api/candidatos/historial
+     * Obtener candidatos con paginación y filtros para el historial
+     */
+    static async getHistorial(req: Request, res: Response): Promise<Response> {
+        try {
+            const { page, limit, search, rut, email, nombre, comuna, profesion } = req.query;
+            
+            const result = await CandidatoService.getCandidatosPaginados({
+                page: page ? parseInt(page as string) : 1,
+                limit: limit ? parseInt(limit as string) : 20,
+                search: search as string,
+                rut: rut as string,
+                email: email as string,
+                nombre: nombre as string,
+                comuna: comuna as string,
+                profesion: profesion as string
+            });
+
+            return sendSuccess(res, result, 'Historial de candidatos obtenido exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener historial de candidatos:', error);
+            return sendError(res, 'Error al obtener historial de candidatos', 500);
+        }
+    }
+
+    /**
      * GET /api/candidatos/:id
      * Obtener un candidato específico
      */

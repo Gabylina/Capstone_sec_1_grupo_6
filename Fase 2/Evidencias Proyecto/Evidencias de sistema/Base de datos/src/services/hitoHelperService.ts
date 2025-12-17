@@ -103,7 +103,7 @@ export class HitoHelperService {
         try {
             // Mapeo de transiciones de etapa a nombres de hitos
             const serviciosProcesosCompletos = ['PC', 'HH'];
-            const serviciosLongList = ['LL', 'TR', 'AO', 'FI'];
+            const serviciosLongList = ['LL', 'TR', 'FI'];
 
             // Transición de Módulo 2 → Módulo 3 (Etapa 2 → 3)
             if (idEtapaAnterior === 2 && idEtapaNueva === 3) {
@@ -171,7 +171,7 @@ export class HitoHelperService {
 
             if (codigoServicio === 'TS') {
                 nombreHito = 'Agendar test';
-            } else if (codigoServicio === 'ES' || codigoServicio === 'AP') {
+            } else if (codigoServicio === 'ES' || codigoServicio === 'EP') {
                 nombreHito = 'Agendar entrevista';
             } else {
                 return; // No aplica para otros servicios
@@ -206,7 +206,7 @@ export class HitoHelperService {
             let nombreHito: string | null = null;
 
             // Servicios de evaluación
-            if (codigoServicio === 'ES' || codigoServicio === 'AP') {
+            if (codigoServicio === 'ES' || codigoServicio === 'EP') {
                 nombreHito = 'Envío de informe';
             } else if (codigoServicio === 'TS') {
                 nombreHito = 'Entrega de resultado';

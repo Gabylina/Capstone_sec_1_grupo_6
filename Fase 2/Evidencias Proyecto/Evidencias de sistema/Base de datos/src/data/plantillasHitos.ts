@@ -158,26 +158,6 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         }
     ],
 
-    // FILTRO INTELIGENTE (AO) - 8 días hábiles
-    AO: [
-        {
-            nombre_hito: "Publicación de cargo",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 1,
-            avisar_antes_dias: 0,
-            descripcion: "Publicar el cargo al día siguiente del ingreso",
-            codigo_servicio: "AO"
-        },
-        {
-            nombre_hito: "Presentación de candidatos",
-            tipo_ancla: 'publicacion',
-            duracion_dias: 8,
-            avisar_antes_dias: 5,
-            descripcion: "Presentar candidatos al cliente",
-            codigo_servicio: "AO"
-        }
-    ],
-
     // PUBLICACIÓN EN PORTALES (PP) - 5 días hábiles
     PP: [
         {
@@ -235,26 +215,6 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             avisar_antes_dias: 1,
             descripcion: "Entregar informe de evaluación potencial (2 días hábiles desde la entrevista)",
             codigo_servicio: "EP"
-        }
-    ],
-
-    // EVALUACIÓN POTENCIAL (AP) - 4 días hábiles
-    AP: [
-        {
-            nombre_hito: "Agendar entrevista",
-            tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
-            avisar_antes_dias: 0,
-            descripcion: "Agendar entrevista dentro de 4 horas del mismo día",
-            codigo_servicio: "AP"
-        },
-        {
-            nombre_hito: "Envío de informe",
-            tipo_ancla: 'entrevista',
-            duracion_dias: 4,
-            avisar_antes_dias: 2,
-            descripcion: "Entregar informe de evaluación de potencial (4 días hábiles desde la entrevista)",
-            codigo_servicio: "AP"
         }
     ],
 

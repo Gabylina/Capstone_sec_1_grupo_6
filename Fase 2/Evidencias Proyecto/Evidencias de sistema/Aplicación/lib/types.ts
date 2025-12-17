@@ -1,14 +1,13 @@
 export type ServiceType =
-  | "PC" // proceso_completo (DS)
+  | "PC" // proceso_completo
   | "LL" // long_list
   | "FI" // filtro_inteligente (igual que long_list)
   | "TR" // targeted_recruitment
   | "HS" // headhunting
-  | "AO" // analisis_organizacional
   | "ES" // evaluacion_psicolaboral
   | "EP" // evaluacion_potencial (igual que ES)
   | "TS" // test_psicolaboral
-  | "AP" // evaluacion_potencial_avanzada
+  | "PP" // publicacion_portales
 
 export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado" | "Creado" | "En Progreso" | "Cerrado" | "Congelado" | "Cancelado"
 
