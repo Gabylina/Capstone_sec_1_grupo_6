@@ -1,8 +1,11 @@
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -11,6 +14,10 @@ const nextConfig = {
   },
   // Habilitar modo standalone para Docker
   output: 'standalone',
+  // Configurar turbopack root para evitar warning de múltiples lockfiles
+  turbopack: {
+    root: __dirname,
+  },
   async rewrites() {
     // En Docker, usar el nombre del servicio; en desarrollo, usar localhost
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 
