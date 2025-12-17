@@ -185,7 +185,7 @@ export default function ConsultorPage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 overflow-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mis Procesos</h1>
@@ -270,6 +270,7 @@ export default function ConsultorPage() {
             <CardDescription>Estos procesos están asignados pero aún no han sido iniciados</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -323,6 +324,7 @@ export default function ConsultorPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -427,6 +429,7 @@ export default function ConsultorPage() {
               )}
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -479,6 +482,7 @@ export default function ConsultorPage() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
