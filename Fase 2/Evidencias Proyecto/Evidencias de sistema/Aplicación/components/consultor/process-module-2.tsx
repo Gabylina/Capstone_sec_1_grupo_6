@@ -54,7 +54,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2 } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -179,6 +179,19 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null)
 
   const [showEditCandidate, setShowEditCandidate] = useState(false)
+
+  // Estados para historial de candidatos
+  const [showHistorialDialog, setShowHistorialDialog] = useState(false)
+  const [historialCandidatos, setHistorialCandidatos] = useState<any[]>([])
+  const [historialSearchTerm, setHistorialSearchTerm] = useState("")
+  const [historialLoading, setHistorialLoading] = useState(false)
+  const [historialPagination, setHistorialPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10
+  })
+  const [initialDataFromHistorial, setInitialDataFromHistorial] = useState<any | null>(null)
 
   // Estados para formularios múltiples de editar candidato
   const [editWorkExperienceForms, setEditWorkExperienceForms] = useState<any[]>([])
@@ -369,6 +382,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   // Filtrar portales para mostrar solo los que tienen publicaciones activas
   // Si estamos editando un candidato, también incluimos su portal actual aunque no esté activo
+  // Si estamos agregando desde historial, incluimos el portal "Interno"
   const portalesConPublicacionesActivas = useMemo(() => {
     // Si portalesDB aún no está cargado, retornar array vacío
     if (!portalesDB || portalesDB.length === 0) {
@@ -395,13 +409,20 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       }
     }
     
+    // Buscar el portal "Interno" para candidatos del historial
+    const portalInterno = portalesDB.find((p: any) => 
+      p.nombre?.toLowerCase() === 'interno'
+    )
+    
     // Filtrar portalesDB para incluir solo los que tienen publicaciones activas
     // o el portal actual del candidato que se está editando
+    // o el portal "Interno" si estamos agregando desde historial
     return portalesDB.filter((portal: any) => 
       portalesActivosIds.has(portal.id) || 
-      (portalActualId !== null && portal.id === portalActualId)
+      (portalActualId !== null && portal.id === portalActualId) ||
+      (initialDataFromHistorial && portalInterno && portal.id === portalInterno.id)
     )
-  }, [publications, portalesDB, editingCandidate])
+  }, [publications, portalesDB, editingCandidate, initialDataFromHistorial])
 
 
 
@@ -902,19 +923,25 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       return
     }
     
-    // Validar que el portal seleccionado ya haya sido publicado
+    // Verificar si es el portal "Interno" (no requiere publicación)
     const selectedPortalId = parseInt(formData.source_portal)
-    const portalExistsInPublications = publications.some((publication: any) => 
-      publication.id_portal_postulacion === selectedPortalId
-    )
+    const portalSeleccionado = portalesDB.find((p: any) => p.id === selectedPortalId)
+    const esPortalInterno = portalSeleccionado?.nombre?.toLowerCase() === 'interno'
     
-    if (!portalExistsInPublications) {
-      showToast({
-        type: "error",
-        title: "Portal no publicado",
-        description: "Debes publicar en este portal antes de agregar candidatos desde él. Ve a la sección 'Publicaciones en Portales' y agrega una publicación para este portal.",
-      })
-      return
+    // Validar que el portal seleccionado ya haya sido publicado (excepto si es "Interno")
+    if (!esPortalInterno) {
+      const portalExistsInPublications = publications.some((publication: any) => 
+        publication.id_portal_postulacion === selectedPortalId
+      )
+      
+      if (!portalExistsInPublications) {
+        showToast({
+          type: "error",
+          title: "Portal no publicado",
+          description: "Debes publicar en este portal antes de agregar candidatos desde él. Ve a la sección 'Publicaciones en Portales' y agrega una publicación para este portal.",
+        })
+        return
+      }
     }
     
     try {
@@ -2428,7 +2455,105 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     }
   }
 
-
+  // =============================================
+  // FUNCIONES PARA HISTORIAL DE CANDIDATOS
+  // =============================================
+  
+  // Buscar candidatos en el historial
+  const searchHistorialCandidatos = async (page: number = 1, searchTerm: string = "") => {
+    setHistorialLoading(true)
+    try {
+      const response = await candidatoService.getHistorial({
+        page,
+        limit: 10,
+        search: searchTerm || undefined
+      })
+      
+      if (response.success && response.data) {
+        setHistorialCandidatos(response.data.data || [])
+        setHistorialPagination({
+          currentPage: response.data.pagination?.currentPage || 1,
+          totalPages: response.data.pagination?.totalPages || 1,
+          totalItems: response.data.pagination?.totalItems || 0,
+          itemsPerPage: response.data.pagination?.itemsPerPage || 10
+        })
+      } else {
+        setHistorialCandidatos([])
+      }
+    } catch (error) {
+      console.error("Error al buscar candidatos:", error)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "No se pudo cargar el historial de candidatos"
+      })
+    } finally {
+      setHistorialLoading(false)
+    }
+  }
+  
+  // Efecto para buscar candidatos cuando cambia el término de búsqueda
+  useEffect(() => {
+    if (showHistorialDialog) {
+      const timeoutId = setTimeout(() => {
+        searchHistorialCandidatos(1, historialSearchTerm)
+      }, 300)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [historialSearchTerm, showHistorialDialog])
+  
+  // Seleccionar candidato del historial y prellenar el formulario
+  const handleSelectHistorialCandidate = (candidato: any) => {
+    console.log("Candidato seleccionado del historial:", candidato)
+    
+    // Buscar el portal "Interno" en la lista de portales
+    const portalInterno = portalesDB.find((p: any) => 
+      p.nombre?.toLowerCase() === 'interno'
+    )
+    console.log("Portal Interno encontrado:", portalInterno)
+    
+    // Preparar datos iniciales para el formulario
+    // Los campos vienen del backend con esta estructura (transformCandidatoBasico):
+    // id, name, nombre, primer_apellido, segundo_apellido, email, phone, rut, edad, comuna, nacionalidad, profesion
+    const initialData = {
+      nombre: candidato.nombre || "",
+      primer_apellido: candidato.primer_apellido || "",
+      segundo_apellido: candidato.segundo_apellido || "",
+      email: candidato.email || "",
+      phone: candidato.phone || "",
+      rut: candidato.rut || "",
+      birth_date: "", // No viene en el historial básico
+      age: candidato.edad || 0,
+      region: "", // No viene en el historial básico
+      comuna: candidato.comuna || "",
+      nacionalidad: candidato.nacionalidad || "",
+      rubro: "",
+      has_disability_credential: false,
+      licencia: false,
+      consultant_rating: 3,
+      // Asignar automáticamente el portal "Interno" si existe
+      source_portal: portalInterno ? portalInterno.id.toString() : "",
+      professions: [], // No viene en el historial básico
+      education: [],
+      work_experience: [],
+      portal_responses: {
+        motivation: "",
+        salary_expectation: "",
+        availability: "",
+        family_situation: "",
+        rating: 3,
+        english_level: "",
+        software_tools: "",
+      }
+    }
+    
+    console.log("Datos iniciales preparados:", initialData)
+    
+    setInitialDataFromHistorial(initialData)
+    setShowHistorialDialog(false)
+    setShowAddCandidate(true)
+    setHistorialSearchTerm("")
+  }
 
   // Mostrar indicador de carga
 
@@ -2774,6 +2899,16 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
             <div className="flex gap-2">
 
+              {/* Botón para agregar desde historial */}
+              <Button 
+                variant="outline" 
+                disabled={isBlocked}
+                onClick={() => setShowHistorialDialog(true)}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Agregar desde Historial
+              </Button>
+
               <Dialog open={showAddCandidate} onOpenChange={(open) => {
                 setShowAddCandidate(open)
                 if (!open) {
@@ -2787,6 +2922,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                     profession_date: ''
                   }])
                   clearAllErrors()
+                  setInitialDataFromHistorial(null) // Limpiar datos del historial
                 }
               }}>
 
@@ -2806,11 +2942,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                   <DialogHeader>
 
-                    <DialogTitle>Nuevo Candidato</DialogTitle>
+                    <DialogTitle>{initialDataFromHistorial ? "Agregar Candidato desde Historial" : "Nuevo Candidato"}</DialogTitle>
 
                     <DialogDescription>
 
-                      Registra un nuevo candidato para el proceso con toda su información
+                      {initialDataFromHistorial 
+                        ? "Los datos del candidato han sido precargados. Complete la información faltante."
+                        : "Registra un nuevo candidato para el proceso con toda su información"
+                      }
 
                     </DialogDescription>
 
@@ -2818,8 +2957,12 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                   <CandidateForm
                     mode="create"
+                    initialData={initialDataFromHistorial || undefined}
                     onSubmit={handleAddCandidateSubmit}
-                    onCancel={() => setShowAddCandidate(false)}
+                    onCancel={() => {
+                      setShowAddCandidate(false)
+                      setInitialDataFromHistorial(null)
+                    }}
                     regiones={regiones}
                     todasLasComunas={todasLasComunas}
                     profesiones={profesiones}
@@ -3074,6 +3217,116 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         candidate={selectedCandidate}
         onSuccess={handleStatusChangeSuccess}
       />
+
+      {/* Diálogo para buscar candidatos en el historial */}
+      <Dialog open={showHistorialDialog} onOpenChange={(open) => {
+        setShowHistorialDialog(open)
+        if (!open) {
+          setHistorialSearchTerm("")
+          setHistorialCandidatos([])
+        }
+      }}>
+        <DialogContent className="!max-w-[95vw] !w-[95vw] !h-[80vh] overflow-hidden flex flex-col pb-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Buscar Candidato en Historial
+            </DialogTitle>
+            <DialogDescription>
+              Busca y selecciona un candidato existente para agregarlo a este proceso
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Barra de búsqueda */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre, RUT o email..."
+              value={historialSearchTerm}
+              onChange={(e) => setHistorialSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* Lista de candidatos */}
+          <div className="flex-1 overflow-y-auto border rounded-md min-h-[400px]">
+            {historialLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : historialCandidatos.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[250px]">Nombre</TableHead>
+                    <TableHead className="w-[120px]">RUT</TableHead>
+                    <TableHead className="w-[200px]">Email</TableHead>
+                    <TableHead className="w-[120px]">Teléfono</TableHead>
+                    <TableHead className="w-[150px]">Comuna</TableHead>
+                    <TableHead className="w-[100px]">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historialCandidatos.map((candidato) => (
+                    <TableRow key={candidato.id || candidato.id_candidato}>
+                      <TableCell className="font-medium">
+                        {candidato.name || `${candidato.nombre || ''} ${candidato.primer_apellido || ''} ${candidato.segundo_apellido || ''}`.trim()}
+                      </TableCell>
+                      <TableCell>{candidato.rut || candidato.rut_candidato || "-"}</TableCell>
+                      <TableCell className="truncate max-w-[200px]">{candidato.email || candidato.email_candidato || "-"}</TableCell>
+                      <TableCell>{candidato.phone || candidato.telefono_candidato || "-"}</TableCell>
+                      <TableCell>{candidato.comuna || "-"}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          onClick={() => handleSelectHistorialCandidate(candidato)}
+                        >
+                          Seleccionar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Search className="h-12 w-12 mb-4" />
+                <p>{historialSearchTerm ? "No se encontraron candidatos" : "Escribe para buscar candidatos"}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Paginación */}
+          {historialPagination.totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t mt-auto shrink-0 bg-background">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {historialCandidatos.length} de {historialPagination.totalItems} candidatos
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={historialPagination.currentPage <= 1}
+                  onClick={() => searchHistorialCandidatos(historialPagination.currentPage - 1, historialSearchTerm)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm">
+                  Página {historialPagination.currentPage} de {historialPagination.totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={historialPagination.currentPage >= historialPagination.totalPages}
+                  onClick={() => searchHistorialCandidatos(historialPagination.currentPage + 1, historialSearchTerm)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
 
   )

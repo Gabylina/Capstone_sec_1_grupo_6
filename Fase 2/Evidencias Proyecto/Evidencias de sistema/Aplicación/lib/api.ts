@@ -924,6 +924,35 @@ export const candidatoService = {
       body: JSON.stringify(data),
     });
   },
+
+  // Obtener historial de candidatos con paginación y filtros
+  async getHistorial(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    rut?: string;
+    comuna?: string;
+    profesion?: string;
+  } = {}): Promise<ApiResponse<{
+    data: any[];
+    pagination: {
+      totalItems: number;
+      totalPages: number;
+      currentPage: number;
+      itemsPerPage: number;
+    };
+  }>> {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.rut) queryParams.append('rut', params.rut);
+    if (params.comuna) queryParams.append('comuna', params.comuna);
+    if (params.profesion) queryParams.append('profesion', params.profesion);
+    
+    const queryString = queryParams.toString();
+    return apiRequest(`/api/candidatos/historial${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // ===========================================

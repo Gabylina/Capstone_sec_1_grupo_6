@@ -220,10 +220,11 @@ export function CandidateForm({
     return ""
   }
 
-  // Cargar datos iniciales si estamos en modo edición
+  // Cargar datos iniciales si estamos en modo edición O si se pasan datos iniciales (desde historial)
   useEffect(() => {
-    if (mode === 'edit' && initialData) {
+    if (initialData) {
       console.log('🔄 Cargando datos iniciales en CandidateForm:', initialData)
+      console.log('🔄 Modo:', mode)
       
       setFormData({
         nombre: initialData.nombre || "",
@@ -325,7 +326,7 @@ export function CandidateForm({
       console.log('✅ Datos cargados - primer_apellido:', initialData.primer_apellido)
       console.log('✅ Datos cargados - segundo_apellido:', initialData.segundo_apellido)
     }
-  }, [mode, initialData])
+  }, [initialData])
 
   // Filtrar comunas cuando cambia la región
   useEffect(() => {
