@@ -144,6 +144,7 @@ export class EvaluacionPsicolaboralService {
         estado_informe: string;
         conclusion_global: string;
         id_postulacion: number;
+        es_remota?: boolean;
         tests?: Array<{
             id_test_psicolaboral: number;
             resultado_test: string;
@@ -182,7 +183,8 @@ export class EvaluacionPsicolaboralService {
                 estado_evaluacion: data.estado_evaluacion,
                 estado_informe: data.estado_informe,
                 conclusion_global: data.conclusion_global,
-                id_postulacion: data.id_postulacion
+                id_postulacion: data.id_postulacion,
+                es_remota: data.es_remota ?? false
             };
 
             if (fechaEvaluacionSQL) {
@@ -223,8 +225,8 @@ export class EvaluacionPsicolaboralService {
                     const tipoServicio = solicitud.get('tipoServicio') as any;
                     if (tipoServicio) {
                         const codigoServicio = tipoServicio.codigo_servicio;
-                        // Solo marcar para servicios de evaluación/test (ES, AP, TS)
-                        if (['ES', 'AP', 'TS'].includes(codigoServicio)) {
+                        // Solo marcar para servicios de evaluación/test (ES, EP, AP, TS)
+                        if (['ES', 'EP', 'AP', 'TS'].includes(codigoServicio)) {
                             await HitoHelperService.marcarHitoAgendarEntrevista(
                                 solicitud.id_solicitud,
                                 codigoServicio,
@@ -254,6 +256,7 @@ export class EvaluacionPsicolaboralService {
         estado_evaluacion: string;
         estado_informe: string;
         conclusion_global: string;
+        es_remota: boolean;
     }>, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 

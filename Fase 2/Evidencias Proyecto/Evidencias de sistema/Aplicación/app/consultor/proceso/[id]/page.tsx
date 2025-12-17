@@ -311,7 +311,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                            currentStage === "Módulo 4: Evaluación Psicolaboral" ||
                            currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
     
-    if (serviceType === "PC" || serviceType === "LL" || serviceType === "HH") {
+    if (serviceType === "PC" || serviceType === "LL" || serviceType === "FI" || serviceType === "HH") {
       modules.push({ 
         id: "modulo-2", 
         label: "Publicación y Registro de Candidatos", 
@@ -330,7 +330,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       })
     }
 
-    if (serviceType === "PC" || serviceType === "TS" || serviceType === "ES") {
+    if (serviceType === "PC" || serviceType === "TS" || serviceType === "ES" || serviceType === "EP") {
       modules.push({ 
         id: "modulo-4", 
         label: "Evaluación Psicolaboral", 
@@ -494,19 +494,19 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                 <ProcessModule1 process={process} descripcionCargo={descripcionCargo} />
               </TabsContent>
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "HH") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-2" className="mt-0">
                   <ProcessModule2 process={process} />
                 </TabsContent>
               )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "HH") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-3" className="mt-0">
                   <ProcessModule3 process={process} />
                 </TabsContent>
               )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES" || process.tipo_servicio === "EP") && (
                 <TabsContent value="modulo-4" className="mt-0">
                   <ProcessModule4 process={process} />
                 </TabsContent>

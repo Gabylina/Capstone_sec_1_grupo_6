@@ -335,7 +335,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         })
 
         // Si es evaluación/test psicolaboral, cargar candidatos existentes
-        const isEvaluationProcess = solicitud.service_type === 'ES' || solicitud.service_type === 'TS' || solicitud.service_type === 'AP'
+        const isEvaluationProcess = solicitud.service_type === 'ES' || solicitud.service_type === 'EP' || solicitud.service_type === 'TS' || solicitud.service_type === 'AP'
         if (isEvaluationProcess) {
           try {
             const candidatosExistentes = await getCandidatesByProcess(solicitudToEdit.id)
@@ -955,7 +955,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
   const clientContacts = selectedClient?.contactos || []
 
   const isEvaluationProcess =
-    formData.service_type === "ES" || formData.service_type === "TS"
+    formData.service_type === "ES" || formData.service_type === "EP" || formData.service_type === "TS"
 
 
   // Funciones para manejar candidatos

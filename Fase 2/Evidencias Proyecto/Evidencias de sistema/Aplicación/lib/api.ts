@@ -1336,6 +1336,7 @@ export const evaluacionPsicolaboralService = {
     estado_informe: string;
     conclusion_global: string;
     id_postulacion: number;
+    es_remota?: boolean;
   }): Promise<ApiResponse<any>> {
     return apiRequest('/api/evaluaciones-psicolaborales', {
       method: 'POST',
@@ -1350,6 +1351,7 @@ export const evaluacionPsicolaboralService = {
     estado_evaluacion: string;
     estado_informe: string;
     conclusion_global: string;
+    es_remota: boolean;
   }>): Promise<ApiResponse<any>> {
     return apiRequest(`/api/evaluaciones-psicolaborales/${id}`, {
       method: 'PUT',

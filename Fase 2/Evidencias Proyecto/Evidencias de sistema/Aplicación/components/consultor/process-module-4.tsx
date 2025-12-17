@@ -204,7 +204,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         
         // Filtrar candidatos según el tipo de proceso
         let candidatesToShow: Candidate[]
-        if (process.service_type === "ES" || process.service_type === "TS") {
+        if (process.service_type === "ES" || process.service_type === "EP" || process.service_type === "TS") {
           candidatesToShow = allCandidates
         } else {
           candidatesToShow = allCandidates.filter((c: Candidate) => c.client_response === "aprobado")
@@ -454,6 +454,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   const [interviewForm, setInterviewForm] = useState({
     interview_date: "",
     interview_status: "programada" as "programada" | "realizada" | "cancelada",
+    es_remota: false,
   })
   const [interviewDateError, setInterviewDateError] = useState<string>("")
 
@@ -618,7 +619,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
   }
 
   // Determinar si es proceso de evaluación
-  const isEvaluationProcess = process.service_type === "ES" || process.service_type === "TS"
+  const isEvaluationProcess = process.service_type === "ES" || process.service_type === "EP" || process.service_type === "TS"
 
   // Detectar candidatos con estado de informe definido (no pendiente) para habilitar botón de módulo 5
   useEffect(() => {
@@ -781,11 +782,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setInterviewForm({
         interview_date: interviewDate,
         interview_status: statusValue,
+        es_remota: existingEvaluation.es_remota ?? false,
       })
     } else {
       setInterviewForm({
       interview_date: "",
       interview_status: "programada",
+      es_remota: false,
       })
     }
     
@@ -943,6 +946,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
           estado_evaluacion: interviewForm.interview_status === "programada" ? "Programada" : 
                             interviewForm.interview_status === "realizada" ? "Realizada" :
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
+          es_remota: interviewForm.es_remota,
           // NO incluir fecha_envio_informe aquí - solo se actualiza en el diálogo de "Estado del Informe"
         }
         
@@ -958,7 +962,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             interviewForm.interview_status === "cancelada" ? "Cancelada" : "Sin programar",
           estado_informe: "Pendiente",
           conclusion_global: "",
-          id_postulacion: Number(selectedCandidate.id_postulacion)
+          id_postulacion: Number(selectedCandidate.id_postulacion),
+          es_remota: interviewForm.es_remota
         }
         
         await evaluacionPsicolaboralService.create(createData as any)
@@ -988,6 +993,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       setInterviewForm({
         interview_date: "",
         interview_status: "programada",
+        es_remota: false,
     })
     setSelectedCandidate(null)
     setInterviewDateError("")
@@ -2411,7 +2417,8 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Tipo</p>
                 <Badge variant="outline">
-                  {process.service_type === "ES" ? "Evaluación Psicolaboral" : "Test Psicolaboral"}
+                  {process.service_type === "ES" ? "Evaluación Psicolaboral" : 
+                   process.service_type === "EP" ? "Evaluación Potencial" : "Test Psicolaboral"}
                 </Badge>
               </div>
             </div>
@@ -3230,6 +3237,22 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Checkbox Evaluación Remota */}
+            <div className="flex items-center space-x-2 pt-2">
+              <input
+                type="checkbox"
+                id="es_remota"
+                checked={interviewForm.es_remota}
+                onChange={(e) => {
+                  setInterviewForm({ ...interviewForm, es_remota: e.target.checked })
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="es_remota" className="text-sm font-medium cursor-pointer">
+                Evaluación Remota
+              </Label>
             </div>
 
             </div>

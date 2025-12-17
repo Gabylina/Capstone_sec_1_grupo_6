@@ -103,7 +103,7 @@ export class HitoHelperService {
         try {
             // Mapeo de transiciones de etapa a nombres de hitos
             const serviciosProcesosCompletos = ['PC', 'HH'];
-            const serviciosLongList = ['LL', 'TR', 'AO'];
+            const serviciosLongList = ['LL', 'TR', 'AO', 'FI'];
 
             // Transición de Módulo 2 → Módulo 3 (Etapa 2 → 3)
             if (idEtapaAnterior === 2 && idEtapaNueva === 3) {

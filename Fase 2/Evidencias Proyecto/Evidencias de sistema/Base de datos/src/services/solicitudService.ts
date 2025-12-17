@@ -1542,9 +1542,11 @@ export class SolicitudService {
                 const serviceMapping: Record<string, string> = {
                     'PC': 'Proceso Completo',
                     'LL': 'Long List',
+                    'FI': 'Filtro Inteligente',
                     'TR': 'Targeted Recruitment',
                     'HS': 'Headhunting',
                     'ES': 'Evaluación Psicolaboral',
+                    'EP': 'Evaluación Potencial',
                     'TS': 'Test Psicolaboral',
                     'AO': 'Filtro Inteligente',
                 };
@@ -2233,7 +2235,7 @@ export class SolicitudService {
                     INNER JOIN postulacion p ON ecp.id_postulacion = p.id_postulacion
                     INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
                     INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
-                    WHERE pc.codigo_servicio = 'LL'
+                    WHERE pc.codigo_servicio IN ('LL', 'FI')
                       AND ecp.id_estado_cliente = 3
                 ),
                 candidatos_exitosos_es_ts AS (
@@ -2245,7 +2247,7 @@ export class SolicitudService {
                     INNER JOIN postulacion p ON ep.id_postulacion = p.id_postulacion
                     INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
                     INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
-                    WHERE pc.codigo_servicio IN ('ES', 'TS')
+                    WHERE pc.codigo_servicio IN ('ES', 'EP', 'TS')
                       AND ep.estado_evaluacion = 'Realizada'
                 ),
                 todos_candidatos_exitosos AS (

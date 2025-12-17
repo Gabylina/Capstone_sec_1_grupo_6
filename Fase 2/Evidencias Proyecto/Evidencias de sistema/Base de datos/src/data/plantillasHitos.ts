@@ -118,6 +118,26 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         }
     ],
 
+    // FILTRO INTELIGENTE (FI) - 10 días hábiles (igual que Long List)
+    FI: [
+        {
+            nombre_hito: "Publicación de cargo",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 1,
+            avisar_antes_dias: 0,
+            descripcion: "Publicar el cargo al día siguiente del ingreso",
+            codigo_servicio: "FI"
+        },
+        {
+            nombre_hito: "Presentación de candidatos",
+            tipo_ancla: 'publicacion',
+            duracion_dias: 10,
+            avisar_antes_dias: 5,
+            descripcion: "Presentar candidatos al cliente",
+            codigo_servicio: "FI"
+        }
+    ],
+
     // TARGET RECRUITMENT (TR) - 10 días hábiles (proceso abierto)
     TR: [
         {
@@ -195,6 +215,26 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             avisar_antes_dias: 1,
             descripcion: "Entregar informe psicolaboral (2 días hábiles desde la entrevista)",
             codigo_servicio: "ES"
+        }
+    ],
+
+    // EVALUACIÓN POTENCIAL (EP) - 2 días hábiles (igual que ES)
+    EP: [
+        {
+            nombre_hito: "Agendar entrevista",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 0,
+            avisar_antes_dias: 0,
+            descripcion: "Agendar entrevista dentro de 4 horas del mismo día",
+            codigo_servicio: "EP"
+        },
+        {
+            nombre_hito: "Envío de informe",
+            tipo_ancla: 'entrevista',
+            duracion_dias: 2,
+            avisar_antes_dias: 1,
+            descripcion: "Entregar informe de evaluación potencial (2 días hábiles desde la entrevista)",
+            codigo_servicio: "EP"
         }
     ],
 

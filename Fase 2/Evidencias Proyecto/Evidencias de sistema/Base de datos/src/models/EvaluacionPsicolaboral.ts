@@ -13,9 +13,10 @@ interface EvaluacionPsicolaboralAttributes {
     estado_informe: string;
     conclusion_global: string;
     id_postulacion: number;
+    es_remota: boolean;
 }
 
-interface EvaluacionPsicolaboralCreationAttributes extends Optional<EvaluacionPsicolaboralAttributes, 'id_evaluacion_psicolaboral' | 'fecha_envio_informe'> { }
+interface EvaluacionPsicolaboralCreationAttributes extends Optional<EvaluacionPsicolaboralAttributes, 'id_evaluacion_psicolaboral' | 'fecha_envio_informe' | 'es_remota'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -29,6 +30,7 @@ class EvaluacionPsicolaboral extends Model<EvaluacionPsicolaboralAttributes, Eva
     public estado_informe!: string;
     public conclusion_global!: string;
     public id_postulacion!: number;
+    public es_remota!: boolean;
 
     // ===========================================
     // MÉTODOS PERSONALIZADOS
@@ -147,6 +149,12 @@ EvaluacionPsicolaboral.init({
             model: 'postulacion',
             key: 'id_postulacion'
         }
+    },
+    es_remota: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+        comment: 'Indica si la evaluación psicolaboral es remota (true) o presencial (false)'
     }
 }, {
     sequelize,

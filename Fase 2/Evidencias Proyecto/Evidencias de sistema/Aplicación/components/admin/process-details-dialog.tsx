@@ -727,7 +727,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
   const clientContacts = selectedClient?.contactos || []
 
   const isEvaluationProcess =
-    formData.service_type === "ES" || formData.service_type === "TS"
+    formData.service_type === "ES" || formData.service_type === "EP" || formData.service_type === "TS"
 
 
   // Funciones para manejar candidatos
