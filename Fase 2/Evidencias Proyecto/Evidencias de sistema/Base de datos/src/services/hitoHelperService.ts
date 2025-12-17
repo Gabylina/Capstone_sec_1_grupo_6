@@ -118,18 +118,12 @@ export class HitoHelperService {
             }
 
             // Transición de Módulo 3 → Módulo 4 (Etapa 3 → 4)
+            // Solo para PC y HH - LL, FI, TR marcan su hito al finalizar la solicitud
             if (idEtapaAnterior === 3 && idEtapaNueva === 4) {
                 if (serviciosProcesosCompletos.includes(codigoServicio)) {
                     await this.marcarCumplimientoHito(
                         idSolicitud,
                         'Entrevistas con candidatos aprobados',
-                        new Date(),
-                        transaction
-                    );
-                } else if (serviciosLongList.includes(codigoServicio)) {
-                    await this.marcarCumplimientoHito(
-                        idSolicitud,
-                        'Presentación de candidatos',
                         new Date(),
                         transaction
                     );
@@ -212,6 +206,10 @@ export class HitoHelperService {
                 nombreHito = 'Entrega de resultado';
             } else if (codigoServicio === 'PP') {
                 nombreHito = 'Entrega de perfiles y cierre';
+            } else if (codigoServicio === 'LL' || codigoServicio === 'FI' || codigoServicio === 'TR') {
+                // Long List, Filtro Inteligente y Target Recruitment
+                // completan su hito al finalizar la solicitud
+                nombreHito = 'Presentación de candidatos';
             }
 
             if (nombreHito) {

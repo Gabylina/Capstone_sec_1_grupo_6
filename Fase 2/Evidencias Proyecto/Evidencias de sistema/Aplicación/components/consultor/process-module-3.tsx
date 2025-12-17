@@ -147,11 +147,11 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   // Cargar estados de solicitud disponibles para finalización (solo Long List)
   useEffect(() => {
     const loadEstados = async () => {
-      // Solo cargar estados si es Long List
+      // Solo cargar estados si es Long List o Filtro Inteligente
       const serviceType = (process.service_type as string)?.toLowerCase() || ""
-      const isLongList = serviceType === "long_list" || serviceType === "ll"
+      const isLongListOrFI = serviceType === "long_list" || serviceType === "ll" || serviceType === "filtro_inteligente" || serviceType === "fi"
       
-      if (!isLongList) {
+      if (!isLongListOrFI) {
         return
       }
 
@@ -654,7 +654,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                               serviceType === "headhunting" || serviceType === "hs" || 
                               serviceType === "talent_retention" || serviceType === "tr") && 
                               hasApproved && !hasApprovedWithoutFeedback
-  const processEndsHere = serviceType === "long_list" || serviceType === "ll"
+  const processEndsHere = serviceType === "long_list" || serviceType === "ll" || serviceType === "filtro_inteligente" || serviceType === "fi"
   
   // Debug: mostrar el tipo de servicio
   console.log("🔍 Module 3 - Service Type:", {
