@@ -1184,7 +1184,7 @@ export class CandidatoService {
     /**
      * Actualizar estado del candidato
      */
-    static async updateStatus(idCandidato: number, status: string, comment?: string) {
+    static async updateStatus(idCandidato: number, status: string, comment?: string, postulacionId?: number) {
         const transaction = await sequelize.transaction();
 
         try {
@@ -1196,9 +1196,24 @@ export class CandidatoService {
 
             // Buscar la postulación asociada
             const { Postulacion } = await import('@/models');
-            const postulacion = await Postulacion.findOne({
-                where: { id_candidato: idCandidato }
-            });
+            let postulacion;
+            
+            // Si se proporciona postulacionId, buscar por ese ID específico
+            // Esto es importante cuando un candidato tiene múltiples postulaciones
+            if (postulacionId) {
+                postulacion = await Postulacion.findOne({
+                    where: { 
+                        id_postulacion: postulacionId,
+                        id_candidato: idCandidato 
+                    }
+                });
+            } else {
+                // Fallback: buscar la postulación más reciente del candidato
+                postulacion = await Postulacion.findOne({
+                    where: { id_candidato: idCandidato },
+                    order: [['id_postulacion', 'DESC']]
+                });
+            }
 
             if (!postulacion) {
                 throw new Error('Postulación no encontrada para este candidato');

@@ -972,6 +972,70 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       // console.log('Validación OK - preparando datos...')
 
+      // =============================================
+      // CASO ESPECIAL: Candidato del historial (ya existe en BD)
+      // Solo crear la postulación, NO un nuevo candidato
+      // =============================================
+      if (initialDataFromHistorial?.candidatoExistenteId) {
+        console.log('📋 Candidato del historial detectado. ID:', initialDataFromHistorial.candidatoExistenteId)
+        console.log('📋 Solo se creará la postulación, no un nuevo candidato')
+        
+        try {
+          const processIdForPostulation = parseInt(process.id)
+          const postulacionData = {
+            id_candidato: parseInt(initialDataFromHistorial.candidatoExistenteId),
+            id_solicitud: processIdForPostulation,
+            id_portal_postulacion: formData.source_portal ? parseInt(formData.source_portal) : 1,
+            id_estado_candidato: 6, // 6 = "Agregado"
+            motivacion: formData.portal_responses?.motivation || formData.motivation,
+            expectativa_renta: formData.portal_responses?.salary_expectation 
+              ? parseFloat(formData.portal_responses.salary_expectation) 
+              : (formData.salary_expectation ? parseFloat(formData.salary_expectation.toString()) : undefined),
+            disponibilidad_postulacion: formData.portal_responses?.availability || formData.availability,
+            valoracion: formData.consultant_rating,
+            comentario_no_presentado: formData.consultant_comment,
+            situacion_familiar: formData.portal_responses?.family_situation || undefined,
+            cv_file: formData.cv_file || undefined
+          }
+          
+          console.log('📋 Datos de postulación:', postulacionData)
+          
+          const postulacionResponse = await postulacionService.create(postulacionData)
+          
+          if (postulacionResponse.success) {
+            showToast({
+              type: "success",
+              title: "¡Éxito!",
+              description: "¡Candidato agregado al proceso correctamente!",
+            })
+            
+            await loadData()
+            setShowAddCandidate(false)
+            setInitialDataFromHistorial(null)
+          } else {
+            console.error('Error al crear postulación:', postulacionResponse)
+            showToast({
+              type: "error",
+              title: "Error",
+              description: postulacionResponse.message || "Error al agregar candidato al proceso",
+            })
+          }
+        } catch (postError: any) {
+          console.error('Error al crear postulación:', postError)
+          showToast({
+            type: "error",
+            title: "Error",
+            description: postError.message || "Error al agregar candidato al proceso",
+          })
+        }
+        
+        return // Salir de la función, no continuar con la creación de candidato
+      }
+
+      // =============================================
+      // CASO NORMAL: Crear nuevo candidato + postulación
+      // =============================================
+
       // Preparar datos para enviar al backend
       console.log('📊 Datos de experiencia (workExperienceFormsData):', workExperienceFormsData);
       console.log('📊 Datos de educación (educationFormsData):', educationFormsData);
@@ -2516,6 +2580,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     // Los campos vienen del backend con esta estructura (transformCandidatoBasico):
     // id, name, nombre, primer_apellido, segundo_apellido, email, phone, rut, edad, comuna, nacionalidad, profesion
     const initialData = {
+      // ¡IMPORTANTE! Guardar el ID del candidato existente para no crear uno nuevo
+      candidatoExistenteId: candidato.id || candidato.id_candidato,
       nombre: candidato.nombre || "",
       primer_apellido: candidato.primer_apellido || "",
       segundo_apellido: candidato.segundo_apellido || "",

@@ -442,7 +442,7 @@ export class CandidatoController {
     static async updateStatus(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const { status, comment } = req.body;
+            const { status, comment, postulacionId } = req.body;
 
             const candidatoId = parseInt(id);
             if (isNaN(candidatoId)) {
@@ -460,7 +460,7 @@ export class CandidatoController {
                 return sendError(res, 'El comentario es requerido para el estado "No Presentado"', 400);
             }
 
-            const result = await CandidatoService.updateStatus(candidatoId, status, comment);
+            const result = await CandidatoService.updateStatus(candidatoId, status, comment, postulacionId);
             
             Logger.info(`Estado del candidato ${candidatoId} actualizado a: ${status}`);
             return sendSuccess(res, result, 'Estado del candidato actualizado correctamente');

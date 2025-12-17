@@ -855,10 +855,10 @@ export const candidatoService = {
   },
 
   // Actualizar estado del candidato
-  async updateStatus(id: number, status: 'agregado' | 'presentado' | 'no_presentado' | 'rechazado', comment?: string): Promise<ApiResponse<any>> {
+  async updateStatus(id: number, status: 'agregado' | 'presentado' | 'no_presentado' | 'rechazado', comment?: string, postulacionId?: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/candidatos/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status, comment }),
+      body: JSON.stringify({ status, comment, postulacionId }),
     });
   },
 

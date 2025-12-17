@@ -92,7 +92,8 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       const response = await candidatoService.updateStatus(
         parseInt(candidate.id),
         formData.status as "presentado" | "no_presentado",
-        formData.comment || undefined
+        formData.comment || undefined,
+        candidate.id_postulacion // Pasar el ID de postulación específico
       )
 
       if (response.success) {
