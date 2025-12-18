@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
@@ -22,12 +22,13 @@ import type { Hito } from "@/lib/types"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 interface ProcessPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default function ProcessPage({ params }: ProcessPageProps) {
+  const { id } = use(params)
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)
@@ -105,7 +106,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     if (user?.id) {
       loadProcessData()
     }
-  }, [params.id, user])
+  }, [id, user])
 
   // Establecer módulo activo basado en la etapa o parámetro tab de la URL cuando se carga el proceso
   useEffect(() => {
@@ -130,21 +131,21 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       const serviceType = process.tipo_servicio || process.service_type
       const currentStage = process.etapa || process.stage
       if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
-        checkCandidatesWithReportStatus(parseInt(params.id))
+        checkCandidatesWithReportStatus(parseInt(id))
       } else {
         setHasCandidatesWithReportStatus(false)
       }
     }
-  }, [process, activeTab, isLoading])
+  }, [process, activeTab, isLoading, id])
 
   const loadProcessData = async () => {
     try {
       setIsLoading(true)
       
       // Validar que el ID sea un número válido
-      const processId = parseInt(params.id)
+      const processId = parseInt(id)
       if (isNaN(processId)) {
-        console.error('ID de proceso inválido:', params.id)
+        console.error('ID de proceso inválido:', id)
         toast.error("ID de proceso inválido")
         notFound()
         return
@@ -371,7 +372,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
   const handleAdvanceToModule2 = async () => {
     try {
-      const response = await solicitudService.avanzarAModulo2(parseInt(params.id))
+      const response = await solicitudService.avanzarAModulo2(parseInt(id))
       
       if (response.success) {
         toast.success("Proceso avanzado al Módulo 2 exitosamente")
