@@ -1,7 +1,93 @@
-# Script para subir imágenes Docker a Docker Hub
-# Uso: .\push-to-dockerhub.ps1
+# Script para construir y subir imágenes Docker a Docker Hub
+# Uso: .\push-to-dockerhub.ps1 [--rebuild]
+#   --rebuild: Reconstruye las imágenes antes de subirlas
 
-Write-Host "=== Subir Imágenes Docker a Docker Hub ===" -ForegroundColor Cyan
+param(
+    [switch]$rebuild = $false
+)
+
+Write-Host "=== Construir y Subir Imágenes Docker a Docker Hub ===" -ForegroundColor Cyan
+Write-Host ""
+
+# Obtener el directorio del script
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$composeFile = Join-Path $scriptDir "docker-compose.yml"
+
+# Verificar si existe docker-compose.yml
+if (-not (Test-Path $composeFile)) {
+    Write-Host "Error: No se encontró docker-compose.yml en $scriptDir" -ForegroundColor Red
+    exit 1
+}
+
+# Si se solicita reconstrucción, construir las imágenes
+if ($rebuild) {
+    Write-Host "=== Reconstruyendo imágenes con docker-compose ===" -ForegroundColor Cyan
+    Write-Host ""
+    Push-Location $scriptDir
+    docker-compose build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: No se pudieron construir las imágenes" -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+    Pop-Location
+    Write-Host ""
+    Write-Host "Imágenes reconstruidas exitosamente!" -ForegroundColor Green
+    Write-Host ""
+}
+
+# Detectar nombres de imágenes generadas por docker-compose
+# Docker Compose genera nombres basados en el directorio y nombre del servicio
+$composeProjectName = Split-Path -Leaf (Split-Path -Parent $scriptDir)
+$composeProjectName = $composeProjectName -replace '[^a-zA-Z0-9]', ''  # Limpiar caracteres especiales
+$composeProjectName = $composeProjectName.ToLower()
+
+# Nombres que docker-compose probablemente generó
+$backendImageLocal = "${composeProjectName}_backend:latest"
+$frontendImageLocal = "${composeProjectName}_frontend:latest"
+
+# Verificar si las imágenes existen, si no, intentar con nombres alternativos
+$backendFound = $false
+$frontendFound = $false
+
+# Buscar imágenes del backend
+$backendImages = docker images --format "{{.Repository}}:{{.Tag}}" | Select-String "backend"
+if ($backendImages) {
+    foreach ($img in $backendImages) {
+        if ($img -match "backend.*latest" -or $img -match "backend$") {
+            $backendImageLocal = $img.ToString().Trim()
+            $backendFound = $true
+            break
+        }
+    }
+}
+
+# Buscar imágenes del frontend
+$frontendImages = docker images --format "{{.Repository}}:{{.Tag}}" | Select-String "frontend"
+if ($frontendImages) {
+    foreach ($img in $frontendImages) {
+        if ($img -match "frontend.*latest" -or $img -match "frontend$") {
+            $frontendImageLocal = $img.ToString().Trim()
+            $frontendFound = $true
+            break
+        }
+    }
+}
+
+# Si no se encontraron, usar nombres por defecto del script original
+if (-not $backendFound) {
+    Write-Host "Advertencia: No se encontró imagen del backend. Usando nombre por defecto." -ForegroundColor Yellow
+    $backendImageLocal = "evidenciasdesistema-backend:latest"
+}
+
+if (-not $frontendFound) {
+    Write-Host "Advertencia: No se encontró imagen del frontend. Usando nombre por defecto." -ForegroundColor Yellow
+    $frontendImageLocal = "evidenciasdesistema-frontend:latest"
+}
+
+Write-Host "Imágenes detectadas:" -ForegroundColor Cyan
+Write-Host "  Backend:  $backendImageLocal" -ForegroundColor White
+Write-Host "  Frontend: $frontendImageLocal" -ForegroundColor White
 Write-Host ""
 
 # Detectar el usuario autenticado primero
@@ -187,5 +273,13 @@ Write-Host "  frontend:"
 Write-Host "    image: $frontendImageHub`:$frontendTag"
 Write-Host ""
 Write-Host "Nota: Ambas imágenes están en el mismo repositorio '$repositoryName' con tags diferentes." -ForegroundColor Gray
+Write-Host ""
+Write-Host "=== Flujo de trabajo recomendado ===" -ForegroundColor Cyan
+Write-Host "1. Realiza cambios en tu código" -ForegroundColor White
+Write-Host "2. Ejecuta: .\push-to-dockerhub.ps1 --rebuild" -ForegroundColor Yellow
+Write-Host "   (Esto reconstruirá las imágenes y las subirá a Docker Hub)" -ForegroundColor Gray
+Write-Host ""
+Write-Host "O si las imágenes ya están construidas:" -ForegroundColor White
+Write-Host "   .\push-to-dockerhub.ps1" -ForegroundColor Yellow
 Write-Host ""
 
