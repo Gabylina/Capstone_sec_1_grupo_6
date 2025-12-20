@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate, getStatusColor } from "@/lib/utils"
-import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2 } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2, Globe } from "lucide-react"
 import { ProcessTimeline } from "@/components/consultor/process-timeline"
 import { ProcessModule1 } from "@/components/consultor/process-module-1"
 import { ProcessModule2 } from "@/components/consultor/process-module-2"
@@ -86,8 +86,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
 
     if (etapa === 'Módulo 2: Publicación y Registro de Candidatos') {
-      // Solo PC, LL y HH tienen módulo 2
-      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH') {
+      // PC, LL, HH y PP tienen módulo 2
+      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH' || serviceType === 'PP') {
         return 'modulo-2'
       }
       // TS y ES no tienen módulo 2 (esto sería un error de datos)
@@ -312,7 +312,16 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                            currentStage === "Módulo 4: Evaluación Psicolaboral" ||
                            currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
     
-    if (serviceType === "PC" || serviceType === "LL" || serviceType === "FI" || serviceType === "HH") {
+    // PP solo tiene módulo 1 y 2 (publicaciones, sin candidatos)
+    if (serviceType === "PP") {
+      modules.push({ 
+        id: "modulo-2", 
+        label: "Publicación en Portales", 
+        icon: Globe, 
+        enabled: module2Enabled,
+        isActive: activeTab === "modulo-2"
+      })
+    } else if (serviceType === "PC" || serviceType === "LL" || serviceType === "FI" || serviceType === "HH") {
       modules.push({ 
         id: "modulo-2", 
         label: "Publicación y Registro de Candidatos", 
@@ -495,7 +504,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                 <ProcessModule1 process={process} descripcionCargo={descripcionCargo} />
               </TabsContent>
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
                 <TabsContent value="modulo-2" className="mt-0">
                   <ProcessModule2 process={process} />
                 </TabsContent>

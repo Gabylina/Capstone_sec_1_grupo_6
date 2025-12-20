@@ -174,10 +174,14 @@ export const serviceTypeLabels: Record<string, string> = {
   LL: "Long List",
   TR: "Targeted Recruitment",
   HS: "Headhunting",
+  HH: "Headhunting",
   AO: "Filtro Inteligente",
+  FI: "Filtro Inteligente",
   ES: "Evaluación Psicolaboral",
   TS: "Test Psicolaboral",
   AP: "Evaluación de Potencial",
+  EP: "Evaluación de Potencial",
+  PP: "Publicación Portales",
   // Nombres completos (para compatibilidad)
   proceso_completo: "Proceso Completo",
   long_list: "Long List",
@@ -187,6 +191,7 @@ export const serviceTypeLabels: Record<string, string> = {
   evaluacion_psicolaboral: "Evaluación Psicolaboral",
   test_psicolaboral: "Test Psicolaboral",
   evaluacion_potencial: "Evaluación de Potencial",
+  publicacion_portales: "Publicación Portales",
 }
 
 // Process Status Labels

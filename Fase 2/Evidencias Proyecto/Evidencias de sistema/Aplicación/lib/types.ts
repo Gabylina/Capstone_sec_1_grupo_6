@@ -3,11 +3,12 @@ export type ServiceType =
   | "LL" // long_list
   | "FI" // filtro_inteligente (igual que long_list)
   | "TR" // targeted_recruitment
-  | "HS" // headhunting
+  | "HS" // headhunting (alias antiguo)
+  | "HH" // headhunting
   | "ES" // evaluacion_psicolaboral
   | "EP" // evaluacion_potencial (igual que ES)
   | "TS" // test_psicolaboral
-  | "PP" // publicacion_portales
+  | "PP" // publicacion_portales (solo módulo 1 y 2 sin candidatos)
 
 export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado" | "Creado" | "En Progreso" | "Cerrado" | "Congelado" | "Cancelado"
 

@@ -44,7 +44,7 @@ import {
 
 import { getCandidatesByProcess } from "@/lib/api"
 
-import { formatDate, isProcessBlocked } from "@/lib/utils"
+import { formatDate, isProcessBlocked, getStatusColor, processStatusLabels } from "@/lib/utils"
 
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
@@ -54,7 +54,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -165,6 +165,14 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   const [loadingLists, setLoadingLists] = useState(true)
   const [isAdvancingToModule3, setIsAdvancingToModule3] = useState(false)
+
+  // Estados para cierre de solicitud (PP - Publicación Portales)
+  const [showStatusChange, setShowStatusChange] = useState(false)
+  const [selectedEstado, setSelectedEstado] = useState("")
+  const [statusChangeReason, setStatusChangeReason] = useState("")
+  const [loadingEstados, setLoadingEstados] = useState(false)
+  const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
+  const [isSavingStatus, setIsSavingStatus] = useState(false)
 
   // Estados para diálogos
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)
@@ -313,6 +321,151 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       }
     }
   }, [showEditCandidate, editingCandidate?.region, regiones, todasLasComunas])
+
+  // Cargar estados disponibles para PP (Publicación Portales)
+  useEffect(() => {
+    const loadEstados = async () => {
+      if (process.tipo_servicio !== "PP") return
+      
+      setLoadingEstados(true)
+      try {
+        const response = await solicitudService.getEstadosSolicitud()
+        if (response.success && response.data) {
+          // Filtrar solo estados de cierre: Cerrado, Congelado, Cancelado, Cierre Extraordinario
+          const estadosCierre = response.data.filter((estado: any) => {
+            const nombre = estado.nombre?.toLowerCase() || estado.nombre_estado_solicitud?.toLowerCase() || ""
+            return nombre === "cerrado" || 
+                   nombre === "congelado" || 
+                   nombre === "cancelado" ||
+                   nombre === "cierre extraordinario"
+          })
+          setEstadosDisponibles(estadosCierre)
+        }
+      } catch (error) {
+        console.error("Error al cargar estados:", error)
+      } finally {
+        setLoadingEstados(false)
+      }
+    }
+
+    loadEstados()
+  }, [process.tipo_servicio])
+
+  // Función para obtener el label dinámico según el estado seleccionado (PP)
+  const getReasonLabel = (): string => {
+    if (!selectedEstado) return "Motivo del Cambio (Opcional)"
+    
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+    
+    if (!estadoSeleccionado) return "Motivo del Cambio (Opcional)"
+    
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+    
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Motivo del cierre"
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Motivo del porqué se congela"
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Motivo de la cancelación"
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Motivo del cierre extraordinario"
+    }
+    
+    return "Motivo del Cambio (Opcional)"
+  }
+
+  // Función para obtener el placeholder dinámico según el estado seleccionado (PP)
+  const getReasonPlaceholder = (): string => {
+    if (!selectedEstado) return "Explica el motivo de finalización..."
+    
+    const estadoSeleccionado = estadosDisponibles.find(
+      (estado) => (estado.id || estado.id_estado_solicitud).toString() === selectedEstado
+    )
+    
+    if (!estadoSeleccionado) return "Explica el motivo de finalización..."
+    
+    const nombreEstado = (estadoSeleccionado.nombre || estadoSeleccionado.nombre_estado_solicitud || "").toLowerCase()
+    
+    if (nombreEstado.includes("cerrado") && !nombreEstado.includes("extraordinario")) {
+      return "Explica el motivo del cierre del proceso..."
+    }
+    if (nombreEstado.includes("congelado")) {
+      return "Explica el motivo por el cual se congela el proceso..."
+    }
+    if (nombreEstado.includes("cancelado")) {
+      return "Explica el motivo de la cancelación del proceso..."
+    }
+    if (nombreEstado.includes("extraordinario") || nombreEstado.includes("cierre extraordinario")) {
+      return "Explica el motivo del cierre extraordinario del proceso..."
+    }
+    
+    return "Explica el motivo de finalización..."
+  }
+
+  // Función para cambiar estado de la solicitud (finalizar) - PP
+  const handleStatusChange = async (estadoId: string) => {
+    if (isBlocked) {
+      showToast({
+        type: "error",
+        title: "Acción Bloqueada",
+        description: "No se puede cambiar el estado de un proceso finalizado",
+      })
+      return
+    }
+
+    if (!estadoId) {
+      showToast({
+        type: "error",
+        title: "Error",
+        description: "Debes seleccionar un estado",
+      })
+      return
+    }
+
+    setIsSavingStatus(true)
+    try {
+      const response = await solicitudService.cambiarEstado(
+        parseInt(process.id), 
+        parseInt(estadoId),
+        statusChangeReason || undefined
+      )
+
+      if (response.success) {
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: "Solicitud finalizada exitosamente. El hito de cierre ha sido completado.",
+        })
+        setShowStatusChange(false)
+        setSelectedEstado("")
+        setStatusChangeReason("")
+        // Recargar la página para reflejar el cambio
+        window.location.reload()
+      } else {
+        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        showToast({
+          type: "error",
+          title: "Error",
+          description: errorMsg,
+        })
+      }
+    } catch (error: any) {
+      console.error("Error al cambiar estado:", error)
+      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      showToast({
+        type: "error",
+        title: "Error",
+        description: errorMsg,
+      })
+    } finally {
+      setIsSavingStatus(false)
+    }
+  }
 
     const loadData = async () => {
 
@@ -2659,13 +2812,22 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
   }
 
+  // Verificar si es tipo de servicio PP (Publicación Portales) - solo muestra publicaciones
+  const isPublicacionPortales = process.tipo_servicio === "PP"
+
   return (
 
     <div className="space-y-6">
 
       <div>
-        <h2 className="text-2xl font-bold mb-2">Módulo 2 - Búsqueda y Registro de Candidatos</h2>
-        <p className="text-muted-foreground">Gestiona la búsqueda de candidatos y publicaciones en portales</p>
+        <h2 className="text-2xl font-bold mb-2">
+          {isPublicacionPortales ? "Módulo 2 - Publicación en Portales" : "Módulo 2 - Búsqueda y Registro de Candidatos"}
+        </h2>
+        <p className="text-muted-foreground">
+          {isPublicacionPortales 
+            ? "Gestiona las publicaciones del cargo en portales de empleo" 
+            : "Gestiona la búsqueda de candidatos y publicaciones en portales"}
+        </p>
       </div>
 
       {/* Componente de bloqueo si el proceso está en estado final */}
@@ -2674,8 +2836,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         moduleName="Módulo 2" 
       />
 
-      {/* Card para avanzar al siguiente módulo */}
-      {hasPresentedCandidates && (
+      {/* Card para avanzar al siguiente módulo - NO mostrar para PP */}
+      {!isPublicacionPortales && hasPresentedCandidates && (
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -2698,7 +2860,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         </Card>
       )}
 
-      {!hasPresentedCandidates && !isBlocked && (
+      {!isPublicacionPortales && !hasPresentedCandidates && !isBlocked && (
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -2945,10 +3107,41 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
       </Card>
 
+      {/* Finalizar Solicitud - Solo para PP (Publicación Portales) */}
+      {isPublicacionPortales && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5" />
+              Finalizar Solicitud
+            </CardTitle>
+            <CardDescription>
+              Una vez que hayas publicado el cargo y tengas los perfiles, puedes cerrar la solicitud
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <Label htmlFor="estado-select">Estado Actual: </Label>
+                <Badge className={getStatusColor(processStatus)}>
+                  {processStatusLabels[processStatus] || processStatus}
+                </Badge>
+              </div>
+              <Button
+                variant="default"
+                className="hover:opacity-90 hover:scale-105 transition-all duration-200"
+                onClick={() => setShowStatusChange(!showStatusChange)}
+                disabled={loadingEstados || isBlocked}
+              >
+                {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-
-      {/* Candidates Section */}
-
+      {/* Candidates Section - NO mostrar para PP (Publicación Portales) */}
+      {!isPublicacionPortales && (
       <Card>
 
         <CardHeader>
@@ -3225,9 +3418,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         </CardContent>
 
       </Card>
+      )}
 
-      {/* Edit Candidate Dialog */}
-
+      {/* Edit Candidate Dialog - NO mostrar para PP */}
+      {!isPublicacionPortales && (
       <Dialog open={showEditCandidate} onOpenChange={setShowEditCandidate}>
 
         <DialogContent className="max-w-6xl min-w-[800px] w-[90vw] max-h-[90vh] overflow-y-auto">
@@ -3266,25 +3460,31 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         </DialogContent>
 
       </Dialog>
+      )}
 
 
   
-      {/* Dialog para ver CV */}
+      {/* Dialog para ver CV - NO mostrar para PP */}
+      {!isPublicacionPortales && (
       <CVViewerDialog
         candidate={viewingCV}
         isOpen={showViewCV}
         onClose={() => setShowViewCV(false)}
       />
+      )}
 
-      {/* Diálogo para cambiar estado del candidato */}
+      {/* Diálogo para cambiar estado del candidato - NO mostrar para PP */}
+      {!isPublicacionPortales && (
       <CandidateStatusDialog
         open={statusDialogOpen}
         onOpenChange={setStatusDialogOpen}
         candidate={selectedCandidate}
         onSuccess={handleStatusChangeSuccess}
       />
+      )}
 
-      {/* Diálogo para buscar candidatos en el historial */}
+      {/* Diálogo para buscar candidatos en el historial - NO mostrar para PP */}
+      {!isPublicacionPortales && (
       <Dialog open={showHistorialDialog} onOpenChange={(open) => {
         setShowHistorialDialog(open)
         if (!open) {
@@ -3393,6 +3593,77 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
           )}
         </DialogContent>
       </Dialog>
+      )}
+
+      {/* Dialog para Finalizar Solicitud - Solo para PP */}
+      {isPublicacionPortales && (
+        <Dialog open={showStatusChange} onOpenChange={setShowStatusChange}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Finalizar Solicitud</DialogTitle>
+              <DialogDescription>
+                Al finalizar la solicitud, se completará automáticamente el hito "Entrega de perfiles y cierre".
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="new-estado">Estado Final</Label>
+                <Select
+                  value={selectedEstado}
+                  onValueChange={setSelectedEstado}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona un estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estadosDisponibles.map((estado) => (
+                      <SelectItem 
+                        key={estado.id || estado.id_estado_solicitud} 
+                        value={(estado.id || estado.id_estado_solicitud).toString()}
+                      >
+                        {estado.nombre || estado.nombre_estado_solicitud}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="reason">{getReasonLabel()}</Label>
+                <Textarea
+                  id="reason"
+                  placeholder={getReasonPlaceholder()}
+                  value={statusChangeReason}
+                  onChange={(e) => setStatusChangeReason(e.target.value)}
+                  className="mt-1"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowStatusChange(false)
+                  setSelectedEstado("")
+                  setStatusChangeReason("")
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => handleStatusChange(selectedEstado)}
+                disabled={!selectedEstado || isSavingStatus}
+              >
+                {isSavingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSavingStatus ? "Actualizando..." : "Finalizar y Cerrar Hito"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
 
   )
