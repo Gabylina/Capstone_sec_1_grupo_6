@@ -40,7 +40,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             nombre_hito: "Presentación de terna inicial",
             tipo_ancla: 'publicacion',
             duracion_dias: 5,
-            avisar_antes_dias: 2,
+            avisar_antes_dias: 5,
             descripcion: "Presentar primera terna de candidatos al cliente",
             codigo_servicio: "PC"
         },
@@ -48,7 +48,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             nombre_hito: "Entrevistas con candidatos aprobados",
             tipo_ancla: 'primera_presentacion',
             duracion_dias: 5,
-            avisar_antes_dias: 2,
+            avisar_antes_dias: 5,
             descripcion: "Realizar entrevistas psicolaborales con candidatos aprobados",
             codigo_servicio: "PC"
         },
@@ -84,7 +84,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             nombre_hito: "Entrevistas con candidatos aprobados",
             tipo_ancla: 'primera_presentacion',
             duracion_dias: 5,
-            avisar_antes_dias: 2,
+            avisar_antes_dias: 5,
             descripcion: "Realizar entrevistas psicolaborales con candidatos aprobados",
             codigo_servicio: "HH"
         },
@@ -118,7 +118,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         }
     ],
 
-    // FILTRO INTELIGENTE (FI) - 10 días hábiles (igual que Long List)
+    // FILTRO INTELIGENTE (FI) - 8 días hábiles
     FI: [
         {
             nombre_hito: "Publicación de cargo",
@@ -131,7 +131,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         {
             nombre_hito: "Presentación de candidatos",
             tipo_ancla: 'publicacion',
-            duracion_dias: 10,
+            duracion_dias: 8,
             avisar_antes_dias: 5,
             descripcion: "Presentar candidatos al cliente",
             codigo_servicio: "FI"
@@ -198,7 +198,7 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         }
     ],
 
-    // EVALUACIÓN POTENCIAL (EP) - 2 días hábiles (igual que ES)
+    // EVALUACIÓN POTENCIAL (EP) - 4 días hábiles
     EP: [
         {
             nombre_hito: "Agendar entrevista",
@@ -210,10 +210,10 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         },
         {
             nombre_hito: "Envío de informe",
-            tipo_ancla: 'entrevista',
-            duracion_dias: 2,
-            avisar_antes_dias: 1,
-            descripcion: "Entregar informe de evaluación potencial (2 días hábiles desde la entrevista)",
+            tipo_ancla: 'evaluacion_potencial',
+            duracion_dias: 4,
+            avisar_antes_dias: 2,
+            descripcion: "Entregar informe de evaluación potencial (4 días hábiles desde la entrevista)",
             codigo_servicio: "EP"
         }
     ],
