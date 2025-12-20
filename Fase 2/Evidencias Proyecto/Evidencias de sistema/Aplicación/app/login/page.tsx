@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/auth"
 import { Button } from "@/components/ui/button"
@@ -16,8 +16,19 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const { login, isLoading } = useAuth()
+  const { user, login, isLoading } = useAuth()
   const router = useRouter()
+
+  // Redirigir si ya está logueado
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (user.role === "admin") {
+        router.push("/admin/solicitudes")
+      } else {
+        router.push("/consultor")
+      }
+    }
+  }, [user, isLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +40,18 @@ export default function LoginPage() {
     } else {
       setError("Credenciales inválidas.")
     }
+  }
+
+  // Si está cargando o ya está logueado, mostrar loading
+  if (isLoading || user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
