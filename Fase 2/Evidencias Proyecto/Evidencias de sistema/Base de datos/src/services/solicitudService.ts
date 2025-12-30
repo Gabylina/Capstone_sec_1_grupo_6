@@ -1544,10 +1544,12 @@ export class SolicitudService {
                     'LL': 'Long List',
                     'FI': 'Filtro Inteligente',
                     'TR': 'Targeted Recruitment',
-                    'HS': 'Headhunting',
+                    'HH': 'Headhunting',
+                    'HS': 'Headhunting', // Alias para compatibilidad
                     'ES': 'Evaluación Psicolaboral',
                     'EP': 'Evaluación Potencial',
                     'TS': 'Test Psicolaboral',
+                    'PP': 'Publicación Portales',
                 };
 
                 const serviceLabel = serviceMapping[codigoServicio] || nombreServicio;
@@ -1619,39 +1621,50 @@ export class SolicitudService {
         year: number,
         month: number,
         week?: number,
-        periodType: 'week' | 'month' | 'quarter' = 'month'
+        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
     ): { startDate: Date; endDate: Date } {
         let startDate: Date;
         let endDate: Date;
 
         if (periodType === 'week' && week) {
-            const firstDayOfMonth = new Date(year, month, 1);
-            const dayOfWeek = firstDayOfMonth.getDay();
-            const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : (8 - dayOfWeek);
-            const firstMonday = new Date(year, month, 1 + daysToMonday);
-
-            const weekStart = new Date(firstMonday);
+            // Calcular semana del año, no del mes
+            // El primer día del año
+            const jan1 = new Date(year, 0, 1);
+            // Día de la semana del 1 de enero (0 = domingo, 1 = lunes, etc.)
+            const jan1DayOfWeek = jan1.getDay();
+            // Calcular el primer lunes del año
+            // Si el 1 de enero es domingo (0), el primer lunes es el 2 (1 día después)
+            // Si el 1 de enero es lunes (1), el primer lunes es el 1 (0 días después)
+            // Si el 1 de enero es martes (2), el primer lunes es el 8 (6 días después)
+            const daysToFirstMonday = jan1DayOfWeek === 0 ? 1 : jan1DayOfWeek === 1 ? 0 : (8 - jan1DayOfWeek);
+            const firstMondayOfYear = new Date(year, 0, 1 + daysToFirstMonday);
+            
+            // Calcular el inicio de la semana solicitada
+            const weekStart = new Date(firstMondayOfYear);
             weekStart.setDate(weekStart.getDate() + (week - 1) * 7);
-
+            
             startDate = new Date(weekStart);
             startDate.setHours(0, 0, 0, 0);
 
+            // El fin de la semana es 6 días después del inicio
             endDate = new Date(weekStart);
             endDate.setDate(endDate.getDate() + 6);
             endDate.setHours(23, 59, 59, 999);
-
-            const lastDayOfMonth = new Date(year, month + 1, 0);
-            if (endDate > lastDayOfMonth) {
-                endDate = lastDayOfMonth;
-                endDate.setHours(23, 59, 59, 999);
-            }
         } else if (periodType === 'month') {
             startDate = new Date(year, month, 1);
             startDate.setHours(0, 0, 0, 0);
 
             endDate = new Date(year, month + 1, 0);
             endDate.setHours(23, 59, 59, 999);
+        } else if (periodType === 'year') {
+            // Período anual: del 1 de enero al 31 de diciembre del año seleccionado
+            startDate = new Date(year, 0, 1);
+            startDate.setHours(0, 0, 0, 0);
+
+            endDate = new Date(year, 11, 31);
+            endDate.setHours(23, 59, 59, 999);
         } else {
+            // Quarter
             const quarterStartMonth = Math.floor(month / 3) * 3;
             startDate = new Date(year, quarterStartMonth, 1);
             startDate.setHours(0, 0, 0, 0);
@@ -1747,23 +1760,35 @@ export class SolicitudService {
                     FROM estado_solicitud_hist esh
                     INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
                     ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                cierre AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud = 'Cerrado'
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
                 )
                 SELECT 
                     ea.nombre_estado_solicitud as status,
                     COUNT(*) as count
                 FROM solicitud s
                 INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
-                WHERE s.fecha_ingreso_solicitud <= :endDate
-                  AND (
-                      cierre.fecha_cierre IS NULL
-                      OR cierre.fecha_cierre >= :startDate
-                  )
+                LEFT JOIN cierre c ON s.id_solicitud = c.id_solicitud
+                WHERE (
+                    -- Procesos ingresados en el período
+                    (DATE(s.fecha_ingreso_solicitud) >= DATE(:startDate) AND DATE(s.fecha_ingreso_solicitud) <= DATE(:endDate))
+                    OR
+                    -- Procesos cerrados en el período
+                    (c.fecha_cierre IS NOT NULL AND DATE(c.fecha_cierre) >= DATE(:startDate) AND DATE(c.fecha_cierre) <= DATE(:endDate))
+                )
                 GROUP BY ea.nombre_estado_solicitud
                 ORDER BY count DESC
             `, {
                 replacements: {
-                    startDate: startDate,
-                    endDate: endDate
+                    startDate: startDate.toISOString().split('T')[0],
+                    endDate: endDate.toISOString().split('T')[0]
                 },
                 type: QueryTypes.SELECT,
                 skipUserContext: true
@@ -1826,7 +1851,7 @@ export class SolicitudService {
                         EXTRACT(EPOCH FROM (c.fecha_cierre - s.fecha_ingreso_solicitud)) / 86400 AS dias
                     FROM solicitud s
                     INNER JOIN closures c ON c.id_solicitud = s.id_solicitud
-                    WHERE s.codigo_servicio IN ('PC', 'HH')
+                    WHERE s.codigo_servicio IN ('PC', 'HH', 'LL', 'FI', 'TR', 'ES', 'EP', 'TS', 'PP')
                       AND c.fecha_cierre IS NOT NULL
                       AND s.fecha_ingreso_solicitud IS NOT NULL
                 )
@@ -1848,15 +1873,19 @@ export class SolicitudService {
                 } as any)) as Array<{ codigo_servicio?: string; avg_days?: number; total?: number }>;
             };
 
-            let results = await runQuery(true);
-
-            if (results.length === 0) {
-                results = await runQuery(false);
-            }
+            // Ejecutar query con filtro de fecha - NO hacer fallback si no hay resultados
+            const results = await runQuery(true);
 
             const serviceMapping: Record<string, string> = {
                 'PC': 'Proceso Completo',
-                'HH': 'Hunting'
+                'HH': 'Headhunting',
+                'LL': 'Long List',
+                'FI': 'Filtro Inteligente',
+                'TR': 'Targeted Recruitment',
+                'ES': 'Evaluación Psicolaboral',
+                'EP': 'Evaluación Potencial',
+                'TS': 'Test Psicolaboral',
+                'PP': 'Publicación Portales',
             };
 
             const aggregated: Record<string, { avgDays: number; total: number }> = {};
@@ -1975,14 +2004,19 @@ export class SolicitudService {
                     LIMIT 1
                 ) cierre ON true
                 ${applyFilter ? `
-                WHERE s.fecha_ingreso_solicitud <= :endDate
-                  AND (
-                      cierre.fecha_cierre IS NULL
-                      OR cierre.fecha_cierre >= :startDate
-                  )
+                WHERE (
+                    -- Procesos ingresados en el período
+                    (DATE(s.fecha_ingreso_solicitud) >= DATE(:startDate) AND DATE(s.fecha_ingreso_solicitud) <= DATE(:endDate))
+                    OR
+                    -- Procesos cerrados en el período
+                    (cierre.fecha_cierre IS NOT NULL AND DATE(cierre.fecha_cierre) >= DATE(:startDate) AND DATE(cierre.fecha_cierre) <= DATE(:endDate))
+                )
                 ` : ''}
             `, {
-                replacements: { startDate, endDate },
+                replacements: { 
+                    startDate: startDate.toISOString().split('T')[0], 
+                    endDate: endDate.toISOString().split('T')[0] 
+                },
                 type: QueryTypes.SELECT,
                 skipUserContext: true
             } as any) as any;
@@ -2005,11 +2039,8 @@ export class SolicitudService {
                 }>;
             };
 
+            // Ejecutar query con filtro de fecha - NO hacer fallback si no hay resultados
             let rows = await runOverviewQuery(true);
-
-            if (!Array.isArray(rows) || rows.length === 0) {
-                rows = await runOverviewQuery(false);
-            }
             
             // Asegurar que rows es siempre un array
             if (!Array.isArray(rows)) {

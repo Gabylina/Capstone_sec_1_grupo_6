@@ -194,7 +194,7 @@ export default function ReportesPage() {
   }
   
   const defaultWeek = getDefaultWeekInfo()
-  const [timePeriod, setTimePeriod] = useState<"month" | "week">("month")
+  const [timePeriod, setTimePeriod] = useState<"month" | "week" | "year">("month")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedWeek, setSelectedWeek] = useState(defaultWeek.id)
@@ -249,7 +249,7 @@ export default function ReportesPage() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   
   // Filtros específicos para la tabla de procesos cerrados exitosos
-  const [closedProcessesTimePeriod, setClosedProcessesTimePeriod] = useState<"month" | "week">("month")
+  const [closedProcessesTimePeriod, setClosedProcessesTimePeriod] = useState<"month" | "week" | "year">("month")
   const [closedProcessesYear, setClosedProcessesYear] = useState<number>(new Date().getFullYear())
   const [closedProcessesMonth, setClosedProcessesMonth] = useState<number>(new Date().getMonth())
   const [closedProcessesWeek, setClosedProcessesWeek] = useState<string>("")
@@ -409,7 +409,7 @@ export default function ReportesPage() {
           timePeriod === "week" && selectedWeekOption
             ? weekOptions.findIndex((option) => option.id === selectedWeekOption.id) + 1
             : undefined
-        const periodType = timePeriod === "week" ? "week" : "month"
+        const periodType = timePeriod === "week" ? "week" : timePeriod === "year" ? "year" : "month"
 
         const response = await solicitudService.getAverageProcessTimeByService(
           selectedYear,
@@ -447,7 +447,7 @@ export default function ReportesPage() {
           timePeriod === "week" && selectedWeekOption
             ? weekOptions.findIndex((option) => option.id === selectedWeekOption.id) + 1
             : undefined
-        const periodType = timePeriod === "week" ? "week" : "month"
+        const periodType = timePeriod === "week" ? "week" : timePeriod === "year" ? "year" : "month"
 
         const response = await solicitudService.getProcessOverview(
           selectedYear,
@@ -507,7 +507,7 @@ export default function ReportesPage() {
           closedProcessesTimePeriod === "week" && selectedClosedProcessesWeekOption
             ? closedProcessesWeekOptions.findIndex((option) => option.id === selectedClosedProcessesWeekOption.id) + 1
             : undefined
-        const periodType = closedProcessesTimePeriod === "week" ? "week" : "month"
+        const periodType = closedProcessesTimePeriod === "week" ? "week" : closedProcessesTimePeriod === "year" ? "year" : "month"
 
         console.log('[DEBUG] Cargando procesos cerrados exitosos:', {
           year: closedProcessesYear,
@@ -917,6 +917,8 @@ export default function ReportesPage() {
       // Generar nombre de archivo con fecha
       const periodLabel = closedProcessesTimePeriod === "week" 
         ? `Semana_${selectedClosedProcessesWeekOption?.label || 'actual'}`
+        : closedProcessesTimePeriod === "year"
+        ? `Año_${closedProcessesYear}`
         : `${monthNames[closedProcessesMonth]}_${closedProcessesYear}`
       
       const fileName = `Procesos_Cerrados_Exitosos_${periodLabel}.xlsx`
@@ -1025,7 +1027,7 @@ export default function ReportesPage() {
                     value={timePeriod}
                     onValueChange={(value) => {
                       if (!value) return
-                      const next = value as "month" | "week"
+                      const next = value as "month" | "week" | "year"
                       setTimePeriod(next)
                       if (next === "week") {
                         const defaultInfo = getDefaultWeekInfo()
@@ -1033,8 +1035,11 @@ export default function ReportesPage() {
                         setSelectedWeek(defaultInfo.id)
                       }
                     }}
-                    className="grid grid-cols-2 w-full md:w-fit"
+                    className="grid grid-cols-3 w-full md:w-fit"
                   >
+                    <ToggleGroupItem value="year" aria-label="Vista anual">
+                      Anual
+                    </ToggleGroupItem>
                     <ToggleGroupItem value="month" aria-label="Vista mensual">
                       Mensual
                     </ToggleGroupItem>
@@ -1116,6 +1121,15 @@ export default function ReportesPage() {
                   </Select>
                 </div>
                 )}
+
+                {timePeriod === "year" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Período: Año completo</label>
+                    <div className="h-10 flex items-center text-sm text-muted-foreground">
+                      {selectedYear}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1131,6 +1145,8 @@ export default function ReportesPage() {
                 <p className="text-xs text-muted-foreground">
                   {timePeriod === "week"
                     ? selectedWeekOption?.label ?? "Semana seleccionada"
+                    : timePeriod === "year"
+                    ? `Año ${selectedYear}`
                     : `${monthNames[selectedMonth]} ${selectedYear}`}
                 </p>
               </CardContent>
@@ -1388,6 +1404,8 @@ export default function ReportesPage() {
                 Procesos en Curso -{" "}
                 {timePeriod === "week"
                   ? selectedWeekOption?.label ?? "Semana seleccionada"
+                  : timePeriod === "year"
+                  ? `Año ${selectedYear}`
                   : `${monthNames[selectedMonth]} ${selectedYear}`}
               </CardTitle>
               <CardDescription>Lista detallada de procesos activos en el período seleccionado</CardDescription>
@@ -1867,7 +1885,7 @@ export default function ReportesPage() {
                     value={closedProcessesTimePeriod}
                     onValueChange={(value) => {
                       if (!value) return
-                      const next = value as "month" | "week"
+                      const next = value as "month" | "week" | "year"
                       setClosedProcessesTimePeriod(next)
                       if (next === "week") {
                         const defaultInfo = getDefaultWeekInfo()
@@ -1875,8 +1893,11 @@ export default function ReportesPage() {
                         setClosedProcessesWeek(defaultInfo.id)
                       }
                     }}
-                    className="grid grid-cols-2 w-full md:w-fit"
+                    className="grid grid-cols-3 w-full md:w-fit"
                   >
+                    <ToggleGroupItem value="year" aria-label="Vista anual">
+                      Anual
+                    </ToggleGroupItem>
                     <ToggleGroupItem value="month" aria-label="Vista mensual">
                       Mensual
                     </ToggleGroupItem>
@@ -1888,8 +1909,8 @@ export default function ReportesPage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Año</label>
-                  <Select
-                    value={closedProcessesYear.toString()}
+                    <Select
+                      value={closedProcessesYear.toString()}
                     onValueChange={(value) => {
                       const yearNumber = Number.parseInt(value)
                       setClosedProcessesYear(yearNumber)
@@ -1936,7 +1957,7 @@ export default function ReportesPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                ) : (
+                ) : closedProcessesTimePeriod === "week" ? (
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Semana</label>
                     <Select
@@ -1955,6 +1976,13 @@ export default function ReportesPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Período: Año completo</label>
+                    <div className="h-10 flex items-center text-sm text-muted-foreground">
+                      {closedProcessesYear}
+                    </div>
                   </div>
                 )}
               </div>
