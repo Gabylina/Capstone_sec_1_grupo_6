@@ -1,16 +1,35 @@
-# Docker Compose para desarrollo (construye imágenes localmente)
-# Para usar imágenes de Docker Hub en producción, usa: docker-compose -f docker-compose.prod.yml up -d
+# Docker Compose para producción usando imágenes de Docker Hub
+# Uso: docker-compose -f docker-compose.prod.yml up -d
 # 
-# Para cambiar a usar imágenes del Docker Hub, reemplaza las secciones 'build:' con 'image:'
-# Ejemplo:
-#   backend:
-#     image: niconav1/llconsulting:backend
-#     # (elimina la sección 'build:')
+# IMPORTANTE: Antes de usar este archivo, asegúrate de:
+# 1. Haber subido las imágenes a Docker Hub usando: .\push-to-dockerhub.ps1
+# 2. Configurar la variable de entorno DOCKER_HUB_USERNAME con tu usuario de Docker Hub
+#    Ejemplo: $env:DOCKER_HUB_USERNAME = "niconav1"
+# 3. O editar manualmente las líneas de 'image:' con tu usuario
 
 services:
   # Base de datos PostgreSQL
-  # Para usar imagen personalizada de Docker Hub, reemplaza con:
-  # image: niconav1/llconsulting:postgresql
+  # Si tienes una imagen personalizada en Docker Hub, descomenta y ajusta:
+  # postgres:
+  #   image: ${DOCKER_HUB_USERNAME:-niconav1}/llconsulting:postgresql
+  #   container_name: llconsulting_db
+  #   environment:
+  #     POSTGRES_DB: defaultdb
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - llconsulting_network
+  
+  # Por defecto, usar imagen oficial (recomendado para producción)
   postgres:
     image: postgres:16-alpine
     container_name: llconsulting_db
@@ -30,13 +49,9 @@ services:
     networks:
       - llconsulting_network
 
-  # Backend API
-  # Para usar imagen de Docker Hub, reemplaza 'build:' con:
-  # image: niconav1/llconsulting:backend
+  # Backend API - Usando imagen de Docker Hub
   backend:
-    build:
-      context: ./Base de datos
-      dockerfile: Dockerfile
+    image: ${DOCKER_HUB_USERNAME:-niconav1}/llconsulting:backend
     container_name: llconsulting_backend
     environment:
       DB_HOST: ${DB_HOST:-database-llconsulting-database-llconsulting.d.aivencloud.com}
@@ -63,15 +78,9 @@ services:
       - llconsulting_network
     restart: unless-stopped
 
-  # Frontend Next.js
-  # Para usar imagen de Docker Hub, reemplaza 'build:' con:
-  # image: niconav1/llconsulting:frontend
+  # Frontend Next.js - Usando imagen de Docker Hub
   frontend:
-    build:
-      context: ./Aplicación
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: http://138.197.127.184:3001
+    image: ${DOCKER_HUB_USERNAME:-niconav1}/llconsulting:frontend
     container_name: llconsulting_frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://138.197.127.184:3001}

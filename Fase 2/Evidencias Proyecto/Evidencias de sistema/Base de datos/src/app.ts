@@ -60,11 +60,15 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// CORS - Permitir localhost y URLs de localtunnel
+// CORS - Permitir localhost, URLs de localtunnel y dominios de llconsulting.cl
 const allowedOrigins = [
   config.server.frontendUrl,
   'http://localhost:3000',
-  'https://localhost:3000'
+  'https://localhost:3000',
+  'http://web.llconsulting.cl',
+  'https://web.llconsulting.cl',
+  'http://138.197.127.184:3000',
+  'http://138.197.127.184'
 ];
 
 // Agregar cualquier URL de localtunnel si está configurada
@@ -87,6 +91,11 @@ const corsOptions = {
     
     // Permitir cualquier URL de localtunnel
     if (origin.includes('.loca.lt')) {
+      return callback(null, true);
+    }
+    
+    // Permitir cualquier subdominio de llconsulting.cl
+    if (origin.includes('.llconsulting.cl') || origin === 'http://llconsulting.cl' || origin === 'https://llconsulting.cl') {
       return callback(null, true);
     }
     
