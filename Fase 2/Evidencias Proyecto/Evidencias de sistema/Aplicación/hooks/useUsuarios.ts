@@ -35,6 +35,11 @@ export function useUsuarios() {
   const [pageSize, setPageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
+  
+  // Stats state
+  const [totalConsultores, setTotalConsultores] = useState(0)
+  const [totalAdministradores, setTotalAdministradores] = useState(0)
+  
   const [newUser, setNewUser] = useState<NewUserInput>({
     rut: "",
     nombre: "",
@@ -58,6 +63,25 @@ export function useUsuarios() {
   // -------------------
   // CRUD
   // -------------------
+  
+  // Función para obtener estadísticas de usuarios
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/users/stats`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("llc_token")}` },
+      })
+      const data = await res.json()
+      
+      if (data.success) {
+        setTotalUsers(data.data.total_usuarios || 0)
+        setTotalConsultores(data.data.total_consultores || 0)
+        setTotalAdministradores(data.data.total_administradores || 0)
+      }
+    } catch (err) {
+      console.error("Error cargando estadísticas:", err)
+    }
+  }
+  
   const fetchUsers = async () => {
     setIsLoading(true)
     try {
@@ -92,8 +116,10 @@ export function useUsuarios() {
         // Actualizar información de paginación
         if (data.data.pagination) {
           setTotalPages(data.data.pagination.totalPages)
-          setTotalUsers(data.data.pagination.total)
         }
+        
+        // Cargar estadísticas en paralelo
+        fetchStats()
       }
     } catch (err) {
       console.error("Error cargando usuarios:", err)
@@ -356,6 +382,8 @@ export function useUsuarios() {
     pageSize,
     totalPages,
     totalUsers,
+    totalConsultores,
+    totalAdministradores,
     goToPage,
     nextPage,
     prevPage,

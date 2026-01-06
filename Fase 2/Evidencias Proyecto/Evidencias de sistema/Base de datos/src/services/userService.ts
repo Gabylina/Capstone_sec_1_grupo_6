@@ -199,3 +199,20 @@ export const changePassword = async (rut_usuario: string, currentPassword: strin
     message: "Contraseña actualizada correctamente"
   };
 };
+
+// Obtener estadísticas de usuarios
+export const getStats = async () => {
+  const totalUsuarios = await Usuario.count();
+  const totalConsultores = await Usuario.count({ where: { rol_usuario: 2 } }); // 2 = consultor
+  const totalAdministradores = await Usuario.count({ where: { rol_usuario: 1 } }); // 1 = admin
+  const usuariosActivos = await Usuario.count({ where: { activo_usuario: true } });
+  const usuariosInactivos = await Usuario.count({ where: { activo_usuario: false } });
+
+  return {
+    total_usuarios: totalUsuarios,
+    total_consultores: totalConsultores,
+    total_administradores: totalAdministradores,
+    usuarios_activos: usuariosActivos,
+    usuarios_inactivos: usuariosInactivos
+  };
+};

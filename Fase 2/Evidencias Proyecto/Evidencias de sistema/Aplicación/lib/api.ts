@@ -442,7 +442,7 @@ export const solicitudService = {
     year: number,
     month: number,
     week?: number,
-    periodType: 'week' | 'month' | 'quarter' = 'month'
+    periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
   ): Promise<ApiResponse<Array<{ status: string; count: number }>>> {
     const params = new URLSearchParams({
       year: year.toString(),
@@ -459,7 +459,7 @@ export const solicitudService = {
     year: number,
     month: number,
     week?: number,
-    periodType: 'week' | 'month' | 'quarter' = 'month'
+    periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
   ): Promise<ApiResponse<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>>> {
     const params = new URLSearchParams({
       year: year.toString(),
@@ -476,7 +476,7 @@ export const solicitudService = {
     year: number,
     month: number,
     week?: number,
-    periodType: 'week' | 'month' | 'quarter' = 'month'
+    periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
   ): Promise<
     ApiResponse<{
       processes: Array<{
@@ -526,7 +526,7 @@ export const solicitudService = {
     year: number,
     month: number,
     week?: number,
-    periodType: 'week' | 'month' | 'quarter' = 'month'
+    periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
   ): Promise<
     ApiResponse<
       Array<{
@@ -1603,7 +1603,12 @@ export const logService = {
     return apiRequest(`/api/logs/search?${queryParams.toString()}`);
   },
 
-  // Obtener estadísticas del historial
+  // Obtener estadísticas simplificadas
+  async getStats(): Promise<ApiResponse<{ total_logs: number; usuarios_activos: number }>> {
+    return apiRequest('/api/logs/stats');
+  },
+
+  // Obtener estadísticas del historial (detalladas)
   async getEstadisticas(): Promise<ApiResponse<LogEstadisticas>> {
     return apiRequest('/api/logs/estadisticas');
   },

@@ -179,7 +179,7 @@ export default function HistorialPage() {
         // Cargar logs y estadísticas en paralelo
         const [logsResponse, statsResponse, totalResponse] = await Promise.all([
           logService.search(searchParams),
-          logService.getEstadisticas(),
+          logService.getStats(),
           // Para obtener el total, hacemos una búsqueda sin limit para contar
           logService.search({
             ...searchParams,
@@ -434,15 +434,15 @@ export default function HistorialPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Movimientos</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.total_logs || logs.length}</div>
-            <p className="text-xs text-muted-foreground">Registros en sistema</p>
+            <div className="text-2xl font-bold">{stats?.total_logs || 0}</div>
+            <p className="text-xs text-muted-foreground">Registros en el sistema</p>
           </CardContent>
         </Card>
         <Card>
@@ -452,31 +452,9 @@ export default function HistorialPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.usuarios_activos || new Set(logs.map(log => log.usuario_responsable)).size}
+              {stats?.usuarios_activos || 0}
             </div>
             <p className="text-xs text-muted-foreground">Con actividad registrada</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tablas Afectadas</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.tablas_afectadas || tablasUnicas.length}
-            </div>
-            <p className="text-xs text-muted-foreground">Con cambios registrados</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tipos de Acción</CardTitle>
-            <History className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{accionesUnicas.length}</div>
-            <p className="text-xs text-muted-foreground">INSERT, UPDATE, DELETE</p>
           </CardContent>
         </Card>
       </div>

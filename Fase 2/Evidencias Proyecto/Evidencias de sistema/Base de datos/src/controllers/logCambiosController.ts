@@ -205,5 +205,19 @@ export class LogCambiosController {
             return sendError(res, 'Error al obtener log', 500);
         }
     }
+
+    /**
+     * GET /api/logs/stats
+     * Obtener estadísticas simplificadas
+     */
+    static async getStats(req: Request, res: Response): Promise<Response> {
+        try {
+            const stats = await LogCambiosService.getStats();
+            return sendSuccess(res, stats, 'Estadísticas obtenidas exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener estadísticas:', error);
+            return sendError(res, 'Error al obtener estadísticas', 500);
+        }
+    }
 }
 

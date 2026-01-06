@@ -1730,7 +1730,7 @@ export class SolicitudService {
         year: number, 
         month: number, 
         week?: number, 
-        periodType: 'week' | 'month' | 'quarter' = 'month'
+        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
     ): Promise<Array<{ status: string; count: number }>> {
         try {
             const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
@@ -1812,7 +1812,7 @@ export class SolicitudService {
         year: number,
         month: number,
         week?: number,
-        periodType: 'week' | 'month' | 'quarter' = 'month'
+        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
     ): Promise<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>> {
         try {
             const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
@@ -1908,7 +1908,7 @@ export class SolicitudService {
         year: number,
         month: number,
         week?: number,
-        periodType: 'week' | 'month' | 'quarter' = 'month'
+        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
     ): Promise<{
         processes: Array<{
             id: number;
@@ -2171,7 +2171,7 @@ export class SolicitudService {
         year: number,
         month: number,
         week?: number,
-        periodType: 'week' | 'month' | 'quarter' = 'month'
+        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
     ): Promise<Array<{
         id_solicitud: number;
         tipo_servicio: string;

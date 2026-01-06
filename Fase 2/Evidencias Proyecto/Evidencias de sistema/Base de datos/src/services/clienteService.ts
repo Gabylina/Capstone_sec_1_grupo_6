@@ -565,7 +565,7 @@ export class ClienteService {
 
         const { Solicitud } = require('@/models');
         const clientesConSolicitudes = await Solicitud.findAll({
-            attributes: [[sequelize.fn('DISTINCT', sequelize.col('Contacto.id_cliente')), 'id_cliente']],
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('contacto.id_cliente')), 'id_cliente']],
             include: [
                 {
                     model: Contacto,
