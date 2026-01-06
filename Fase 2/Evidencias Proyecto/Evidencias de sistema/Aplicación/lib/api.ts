@@ -321,7 +321,7 @@ export const solicitudService = {
     contact_id: string;
     service_type: string;
     position_title: string;
-    ciudad: string;
+    id_comuna: number;
     description?: string;
     requirements?: string;
     vacancies?: number;
@@ -339,7 +339,7 @@ export const solicitudService = {
     contact_id?: string;
     service_type?: string;
     position_title?: string;
-    ciudad?: string;
+    id_comuna?: number;
     description?: string;
     requirements?: string;
     vacancies?: number;
@@ -599,7 +599,7 @@ export const solicitudService = {
     contact_id: number;
     service_type: string;
     position_title: string;
-    ciudad?: string;
+    id_comuna: number;
     description?: string;
     requirements?: string;
     consultant_id: string;
@@ -625,7 +625,7 @@ export const solicitudService = {
     contact_id?: number;
     service_type?: string;
     position_title?: string;
-    ciudad?: string;
+    id_comuna?: number;
     description?: string;
     requirements?: string;
     consultant_id?: string;

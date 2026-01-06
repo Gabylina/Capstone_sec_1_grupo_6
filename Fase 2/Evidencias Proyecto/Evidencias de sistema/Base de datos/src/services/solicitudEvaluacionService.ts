@@ -21,7 +21,7 @@ export class SolicitudEvaluacionService {
         contact_id: number;
         service_type: string;
         position_title: string;
-        ciudad?: string;
+        id_comuna: number;
         description?: string;
         requirements?: string;
         consultant_id: string;
@@ -53,7 +53,7 @@ export class SolicitudEvaluacionService {
                 contact_id: data.contact_id,
                 service_type: data.service_type,
                 position_title: data.position_title,
-                ciudad: data.ciudad,
+                id_comuna: data.id_comuna,
                 description: data.description,
                 requirements: data.requirements,
                 vacancies: data.candidatos.length, // Vacantes = número de candidatos
@@ -143,7 +143,7 @@ export class SolicitudEvaluacionService {
         contact_id: number;
         service_type: string;
         position_title: string;
-        ciudad?: string;
+        id_comuna: number;
         description?: string;
         requirements?: string;
         vacancies?: number;
@@ -162,7 +162,7 @@ export class SolicitudEvaluacionService {
             contact_id,
             service_type,
             position_title,
-            ciudad,
+            id_comuna,
             description,
             requirements,
             vacancies,
@@ -198,17 +198,8 @@ export class SolicitudEvaluacionService {
             }, { transaction });
         }
 
-        // Buscar la comuna
-        let idComuna = 1; // Por defecto Santiago
-        if (ciudad) {
-            const comuna = await Comuna.findOne({
-                where: { nombre_comuna: ciudad.trim() },
-                transaction
-            });
-            if (comuna) {
-                idComuna = comuna.id_comuna;
-            }
-        }
+        // Usar el id_comuna proporcionado
+        const idComuna = id_comuna;
 
         const idEtapaInicial = 1;
 
@@ -269,7 +260,7 @@ export class SolicitudEvaluacionService {
             contact_id?: number;
             service_type?: string;
             position_title?: string;
-            ciudad?: string;
+            id_comuna?: number;
             description?: string;
             requirements?: string;
             consultant_id?: string;
@@ -345,14 +336,8 @@ export class SolicitudEvaluacionService {
                     descripcionCargo.id_cargo = cargo.id_cargo;
                 }
 
-                if (data.ciudad) {
-                    const comuna = await Comuna.findOne({
-                        where: { nombre_comuna: data.ciudad.trim() },
-                        transaction
-                    });
-                    if (comuna) {
-                        descripcionCargo.id_comuna = comuna.id_comuna;
-                    }
+                if (data.id_comuna) {
+                    descripcionCargo.id_comuna = data.id_comuna;
                 }
 
                 if (data.description !== undefined) {

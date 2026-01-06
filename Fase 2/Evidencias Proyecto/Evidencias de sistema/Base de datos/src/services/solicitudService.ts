@@ -539,7 +539,7 @@ export class SolicitudService {
         contact_id: number;
         service_type: string;
         position_title: string;
-        ciudad?: string;
+        id_comuna: number;
         description?: string;
         requirements?: string;
         vacancies?: number;
@@ -558,7 +558,7 @@ export class SolicitudService {
                 contact_id,
                 service_type,
                 position_title,
-                ciudad,
+                id_comuna,
                 description,
                 requirements,
                 vacancies,
@@ -593,16 +593,8 @@ export class SolicitudService {
                 }, { transaction });
             }
 
-            // Buscar la comuna
-            let idComuna = 1; // Por defecto Santiago
-            if (ciudad) {
-                const comuna = await Comuna.findOne({
-                    where: { nombre_comuna: ciudad.trim() }
-                });
-                if (comuna) {
-                    idComuna = comuna.id_comuna;
-                }
-            }
+            // Usar el id_comuna proporcionado
+            const idComuna = id_comuna;
 
             // Todos los procesos inician en Módulo 1
             // ES, TS y AP usan módulos 1 y 4 (pero inician en 1)
@@ -687,7 +679,7 @@ export class SolicitudService {
         contact_id?: number;
         service_type?: string;
         position_title?: string;
-        ciudad?: string;
+        id_comuna?: number;
         description?: string;
         requirements?: string;
         vacancies?: number;
@@ -746,13 +738,8 @@ export class SolicitudService {
                 if (data.requirements) descripcionCargo.requisitos_y_condiciones = data.requirements.trim();
                 if (data.vacancies) descripcionCargo.num_vacante = data.vacancies;
 
-                if (data.ciudad) {
-                    const comuna = await Comuna.findOne({
-                        where: { nombre_comuna: data.ciudad.trim() }
-                    });
-                    if (comuna) {
-                        descripcionCargo.id_comuna = comuna.id_comuna;
-                    }
+                if (data.id_comuna) {
+                    descripcionCargo.id_comuna = data.id_comuna;
                 }
 
                 await descripcionCargo.save({ transaction });

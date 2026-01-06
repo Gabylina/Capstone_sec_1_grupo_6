@@ -111,6 +111,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
     position_title: "",
     region: "",
     ciudad: "",
+    id_comuna: "", // Agregar ID de comuna
     description: "",
     requirements: "",
     vacancies: 1,
@@ -183,6 +184,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         position_title: "",
         region: "",
         ciudad: "",
+        id_comuna: "",
         description: "",
         requirements: "",
         vacancies: 1,
@@ -257,7 +259,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       setComunasFiltradas([])
       // Limpiar la comuna si se deselecciona la región
       if (formData.ciudad) {
-        setFormData({ ...formData, ciudad: "" })
+        setFormData({ ...formData, ciudad: "", id_comuna: "" })
       }
     }
   }, [formData.region, regiones, todasLasComunas])
@@ -304,11 +306,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         // La API ya transforma los datos, usamos los campos directamente
         const ciudadNombre = solicitud.ciudad || ""
         let regionNombre = ""
+        let comunaId = ""
         
-        // Si tenemos el nombre de la ciudad, buscar su región
+        // Si tenemos el nombre de la ciudad, buscar su región y ID
         if (ciudadNombre) {
           const comunaEncontrada = todasLasComunas.find(c => c.nombre_comuna === ciudadNombre)
           if (comunaEncontrada) {
+            comunaId = comunaEncontrada.id_comuna.toString()
             const regionEncontrada = regiones.find(r => r.id_region === comunaEncontrada.id_region)
             if (regionEncontrada) {
               regionNombre = regionEncontrada.nombre_region
@@ -324,6 +328,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           position_title: solicitud.position_title || "",
           region: regionNombre,
           ciudad: ciudadNombre,
+          id_comuna: comunaId,
           description: solicitud.description || "",
           requirements: solicitud.requirements || "",
           vacancies: solicitud.vacancies || 1,
@@ -625,7 +630,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             contact_id: parseInt(formData.contact_id),
             service_type: formData.service_type,
             position_title: formData.position_title,
-            ciudad: formData.ciudad,
+            id_comuna: parseInt(formData.id_comuna),
             description: formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
             requirements: formData.requirements || undefined,
             consultant_id: formData.consultant_id,
@@ -646,7 +651,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             contact_id: formData.contact_id,
             service_type: formData.service_type,
             position_title: formData.position_title,
-            ciudad: formData.ciudad,
+            id_comuna: parseInt(formData.id_comuna),
             description: isEvaluationProcess && formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
             requirements: formData.requirements || undefined,
             vacancies: formData.vacancies,
@@ -668,7 +673,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             contact_id: parseInt(formData.contact_id),
             service_type: formData.service_type,
             position_title: formData.position_title,
-            ciudad: formData.ciudad,
+            id_comuna: parseInt(formData.id_comuna),
             description: formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
             requirements: formData.requirements || undefined,
             consultant_id: formData.consultant_id,
@@ -689,7 +694,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             contact_id: formData.contact_id,
             service_type: formData.service_type,
             position_title: formData.position_title,
-            ciudad: formData.ciudad,
+            id_comuna: parseInt(formData.id_comuna),
             description: formData.description || undefined,
             requirements: formData.requirements || undefined,
             vacancies: formData.vacancies,
@@ -853,6 +858,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       position_title: "",
           region: "",
           ciudad: "",
+          id_comuna: "",
       description: "",
       requirements: "",
       vacancies: 1,
@@ -1256,7 +1262,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
               <Select 
                 value={formData.region} 
                 onValueChange={(value) => {
-                  setFormData({ ...formData, region: value, ciudad: "" })
+                  setFormData({ ...formData, region: value, ciudad: "", id_comuna: "" })
                   validateSpecificField('region', value)
                 }} 
                 required
@@ -1281,9 +1287,15 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             <div className="space-y-2">
               <Label htmlFor="ciudad">Ciudad/Comuna <span className="text-red-500">*</span></Label>
               <Select 
-                value={formData.ciudad} 
+                value={formData.id_comuna} 
                 onValueChange={(value) => {
-                  setFormData({ ...formData, ciudad: value })
+                  // Buscar la comuna seleccionada para obtener su nombre
+                  const comunaSeleccionada = comunasFiltradas.find(c => c.id_comuna.toString() === value)
+                  setFormData({ 
+                    ...formData, 
+                    id_comuna: value,
+                    ciudad: comunaSeleccionada?.nombre_comuna || ""
+                  })
                   validateSpecificField('ciudad', value)
                 }} 
                 required
@@ -1294,7 +1306,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 </SelectTrigger>
                 <SelectContent>
                   {comunasFiltradas.map((comuna) => (
-                    <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
+                    <SelectItem key={comuna.id_comuna} value={comuna.id_comuna.toString()}>
                       {comuna.nombre_comuna}
                     </SelectItem>
                   ))}
