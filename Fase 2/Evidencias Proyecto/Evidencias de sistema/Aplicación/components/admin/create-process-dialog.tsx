@@ -25,6 +25,37 @@ import * as XLSX from 'xlsx'
 import { useFormValidation, validationSchemas, validateCandidates } from "@/hooks/useFormValidation"
 import { ValidatedInput, ValidatedTextarea, ValidatedSelect, ValidatedSelectItem, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 
+// Función para formatear nombres de servicios (agregar espacios entre palabras)
+const formatServiceName = (nombre: string): string => {
+  // Mapeo de nombres específicos para casos conocidos
+  const nombresMapeados: Record<string, string> = {
+    'Procesocompleto': 'Proceso completo',
+    'Procesocompletocondivulgación': 'Proceso completo con divulgación',
+    'Huntingdecabezas': 'Hunting de cabezas',
+    'Evaluaciónpsicolaboral': 'Evaluación psicolaboral',
+    'Evaluaciónpotencial': 'Evaluación potencial',
+    'Testpsicolaboral': 'Test psicolaboral',
+    'Longlist': 'Long list',
+    'Targetrecruitment': 'Target recruitment',
+    'Filtrointeligente': 'Filtro inteligente',
+    'Publicaciónenportales': 'Publicación en portales',
+  }
+  
+  // Buscar coincidencia exacta (sin importar mayúsculas)
+  const nombreLower = nombre.toLowerCase().replace(/\s+/g, '')
+  for (const [key, value] of Object.entries(nombresMapeados)) {
+    if (key.toLowerCase() === nombreLower) {
+      return value
+    }
+  }
+  
+  // Si no hay coincidencia, intentar agregar espacios antes de mayúsculas
+  return nombre
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // Agregar espacio antes de mayúsculas
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2') // Manejar secuencias de mayúsculas
+    .trim()
+}
+
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
   if (!errorMessage) return defaultMessage
@@ -1155,7 +1186,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             >
               {apiData?.tipos_servicio.map((tipo) => (
                 <ValidatedSelectItem key={tipo.codigo} value={tipo.codigo}>
-                  {tipo.nombre}
+                  {formatServiceName(tipo.nombre)}
                 </ValidatedSelectItem>
               ))}
             </ValidatedSelect>

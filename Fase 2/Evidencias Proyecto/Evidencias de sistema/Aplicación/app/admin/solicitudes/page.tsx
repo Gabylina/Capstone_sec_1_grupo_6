@@ -31,6 +31,37 @@ interface Solicitud {
   id_descripcion_cargo: number
 }
 
+// Función para formatear nombres de servicios (agregar espacios entre palabras)
+const formatServiceName = (nombre: string): string => {
+  // Mapeo de nombres específicos para casos conocidos
+  const nombresMapeados: Record<string, string> = {
+    'Procesocompleto': 'Proceso completo',
+    'Procesocompletocondivulgación': 'Proceso completo con divulgación',
+    'Huntingdecabezas': 'Hunting de cabezas',
+    'Evaluaciónpsicolaboral': 'Evaluación psicolaboral',
+    'Evaluaciónpotencial': 'Evaluación potencial',
+    'Testpsicolaboral': 'Test psicolaboral',
+    'Longlist': 'Long list',
+    'Targetrecruitment': 'Target recruitment',
+    'Filtrointeligente': 'Filtro inteligente',
+    'Publicaciónenportales': 'Publicación en portales',
+  }
+  
+  // Buscar coincidencia exacta (sin importar mayúsculas)
+  const nombreLower = nombre.toLowerCase().replace(/\s+/g, '')
+  for (const [key, value] of Object.entries(nombresMapeados)) {
+    if (key.toLowerCase() === nombreLower) {
+      return value
+    }
+  }
+  
+  // Si no hay coincidencia, intentar agregar espacios antes de mayúsculas
+  return nombre
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // Agregar espacio antes de mayúsculas
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2') // Manejar secuencias de mayúsculas
+    .trim()
+}
+
 export default function SolicitudesPage() {
   const { showToast } = useToastNotification()
   
@@ -327,7 +358,7 @@ export default function SolicitudesPage() {
                     <TableCell className="font-medium">{solicitud.cargo}</TableCell>
                     <TableCell>{solicitud.cliente}</TableCell>
                   <TableCell>
-                      <Badge variant="outline">{solicitud.tipo_servicio_nombre}</Badge>
+                      <Badge variant="outline">{formatServiceName(solicitud.tipo_servicio_nombre)}</Badge>
                   </TableCell>
                     <TableCell>{solicitud.consultor}</TableCell>
                   <TableCell>

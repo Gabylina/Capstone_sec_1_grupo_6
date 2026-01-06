@@ -135,6 +135,8 @@ export default function UsuariosPage() {
     pageSize,
     totalPages,
     totalUsers,
+    totalConsultores,
+    totalAdministradores,
     goToPage,
     nextPage,
     prevPage,
@@ -618,7 +620,7 @@ export default function UsuariosPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-2xl font-bold">{totalUsers}</div>
           </CardContent>
         </Card>
         <Card>
@@ -627,7 +629,7 @@ export default function UsuariosPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.filter((u) => u.role === "consultor").length}</div>
+            <div className="text-2xl font-bold">{totalConsultores}</div>
           </CardContent>
         </Card>
         <Card>
@@ -636,7 +638,7 @@ export default function UsuariosPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{users.filter((u) => u.role === "admin").length}</div>
+            <div className="text-2xl font-bold">{totalAdministradores}</div>
           </CardContent>
         </Card>
       </div>

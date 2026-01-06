@@ -47,6 +47,10 @@ export function useClientes() {
   const [totalPages, setTotalPages] = useState(0)
   const [totalClients, setTotalClients] = useState(0)
   
+  // Estados de estadísticas
+  const [totalContactos, setTotalContactos] = useState(0)
+  const [clientesActivos, setClientesActivos] = useState(0)
+  
   // Estados para formularios
   const [newClient, setNewClient] = useState<NewClientInput>({
     name: "",
@@ -64,6 +68,27 @@ export function useClientes() {
     ],
   })
   const [editingClient, setEditingClient] = useState<HookClient | null>(null)
+
+  // Función para obtener estadísticas de clientes
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/clientes/stats`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
+        },
+      })
+
+      const data = await res.json()
+      
+      if (res.ok && data?.success) {
+        setTotalClients(data.data.total_clientes || 0)
+        setTotalContactos(data.data.total_contactos || 0)
+        setClientesActivos(data.data.clientes_activos || 0)
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    }
+  }
 
   // Función para obtener clientes con paginación y filtros
   const fetchClients = async () => {
@@ -99,8 +124,10 @@ export function useClientes() {
         }))
         
         setClients(transformedClients)
-        setTotalClients(data.data.pagination.total)
         setTotalPages(data.data.pagination.totalPages)
+        
+        // Cargar estadísticas en paralelo
+        fetchStats()
       } else {
         console.error("Error fetching clients:", data?.message)
       }
@@ -301,6 +328,8 @@ export function useClientes() {
     pageSize,
     totalPages,
     totalClients,
+    totalContactos,
+    clientesActivos,
     newClient,
     editingClient,
     
@@ -313,6 +342,7 @@ export function useClientes() {
     
     // Funciones
     fetchClients,
+    fetchStats,
     createClient,
     updateClient,
     deleteClient,

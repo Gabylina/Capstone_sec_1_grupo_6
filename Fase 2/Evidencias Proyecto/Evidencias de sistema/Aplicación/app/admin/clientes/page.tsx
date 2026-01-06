@@ -114,6 +114,8 @@ export default function ClientesPage() {
     pageSize,
     totalPages,
     totalClients,
+    totalContactos,
+    clientesActivos,
     newClient,
     editingClient,
     setSearchTerm,
@@ -778,7 +780,7 @@ export default function ClientesPage() {
             <Building className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{clients.length}</div>
+            <div className="text-2xl font-bold">{totalClients}</div>
           </CardContent>
         </Card>
         <Card>
@@ -787,9 +789,10 @@ export default function ClientesPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {clients.filter((client) => getClientProcessCount(client.id) > 0).length}
-            </div>
+            <div className="text-2xl font-bold">{clientesActivos}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Clientes con solicitudes
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -798,9 +801,7 @@ export default function ClientesPage() {
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {clients.reduce((total, client) => total + client.contacts.length, 0)}
-            </div>
+            <div className="text-2xl font-bold">{totalContactos}</div>
           </CardContent>
         </Card>
       </div>

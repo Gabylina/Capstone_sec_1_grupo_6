@@ -30,7 +30,10 @@ router.get('/fechas', LogCambiosController.getByFechas);
 // Buscar logs con filtros combinados
 router.get('/search', LogCambiosController.search);
 
-// Obtener estadísticas
+// Obtener estadísticas simplificadas
+router.get('/stats', LogCambiosController.getStats);
+
+// Obtener estadísticas detalladas
 router.get('/estadisticas', LogCambiosController.getEstadisticas);
 
 // Obtener actividad reciente

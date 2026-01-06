@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createUser, getUsers, updateUser, changePassword } from '@/services/userService';
+import { createUser, getUsers, updateUser, changePassword, getStats } from '@/services/userService';
 import { sendError, sendSuccess } from '@/utils/response';
 
 // Crear usuario
@@ -71,5 +71,15 @@ export const changePasswordController = async (req: Request, res: Response) => {
     
     // Mensaje genérico para errores no contemplados
     return sendError(res, error.message || "Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.", 500);
+  }
+};
+
+// Obtener estadísticas de usuarios
+export const getStatsController = async (req: Request, res: Response) => {
+  try {
+    const stats = await getStats();
+    return sendSuccess(res, stats, 'Estadísticas obtenidas correctamente');
+  } catch (error: any) {
+    return sendError(res, error.message || 'Error al obtener estadísticas', 500);
   }
 };

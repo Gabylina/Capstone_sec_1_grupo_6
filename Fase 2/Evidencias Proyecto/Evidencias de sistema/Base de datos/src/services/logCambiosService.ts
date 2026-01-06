@@ -237,5 +237,24 @@ export class LogCambiosService {
             historial: logs
         };
     }
+
+    /**
+     * Obtener estadísticas simplificadas para administrador
+     */
+    static async getStats() {
+        // Total de registros en el log
+        const totalLogs = await LogCambios.count();
+
+        // Usuarios únicos que han realizado cambios
+        const usuariosUnicos = await LogCambios.findAll({
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('usuario_responsable')), 'usuario']],
+            raw: true
+        });
+
+        return {
+            total_logs: totalLogs,
+            usuarios_activos: usuariosUnicos.length
+        };
+    }
 }
 
