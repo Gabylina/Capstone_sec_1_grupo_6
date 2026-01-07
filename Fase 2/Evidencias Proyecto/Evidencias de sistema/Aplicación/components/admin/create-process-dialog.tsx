@@ -29,26 +29,24 @@ import { ValidatedInput, ValidatedTextarea, ValidatedSelect, ValidatedSelectItem
 const formatServiceName = (nombre: string): string => {
   // Mapeo de nombres específicos para casos conocidos
   const nombresMapeados: Record<string, string> = {
-    'Procesocompleto': 'Proceso completo',
-    'Procesocompletocondivulgación': 'Proceso completo con divulgación',
-    'Huntingdecabezas': 'Hunting de cabezas',
-    'Evaluaciónpsicolaboral': 'Evaluación psicolaboral',
-    'Evaluaciónpotencial': 'Evaluación potencial',
-    'Testpsicolaboral': 'Test psicolaboral',
-    'Longlist': 'Long list',
-    'Targetrecruitment': 'Target recruitment',
-    'Filtrointeligente': 'Filtro inteligente',
-    'Publicaciónenportales': 'Publicación en portales',
+    'ProcesoCompleto': 'Proceso Completo',
+    'LongList': 'Long List',
+    'HeadHunting': 'Head Hunting',
+    'TestPsicolaboral': 'Test Psicolaboral',
+    'EvaluacionPsicolaboral': 'Evaluación Psicolaboral',
+    'Filtro Inteligente': 'Filtro Inteligente',
+    'Evaluación Potencial': 'Evaluación Potencial',
+    'Publicación Portales': 'Publicación Portales',
   }
-  
+
   // Buscar coincidencia exacta (sin importar mayúsculas)
   const nombreLower = nombre.toLowerCase().replace(/\s+/g, '')
   for (const [key, value] of Object.entries(nombresMapeados)) {
-    if (key.toLowerCase() === nombreLower) {
+    if (key.toLowerCase().replace(/\s+/g, '') === nombreLower) {
       return value
     }
   }
-  
+
   // Si no hay coincidencia, intentar agregar espacios antes de mayúsculas
   return nombre
     .replace(/([a-z])([A-Z])/g, '$1 $2') // Agregar espacio antes de mayúsculas
