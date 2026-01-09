@@ -9,7 +9,7 @@ import { validateDateRange } from '@/utils/validators';
 interface DescripcionCargoAttributes {
     id_descripcioncargo: number;
     descripcion_cargo: string;
-    requisitos_y_condiciones: string;
+    requisitos_y_condiciones?: string;
     num_vacante: number;
     fecha_ingreso: Date;
     datos_excel?: object;
@@ -18,7 +18,7 @@ interface DescripcionCargoAttributes {
     id_solicitud: number; // <-- Nueva FK hacia Solicitud
 }
 
-interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel'> { }
+interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel' | 'requisitos_y_condiciones'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -27,7 +27,7 @@ interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAt
 class DescripcionCargo extends Model<DescripcionCargoAttributes, DescripcionCargoCreationAttributes> implements DescripcionCargoAttributes {
     public id_descripcioncargo!: number;
     public descripcion_cargo!: string;
-    public requisitos_y_condiciones!: string;
+    public requisitos_y_condiciones?: string;
     public num_vacante!: number;
     public fecha_ingreso!: Date;
     public datos_excel?: object;
@@ -87,10 +87,12 @@ DescripcionCargo.init({
     },
     requisitos_y_condiciones: {
         type: DataTypes.STRING(500),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [10, 500]
+            len: {
+                args: [10, 500],
+                msg: 'Los requisitos deben tener entre 10 y 500 caracteres'
+            }
         }
     },
     num_vacante: {

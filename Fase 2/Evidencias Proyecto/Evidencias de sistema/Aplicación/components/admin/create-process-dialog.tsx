@@ -1485,12 +1485,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor={`segundo_apellido_${index}`}>Segundo Apellido *</Label>
+                        <Label htmlFor={`segundo_apellido_${index}`}>Segundo Apellido</Label>
                         <Input
                           id={`segundo_apellido_${index}`}
                           value={candidato.segundo_apellido_candidato}
                           onChange={(e) => updateCandidato(index, 'segundo_apellido_candidato', e.target.value)}
-                          placeholder="Segundo apellido"
+                          placeholder="Segundo apellido (opcional)"
                           className={getCandidateError(index, 'segundo_apellido_candidato') ? "border-red-500" : ""}
                         />
                         {getCandidateError(index, 'segundo_apellido_candidato') && (
@@ -1499,12 +1499,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor={`telefono_${index}`}>Teléfono * (8-12 caracteres)</Label>
+                        <Label htmlFor={`telefono_${index}`}>Teléfono (8-12 caracteres)</Label>
                   <Input
                           id={`telefono_${index}`}
                           value={candidato.telefono_candidato}
                           onChange={(e) => updateCandidato(index, 'telefono_candidato', e.target.value)}
-                          placeholder="+56912345678"
+                          placeholder="+56912345678 (opcional)"
                     className={getCandidateError(index, 'telefono_candidato') ? "border-red-500" : ""}
                   />
                   {getCandidateError(index, 'telefono_candidato') && (
@@ -1513,13 +1513,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 </div>
 
                 <div className="space-y-2">
-                        <Label htmlFor={`email_${index}`}>Email *</Label>
+                        <Label htmlFor={`email_${index}`}>Email</Label>
                   <Input
                           id={`email_${index}`}
                           type="text"
                           value={candidato.email_candidato}
                           onChange={(e) => updateCandidato(index, 'email_candidato', e.target.value)}
-                          placeholder="candidato@email.com"
+                          placeholder="candidato@email.com (opcional)"
                     className={getCandidateError(index, 'email_candidato') ? "border-red-500" : ""}
                   />
                   {getCandidateError(index, 'email_candidato') && (
@@ -1632,20 +1632,21 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             />
           )}
 
-          <ValidatedTextarea
-            id="requirements"
-            label="Requisitos"
-            value={formData.requirements}
-            onChange={(value) => {
-              setFormData({ ...formData, requirements: value })
-              validateSpecificField('requirements', value)
-            }}
-            placeholder="Requisitos y condiciones"
-            required
-            error={typeof validationErrors.requirements === 'string' ? validationErrors.requirements : undefined}
-            maxLength={500}
-            showCharCount
-          />
+          {!isEvaluationProcess && (
+            <ValidatedTextarea
+              id="requirements"
+              label="Requisitos"
+              value={formData.requirements}
+              onChange={(value) => {
+                setFormData({ ...formData, requirements: value })
+                validateSpecificField('requirements', value)
+              }}
+              placeholder="Requisitos y condiciones (opcional)"
+              error={typeof validationErrors.requirements === 'string' ? validationErrors.requirements : undefined}
+              maxLength={500}
+              showCharCount
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             {!isEvaluationProcess && (

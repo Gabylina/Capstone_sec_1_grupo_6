@@ -5,6 +5,47 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 // ===========================================
+// SERVICIO DE AUTENTICACIÓN
+// ===========================================
+
+export const authService = {
+  /**
+   * Renovar token de sesión
+   */
+  async refreshToken(token: string): Promise<ApiResponse<{
+    token: string;
+    usuario: {
+      rut_usuario: string;
+      nombre: string;
+      apellido: string;
+      rol: string;
+      activo: boolean;
+    };
+  }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al renovar token');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error al renovar token:', error);
+      throw error;
+    }
+  }
+};
+
+// ===========================================
 // TIPOS DE RESPUESTA
 // ===========================================
 

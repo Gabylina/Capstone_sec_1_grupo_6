@@ -374,15 +374,17 @@ export class CandidatoService {
                 education = []
             } = data;
 
-            // Validaciones
-            if (!nombre || !primer_apellido || !email || !phone) {
-                throw new Error('Faltan campos requeridos');
+            // Validaciones de campos requeridos (solo nombre y primer_apellido)
+            if (!nombre || !primer_apellido) {
+                throw new Error('Faltan campos requeridos: nombre y primer apellido son obligatorios');
             }
 
-            // Verificar si el candidato ya existe
-            const candidatoExistente = await this.getCandidatoByEmail(email);
-            if (candidatoExistente) {
-                throw new Error('Ya existe un candidato con este email');
+            // Verificar si el candidato ya existe (solo si se proporciona email)
+            if (email && email.trim()) {
+                const candidatoExistente = await this.getCandidatoByEmail(email);
+                if (candidatoExistente) {
+                    throw new Error('Ya existe un candidato con este email');
+                }
             }
 
             // Buscar comuna por nombre
@@ -424,9 +426,9 @@ export class CandidatoService {
                 rut_candidato: rut,
                 nombre_candidato: nombre.trim(),
                 primer_apellido_candidato: primer_apellido.trim(),
-                segundo_apellido_candidato: segundo_apellido?.trim() || 'N/A',
-                telefono_candidato: phone.trim(),
-                email_candidato: email.trim(),
+                segundo_apellido_candidato: segundo_apellido?.trim() || undefined,
+                telefono_candidato: phone?.trim() || undefined,
+                email_candidato: email?.trim() || undefined,
                 fecha_nacimiento_candidato: birth_date ? new Date(birth_date) : undefined,
                 edad_candidato: birth_date ? this.calculateAge(new Date(birth_date)) : undefined,
                 nivel_ingles: english_level,

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/auth"
+import { authService } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 interface TokenExpiredDialogProps {
   open: boolean
@@ -15,6 +17,7 @@ interface TokenExpiredDialogProps {
 export function TokenExpiredDialog({ open, onOpenChange }: TokenExpiredDialogProps) {
   const router = useRouter()
   const { logout } = useAuth()
+  const { toast } = useToast()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
 
@@ -36,23 +39,69 @@ export function TokenExpiredDialog({ open, onOpenChange }: TokenExpiredDialogPro
     }, 100)
   }
 
-  const handleRefresh = () => {
-    // Renovar sesión: cerrar diálogo, limpiar sesión y redirigir al login
+  const handleRefresh = async () => {
     setIsRefreshing(true)
     
-    // Cerrar el diálogo primero
-    onOpenChange(false)
-    
-    // Limpiar la sesión
-    logout()
-    
-    // Redirigir inmediatamente sin delay para evitar que el diálogo se vuelva a abrir
-    router.push("/login")
-    
-    // Resetear el estado después de un momento
-    setTimeout(() => {
+    try {
+      // Obtener el token actual (puede estar expirado)
+      const currentToken = localStorage.getItem('llc_token')
+      
+      if (!currentToken) {
+        throw new Error('No hay token para renovar')
+      }
+
+      // Llamar al endpoint de renovación
+      const response = await authService.refreshToken(currentToken)
+      
+      if (response.success && response.data) {
+        // Actualizar el token en localStorage
+        localStorage.setItem('llc_token', response.data.token)
+        
+        // Actualizar información del usuario si es necesario
+        const userData = {
+          id: response.data.usuario.rut_usuario,
+          firstName: response.data.usuario.nombre,
+          lastName: response.data.usuario.apellido,
+          email: localStorage.getItem('llc_user') ? JSON.parse(localStorage.getItem('llc_user')!).email : '',
+          isActive: response.data.usuario.activo,
+          role: response.data.usuario.rol === 'admin' ? 'admin' : 'consultor'
+        }
+        localStorage.setItem('llc_user', JSON.stringify(userData))
+        
+        // Mostrar mensaje de éxito
+        toast({
+          title: "Sesión renovada",
+          description: "Tu sesión ha sido renovada exitosamente. Tienes 2 horas más.",
+          variant: "default",
+        })
+        
+        // Cerrar el diálogo
+        onOpenChange(false)
+        
+        // Recargar la página para aplicar el nuevo token
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
+      }
+    } catch (error: any) {
+      console.error('Error al renovar token:', error)
+      
+      // Mostrar mensaje de error
+      toast({
+        title: "Error al renovar sesión",
+        description: error.message || "No se pudo renovar la sesión. Por favor, inicia sesión nuevamente.",
+        variant: "destructive",
+      })
+      
+      // Cerrar el diálogo y redirigir al login después de un momento
+      setTimeout(() => {
+        onOpenChange(false)
+        logout()
+        router.push("/login")
+      }, 2000)
+    } finally {
       setIsRefreshing(false)
-    }, 100)
+    }
   }
 
   return (
@@ -66,11 +115,17 @@ export function TokenExpiredDialog({ open, onOpenChange }: TokenExpiredDialogPro
             <DialogTitle className="text-xl">Sesión Expirada</DialogTitle>
           </div>
           <DialogDescription className="text-base pt-2">
-            Tu sesión ha expirado por seguridad. Por favor, inicia sesión nuevamente para continuar.
+            Tu sesión ha expirado por seguridad. Puedes renovarla automáticamente o volver a iniciar sesión.
           </DialogDescription>
-          <div className="mt-4 p-3 bg-muted rounded-md">
+          <div className="mt-4 p-3 bg-muted rounded-md space-y-2">
             <p className="text-sm text-muted-foreground">
-              <strong>Nota:</strong> El token de sesión tiene una duración de <strong>3 horas</strong> por seguridad.
+              <strong>Nota:</strong> El token de sesión tiene una duración de <strong>2 horas</strong> por seguridad.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              • <strong>Renovar Sesión:</strong> Obtén 2 horas más automáticamente 
+            </p>
+            <p className="text-sm text-muted-foreground">
+              • <strong>Ir a Iniciar Sesión:</strong> Ingresa con tu email y contraseña nuevamente
             </p>
           </div>
         </DialogHeader>

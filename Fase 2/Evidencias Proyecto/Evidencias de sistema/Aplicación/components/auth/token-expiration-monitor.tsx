@@ -22,6 +22,13 @@ export function TokenExpirationMonitor() {
   // Escuchar eventos de expiración de token desde las llamadas API
   useEffect(() => {
     const handleTokenExpired = () => {
+      // No mostrar el diálogo si fue un logout intencional
+      const intentionalLogout = sessionStorage.getItem("intentional_logout")
+      if (intentionalLogout) {
+        sessionStorage.removeItem("intentional_logout")
+        return
+      }
+      
       if (!userDismissed && !isLoginPage) {
         setShowDialog(true)
       }
@@ -36,6 +43,14 @@ export function TokenExpirationMonitor() {
 
   // Mostrar diálogo cuando el token expire (solo si el usuario no lo cerró manualmente y no estamos en login)
   useEffect(() => {
+    // No mostrar el diálogo si fue un logout intencional
+    const intentionalLogout = sessionStorage.getItem("intentional_logout")
+    if (intentionalLogout) {
+      sessionStorage.removeItem("intentional_logout")
+      setShowDialog(false)
+      return
+    }
+    
     if (isExpired && !userDismissed && !isLoginPage) {
       setShowDialog(true)
     } else if (isLoginPage) {

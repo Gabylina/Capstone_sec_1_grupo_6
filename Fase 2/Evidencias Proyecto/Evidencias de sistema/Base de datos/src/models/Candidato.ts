@@ -11,9 +11,9 @@ interface CandidatoAttributes {
     rut_candidato?: string;
     nombre_candidato: string;
     primer_apellido_candidato: string;
-    segundo_apellido_candidato: string;
-    telefono_candidato: string;
-    email_candidato: string;
+    segundo_apellido_candidato?: string;
+    telefono_candidato?: string;
+    email_candidato?: string;
     edad_candidato?: number;
     fecha_nacimiento_candidato?: Date;
     software_herramientas?: string;
@@ -25,7 +25,7 @@ interface CandidatoAttributes {
     id_rubro?: number;
 }
 
-interface CandidatoCreationAttributes extends Optional<CandidatoAttributes, 'id_candidato' | 'rut_candidato' | 'edad_candidato' | 'fecha_nacimiento_candidato' | 'software_herramientas' | 'nivel_ingles' | 'id_comuna' | 'id_nacionalidad' | 'id_rubro'> { }
+interface CandidatoCreationAttributes extends Optional<CandidatoAttributes, 'id_candidato' | 'rut_candidato' | 'segundo_apellido_candidato' | 'telefono_candidato' | 'email_candidato' | 'edad_candidato' | 'fecha_nacimiento_candidato' | 'software_herramientas' | 'nivel_ingles' | 'id_comuna' | 'id_nacionalidad' | 'id_rubro'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -36,9 +36,9 @@ class Candidato extends Model<CandidatoAttributes, CandidatoCreationAttributes> 
     public rut_candidato?: string;
     public nombre_candidato!: string;
     public primer_apellido_candidato!: string;
-    public segundo_apellido_candidato!: string;
-    public telefono_candidato!: string;
-    public email_candidato!: string;
+    public segundo_apellido_candidato?: string;
+    public telefono_candidato?: string;
+    public email_candidato?: string;
     public edad_candidato?: number;
     public fecha_nacimiento_candidato?: Date;
     public software_herramientas?: string;
@@ -57,7 +57,12 @@ class Candidato extends Model<CandidatoAttributes, CandidatoCreationAttributes> 
      * Obtiene el nombre completo del candidato
      */
     public getNombreCompleto(): string {
-        return `${this.nombre_candidato} ${this.primer_apellido_candidato} ${this.segundo_apellido_candidato}`.trim();
+        const partes = [
+            this.nombre_candidato,
+            this.primer_apellido_candidato,
+            this.segundo_apellido_candidato
+        ].filter(Boolean);
+        return partes.join(' ').trim();
     }
 
     /**
@@ -140,30 +145,35 @@ Candidato.init({
     },
     segundo_apellido_candidato: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [2, 100]
+            len: {
+                args: [2, 100],
+                msg: 'El segundo apellido debe tener entre 2 y 100 caracteres'
+            }
         }
     },
     telefono_candidato: {
         type: DataTypes.STRING(12),
-        allowNull: false,
+        allowNull: true,
         validate: {
-            notEmpty: true,
-            len: [8, 12]
+            len: {
+                args: [8, 12],
+                msg: 'El teléfono debe tener entre 8 y 12 caracteres'
+            }
         }
     },
     email_candidato: {
         type: DataTypes.STRING(150),
-        allowNull: false,
+        allowNull: true,
         unique: {
             name: 'email_candidato_unique',
             msg: 'Este email ya está registrado'
         },
         validate: {
-            isEmail: true,
-            notEmpty: true
+            isEmail: {
+                msg: 'Debe ser un email válido'
+            }
         }
     },
     edad_candidato: {

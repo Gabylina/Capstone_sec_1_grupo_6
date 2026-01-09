@@ -628,12 +628,11 @@ export class SolicitudService {
                 id_solicitud: nuevaSolicitud.id_solicitud
             };
 
-            // Solo agregar requisitos si no está vacío
+            // Los requisitos son opcionales
             if (requirements && requirements.trim()) {
                 descripcionCargoData.requisitos_y_condiciones = requirements.trim();
-            } else {
-                descripcionCargoData.requisitos_y_condiciones = 'Por definir';
             }
+            // Si no hay requisitos, dejar null (campo opcional)
 
             const nuevaDescripcionCargo = await DescripcionCargo.create(descripcionCargoData, { transaction });
 
@@ -743,7 +742,10 @@ export class SolicitudService {
                 }
 
                 if (data.description) descripcionCargo.descripcion_cargo = data.description.trim();
-                if (data.requirements) descripcionCargo.requisitos_y_condiciones = data.requirements.trim();
+                // Permitir establecer requisitos como undefined si está vacío (Sequelize lo convertirá a null en BD)
+                if (data.requirements !== undefined) {
+                    descripcionCargo.requisitos_y_condiciones = data.requirements?.trim() || undefined;
+                }
                 if (data.vacancies) descripcionCargo.num_vacante = data.vacancies;
 
                 if (data.id_comuna) {

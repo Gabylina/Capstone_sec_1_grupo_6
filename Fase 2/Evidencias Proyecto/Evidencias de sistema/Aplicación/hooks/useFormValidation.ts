@@ -154,21 +154,54 @@ export const validationSchemas = {
       }
     },
     description: validationRules.requiredTextLength(10, 500, 'La descripción'),
-    requirements: validationRules.requiredTextLength(10, 500, 'Los requisitos')
+    requirements: validationRules.textLength(10, 500, 'Los requisitos')
   },
   
   // Validaciones para candidatos
   candidateForm: {
     nombre_candidato: validationRules.required('Debe ingresar el nombre del candidato'),
     primer_apellido_candidato: validationRules.required('Debe ingresar el primer apellido del candidato'),
-    segundo_apellido_candidato: validationRules.required('Debe ingresar el segundo apellido del candidato'),
+    segundo_apellido_candidato: {
+      required: false,
+      minLength: 2,
+      maxLength: 100,
+      message: 'El segundo apellido debe tener entre 2 y 100 caracteres'
+    },
     telefono_candidato: {
-      ...validationRules.required('Debe ingresar el teléfono del candidato'),
-      ...validationRules.phone()
+      required: false,
+      custom: (value: string) => {
+        if (!value || !value.trim()) {
+          return null // Campo opcional
+        }
+        // Validar formato básico (números, espacios, guiones, paréntesis, signo +)
+        const phonePattern = /^[\+]?[0-9\s\-\(\)]+$/
+        if (!phonePattern.test(value.trim())) {
+          return 'Formato de teléfono inválido'
+        }
+        // Validar longitud (8 a 12 caracteres)
+        const length = value.trim().length
+        if (length < 8) {
+          return 'El teléfono debe tener al menos 8 caracteres'
+        }
+        if (length > 12) {
+          return 'El teléfono no puede exceder 12 caracteres'
+        }
+        return null
+      }
     },
     email_candidato: {
-      ...validationRules.required('Debe ingresar el email del candidato'),
-      ...validationRules.email('Ingrese un email válido (ej: candidato@ejemplo.com)')
+      required: false,
+      custom: (value: string) => {
+        if (!value || !value.trim()) {
+          return null // Campo opcional
+        }
+        // Validar formato de email
+        const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+        if (!emailPattern.test(value.trim())) {
+          return 'Ingrese un email válido (ej: candidato@ejemplo.com)'
+        }
+        return null
+      }
     },
     rut_candidato: validationRules.rut()
   },

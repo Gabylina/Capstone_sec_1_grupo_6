@@ -71,6 +71,10 @@ const login = async (email: string, password: string): Promise<boolean> => {
 }
 
   const logout = () => {
+    // Establecer flag para indicar que es un logout intencional
+    // Esto evita que el monitor de expiración muestre el diálogo
+    sessionStorage.setItem("intentional_logout", "true")
+    
     setUser(null)
     localStorage.removeItem("llc_user")
     localStorage.removeItem("llc_token")
