@@ -37,9 +37,11 @@ export const loginUser = async ({ email, password }: LoginPayload): Promise<Logi
   // Opciones de JWT
   //const signOptions: SignOptions = { expiresIn: config.jwt.expiresIn || '1h' };
 
+  // Duración del token: 10800 segundos = 3 horas
+  // El frontend está configurado para mostrar una notificación cuando el token expire
   const signOptions: SignOptions = { 
-  expiresIn: 3600 // 1 hora en segundos
-};
+    expiresIn: 10800 // 3 horas en segundos (10800 segundos = 3 horas)
+  };
 
   // Generar token JWT
   const token = jwt.sign(

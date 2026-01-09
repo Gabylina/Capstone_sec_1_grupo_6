@@ -545,6 +545,7 @@ export class SolicitudService {
         vacancies?: number;
         consultant_id: string;
         deadline_days?: number;
+        fecha_ingreso_solicitud?: Date;
     }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
@@ -602,7 +603,8 @@ export class SolicitudService {
             const idEtapaInicial = 1;
 
             // Calcular plazo máximo basado en la duración del proceso según codigo_servicio
-            const fechaIngreso = new Date();
+            // Usar la fecha proporcionada o la fecha actual si no se proporciona
+            const fechaIngreso = data.fecha_ingreso_solicitud || new Date();
             const diasHabiles = obtenerDuracionProceso(service_type);
             const plazoMaximo = await FechasLaborales.sumarDiasHabiles(fechaIngreso, diasHabiles);
 
@@ -685,6 +687,7 @@ export class SolicitudService {
         vacancies?: number;
         consultant_id?: string;
         deadline_days?: number;
+        fecha_ingreso_solicitud?: Date;
     }, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
 
@@ -707,13 +710,18 @@ export class SolicitudService {
             if (data.contact_id) solicitud.id_contacto = data.contact_id;
             if (data.service_type) solicitud.codigo_servicio = data.service_type;
             if (data.consultant_id) solicitud.rut_usuario = data.consultant_id;
+            
+            // Actualizar fecha de ingreso si se proporciona
+            if (data.fecha_ingreso_solicitud) {
+                solicitud.fecha_ingreso_solicitud = data.fecha_ingreso_solicitud;
+            }
 
-            // Recalcular fecha límite si se cambia el servicio
-            if (data.service_type) {
-                const codigoServicio = data.service_type;
+            // Recalcular fecha límite si se cambia el servicio o la fecha de ingreso
+            const fechaIngresoParaCalculo = data.fecha_ingreso_solicitud || solicitud.fecha_ingreso_solicitud;
+            if (data.service_type || data.fecha_ingreso_solicitud) {
+                const codigoServicio = data.service_type || solicitud.codigo_servicio;
                 const diasHabiles = obtenerDuracionProceso(codigoServicio);
-                // Usar la fecha de ingreso original de la solicitud para recalcular
-                const nuevaFecha = await FechasLaborales.sumarDiasHabiles(solicitud.fecha_ingreso_solicitud, diasHabiles);
+                const nuevaFecha = await FechasLaborales.sumarDiasHabiles(fechaIngresoParaCalculo, diasHabiles);
                 solicitud.plazo_maximo_solicitud = nuevaFecha;
             }
 

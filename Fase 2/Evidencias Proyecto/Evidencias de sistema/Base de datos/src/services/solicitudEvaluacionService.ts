@@ -26,6 +26,7 @@ export class SolicitudEvaluacionService {
         requirements?: string;
         consultant_id: string;
         deadline_days?: number;
+        fecha_ingreso_solicitud?: Date;
         // Datos de los candidatos
         candidatos: Array<{
             nombre: string;
@@ -58,7 +59,8 @@ export class SolicitudEvaluacionService {
                 requirements: data.requirements,
                 vacancies: data.candidatos.length, // Vacantes = número de candidatos
                 consultant_id: data.consultant_id,
-                deadline_days: data.deadline_days
+                deadline_days: data.deadline_days,
+                fecha_ingreso_solicitud: data.fecha_ingreso_solicitud
             };
 
             // Usar el método existente pero pasando la transacción actual
@@ -149,6 +151,7 @@ export class SolicitudEvaluacionService {
         vacancies?: number;
         consultant_id: string;
         deadline_days?: number;
+        fecha_ingreso_solicitud?: Date;
     }, transaction: Transaction, usuarioRut?: string) {
         const Solicitud = (await import('@/models/Solicitud')).default;
         const DescripcionCargo = (await import('@/models/DescripcionCargo')).default;
@@ -204,7 +207,8 @@ export class SolicitudEvaluacionService {
         const idEtapaInicial = 1;
 
         // Calcular plazo máximo basado en la duración del proceso según codigo_servicio
-        const fechaIngreso = new Date();
+        // Usar la fecha proporcionada o la fecha actual si no se proporciona
+        const fechaIngreso = data.fecha_ingreso_solicitud || new Date();
         const diasHabiles = obtenerDuracionProceso(service_type);
         const plazoMaximo = await FechasLaborales.sumarDiasHabiles(fechaIngreso, diasHabiles);
 
@@ -265,6 +269,7 @@ export class SolicitudEvaluacionService {
             requirements?: string;
             consultant_id?: string;
             deadline_days?: number;
+            fecha_ingreso_solicitud?: Date;
             // Datos de los candidatos nuevos (solo se agregan, no se modifican existentes)
             candidatos?: Array<{
                 nombre: string;
@@ -308,13 +313,18 @@ export class SolicitudEvaluacionService {
             if (data.contact_id) solicitud.id_contacto = data.contact_id;
             if (data.service_type) solicitud.codigo_servicio = data.service_type;
             if (data.consultant_id) solicitud.rut_usuario = data.consultant_id;
+            
+            // Actualizar fecha de ingreso si se proporciona
+            if (data.fecha_ingreso_solicitud) {
+                solicitud.fecha_ingreso_solicitud = data.fecha_ingreso_solicitud;
+            }
 
-            // Recalcular fecha límite si se cambia el servicio
-            if (data.service_type) {
-                const codigoServicio = data.service_type;
+            // Recalcular fecha límite si se cambia el servicio o la fecha de ingreso
+            const fechaIngresoParaCalculo = data.fecha_ingreso_solicitud || solicitud.fecha_ingreso_solicitud;
+            if (data.service_type || data.fecha_ingreso_solicitud) {
+                const codigoServicio = data.service_type || solicitud.codigo_servicio;
                 const diasHabiles = obtenerDuracionProceso(codigoServicio);
-                // Usar la fecha de ingreso original de la solicitud para recalcular
-                const nuevaFecha = await FechasLaborales.sumarDiasHabiles(solicitud.fecha_ingreso_solicitud, diasHabiles);
+                const nuevaFecha = await FechasLaborales.sumarDiasHabiles(fechaIngresoParaCalculo, diasHabiles);
                 solicitud.plazo_maximo_solicitud = nuevaFecha;
             }
 

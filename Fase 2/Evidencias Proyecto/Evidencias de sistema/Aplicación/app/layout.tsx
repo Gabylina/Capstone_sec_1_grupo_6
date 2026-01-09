@@ -6,6 +6,7 @@ import { AuthProvider } from "@/hooks/auth"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
+import { TokenExpirationProvider } from "@/components/auth/token-expiration-provider"
 
 const inter = Inter({
   variable: "--font-inter",
@@ -35,7 +36,10 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <TokenExpirationProvider />
+          </AuthProvider>
           <Toaster />
           <SonnerToaster />
         </ThemeProvider>

@@ -17,8 +17,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
-import { Loader2, Plus, Trash2 } from "lucide-react"
+import { Loader2, Plus, Trash2, Calendar as CalendarIcon } from "lucide-react"
 import { validateRut } from "@/lib/utils"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 import type { ServiceType } from "@/lib/types"
 import { descripcionCargoService, solicitudService, regionService, comunaService, candidatoService, postulacionService, getCandidatesByProcess } from "@/lib/api"
 import * as XLSX from 'xlsx'
@@ -149,6 +153,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
     candidate_rut: "",
     cv_file: null as File | null,
     excel_file: null as File | null,
+    fecha_ingreso_solicitud: "", // Fecha de ingreso de la solicitud (formato YYYY-MM-DD)
   })
 
   // Estados específicos para evaluación/test psicolaboral
@@ -222,6 +227,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         candidate_rut: "",
         cv_file: null,
         excel_file: null,
+        fecha_ingreso_solicitud: "",
       })
       setShowCustomPosition(false)
       setCustomPosition("")
@@ -350,6 +356,16 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         }
         
         // Usar los datos transformados del backend
+        // Formatear fecha_ingreso_solicitud si existe
+        let fechaIngresoFormateada = ""
+        if (solicitud.fecha_ingreso_solicitud) {
+          const fecha = new Date(solicitud.fecha_ingreso_solicitud)
+          const year = fecha.getFullYear()
+          const month = String(fecha.getMonth() + 1).padStart(2, '0')
+          const day = String(fecha.getDate()).padStart(2, '0')
+          fechaIngresoFormateada = `${year}-${month}-${day}`
+        }
+        
         setFormData({
           client_id: solicitud.client_id || "",
           contact_id: solicitud.contact_id || "",
@@ -366,6 +382,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           candidate_rut: "",
           cv_file: null,
           excel_file: null,
+          fecha_ingreso_solicitud: fechaIngresoFormateada,
         })
 
         // Si es evaluación/test psicolaboral, cargar candidatos existentes
@@ -664,6 +681,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             requirements: formData.requirements || undefined,
             consultant_id: formData.consultant_id,
             deadline_days: 30,
+            fecha_ingreso_solicitud: formData.fecha_ingreso_solicitud || undefined,
             candidatos: candidatos.map(c => ({
               nombre: c.nombre_candidato,
               primer_apellido: c.primer_apellido_candidato,
@@ -685,7 +703,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             requirements: formData.requirements || undefined,
             vacancies: formData.vacancies,
             consultant_id: formData.consultant_id,
-            deadline_days: 30
+            deadline_days: 30,
+            fecha_ingreso_solicitud: formData.fecha_ingreso_solicitud || undefined
           })
         }
       } else {
@@ -707,6 +726,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             requirements: formData.requirements || undefined,
             consultant_id: formData.consultant_id,
             deadline_days: 30,
+            fecha_ingreso_solicitud: formData.fecha_ingreso_solicitud || undefined,
             candidatos: candidatos.map(c => ({
               nombre: c.nombre_candidato,
               primer_apellido: c.primer_apellido_candidato,
@@ -728,7 +748,8 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             requirements: formData.requirements || undefined,
             vacancies: formData.vacancies,
             consultant_id: formData.consultant_id,
-            deadline_days: 30
+            deadline_days: 30,
+            fecha_ingreso_solicitud: formData.fecha_ingreso_solicitud || undefined
           })
         }
       }
@@ -896,6 +917,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       candidate_rut: "",
       cv_file: null,
           excel_file: null,
+      fecha_ingreso_solicitud: "",
     })
     setShowCustomPosition(false)
     setCustomPosition("")
@@ -1218,28 +1240,60 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           <div className="space-y-2">
             <Label htmlFor="position_title">Cargo <span className="text-red-500">*</span></Label>
             {isEvaluationProcess ? (
-              <Select 
-                value={formData.position_title} 
-                onValueChange={(value) => {
-                  setFormData({ ...formData, position_title: value })
-                  validateSpecificField('position_title', value)
-                }} 
-                required
-              >
-                <SelectTrigger className={validationErrors.position_title ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Seleccionar cargo">
-                    {formData.position_title === "Sin cargo" ? "Sin cargo" : formData.position_title}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Sin cargo">Sin cargo</SelectItem>
-                  {apiData?.cargos.filter(cargo => cargo !== "Sin cargo").map((cargo) => (
-                    <SelectItem key={cargo} value={cargo}>
-                      {cargo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                {!showCustomPosition ? (
+                  <Select 
+                    value={formData.position_title} 
+                    onValueChange={(value) => {
+                      if (value === "custom") {
+                        setShowCustomPosition(true)
+                        setFormData({ ...formData, position_title: "" })
+                        setCustomPosition("")
+                      } else {
+                        setFormData({ ...formData, position_title: value })
+                        validateSpecificField('position_title', value)
+                      }
+                    }} 
+                    required
+                  >
+                    <SelectTrigger className={validationErrors.position_title ? "border-red-500" : ""}>
+                      <SelectValue placeholder="Seleccionar cargo">
+                        {formData.position_title === "Sin cargo" ? "Sin cargo" : formData.position_title}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Sin cargo">Sin cargo</SelectItem>
+                      {apiData?.cargos.filter(cargo => cargo !== "Sin cargo").map((cargo) => (
+                        <SelectItem key={cargo} value={cargo}>
+                          {cargo}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={customPosition}
+                      onChange={(e) => handleCustomPositionChange(e.target.value)}
+                      placeholder="Ingrese el nombre del cargo"
+                      required
+                      className={validationErrors.position_title ? "border-red-500" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowCustomPosition(false)
+                        setFormData({ ...formData, position_title: "" })
+                        setCustomPosition("")
+                      }}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <>
             {!showCustomPosition ? (
@@ -1652,6 +1706,56 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 </ValidatedSelectItem>
               ))}
             </ValidatedSelect>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="fecha_ingreso_solicitud">
+              Fecha de Ingreso de la Solicitud
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${!formData.fecha_ingreso_solicitud ? "text-muted-foreground" : ""}`}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {formData.fecha_ingreso_solicitud 
+                    ? (() => {
+                        const [year, month, day] = formData.fecha_ingreso_solicitud.split('-').map(Number)
+                        const dateObj = new Date(year, month - 1, day)
+                        return format(dateObj, "PPP", { locale: es })
+                      })()
+                    : "Seleccionar fecha (opcional)"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  captionLayout="dropdown"
+                  fromYear={2020}
+                  toYear={new Date().getFullYear() + 1}
+                  selected={formData.fecha_ingreso_solicitud ? (() => {
+                    const [year, month, day] = formData.fecha_ingreso_solicitud.split('-').map(Number)
+                    return new Date(year, month - 1, day)
+                  })() : undefined}
+                  onSelect={(date) => {
+                    if (date) {
+                      const year = date.getFullYear()
+                      const month = String(date.getMonth() + 1).padStart(2, '0')
+                      const day = String(date.getDate()).padStart(2, '0')
+                      const selectedDate = `${year}-${month}-${day}`
+                      setFormData({ ...formData, fecha_ingreso_solicitud: selectedDate })
+                    } else {
+                      setFormData({ ...formData, fecha_ingreso_solicitud: "" })
+                    }
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              Si no se selecciona una fecha, se usará la fecha actual
+            </p>
           </div>
 
             <div className="space-y-2">

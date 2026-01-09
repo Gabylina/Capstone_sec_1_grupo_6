@@ -23,6 +23,7 @@ export class SolicitudEvaluacionController {
                 requirements,
                 consultant_id,
                 deadline_days,
+                fecha_ingreso_solicitud,
                 candidatos
             } = req.body;
 
@@ -52,6 +53,7 @@ export class SolicitudEvaluacionController {
                 requirements,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
+                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined,
                 candidatos
             }, req.user?.id);
 
@@ -96,6 +98,7 @@ export class SolicitudEvaluacionController {
                 requirements,
                 consultant_id,
                 deadline_days,
+                fecha_ingreso_solicitud,
                 candidatos
             } = req.body;
 
@@ -126,6 +129,7 @@ export class SolicitudEvaluacionController {
                     requirements,
                     consultant_id,
                     deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
+                    fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined,
                     candidatos: candidatos && Array.isArray(candidatos) && candidatos.length > 0 ? candidatos : undefined
                 },
                 req.user?.id

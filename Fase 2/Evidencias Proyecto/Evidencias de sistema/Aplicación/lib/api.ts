@@ -19,6 +19,9 @@ interface ApiResponse<T = any> {
 // FUNCIÓN BASE PARA LLAMADAS HTTP
 // ===========================================
 
+// Evento personalizado para notificar expiración de token
+export const TOKEN_EXPIRED_EVENT = 'token-expired'
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -39,6 +42,15 @@ async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
+      // Si el error es 401 (Unauthorized), probablemente el token expiró
+      if (response.status === 401) {
+        // Disparar evento personalizado para notificar expiración
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(TOKEN_EXPIRED_EVENT, {
+            detail: { message: data.message || 'Token expirado' }
+          }));
+        }
+      }
       throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
     }
 
@@ -327,6 +339,7 @@ export const solicitudService = {
     vacancies?: number;
     consultant_id: string;
     deadline_days?: number;
+    fecha_ingreso_solicitud?: string;
   }): Promise<ApiResponse<any>> {
     return apiRequest('/api/solicitudes', {
       method: 'POST',
@@ -345,6 +358,7 @@ export const solicitudService = {
     vacancies?: number;
     consultant_id?: string;
     deadline_days?: number;
+    fecha_ingreso_solicitud?: string;
   }): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}`, {
       method: 'PUT',
@@ -604,6 +618,7 @@ export const solicitudService = {
     requirements?: string;
     consultant_id: string;
     deadline_days?: number;
+    fecha_ingreso_solicitud?: string;
     candidatos: Array<{
       nombre: string;
       primer_apellido: string;
@@ -630,6 +645,7 @@ export const solicitudService = {
     requirements?: string;
     consultant_id?: string;
     deadline_days?: number;
+    fecha_ingreso_solicitud?: string;
     candidatos?: Array<{
       nombre: string;
       primer_apellido: string;

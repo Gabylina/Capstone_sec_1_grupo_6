@@ -117,7 +117,8 @@ export class SolicitudController {
                 requirements,
                 vacancies,
                 consultant_id,
-                deadline_days
+                deadline_days,
+                fecha_ingreso_solicitud
             } = req.body;
 
             const nuevaSolicitud = await SolicitudService.createSolicitud({
@@ -129,7 +130,8 @@ export class SolicitudController {
                 requirements,
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
-                deadline_days: deadline_days ? parseInt(deadline_days) : undefined
+                deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
+                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined
             }, req.user?.id);
 
             Logger.info(`Solicitud creada: ${nuevaSolicitud.id}`);
@@ -237,7 +239,8 @@ export class SolicitudController {
                 requirements,
                 vacancies,
                 consultant_id,
-                deadline_days
+                deadline_days,
+                fecha_ingreso_solicitud
             } = req.body;
 
             const solicitudActualizada = await SolicitudService.updateSolicitud(parseInt(id), {
@@ -249,7 +252,8 @@ export class SolicitudController {
                 requirements,
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
-                deadline_days: deadline_days ? parseInt(deadline_days) : undefined
+                deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
+                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined
             }, req.user?.id);
 
             Logger.info(`Solicitud actualizada: ${id}`);
