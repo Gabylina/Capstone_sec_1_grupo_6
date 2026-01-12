@@ -23,10 +23,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d defaultdb"]
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
+      start_period: 10s
     networks:
       - llconsulting_network
 
@@ -50,7 +51,7 @@ services:
       JWT_EXPIRES_IN: 24h
       FRONTEND_URL: ${FRONTEND_URL:-https://web.llconsulting.cl}
       UPLOAD_PATH: ./uploads
-      MAX_FILE_SIZE: 10485760
+      MAX_FILE_SIZE: 52428800
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX_REQUESTS: 100000
     ports:

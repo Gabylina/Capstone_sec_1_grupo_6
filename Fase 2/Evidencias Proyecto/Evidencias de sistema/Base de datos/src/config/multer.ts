@@ -31,7 +31,7 @@ export const uploadCV = multer({
     storage: storage,
     fileFilter: fileFilter,
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB máximo
+        fileSize: 50 * 1024 * 1024 // 50MB máximo
     }
 });
 
@@ -40,7 +40,7 @@ export const handleMulterError = (error: any) => {
     if (error instanceof multer.MulterError) {
         switch (error.code) {
             case 'LIMIT_FILE_SIZE':
-                return 'El archivo excede el tamaño máximo permitido (5MB)';
+                return 'El archivo excede el tamaño máximo permitido (50MB)';
             case 'LIMIT_UNEXPECTED_FILE':
                 return 'Campo de archivo inesperado';
             default:

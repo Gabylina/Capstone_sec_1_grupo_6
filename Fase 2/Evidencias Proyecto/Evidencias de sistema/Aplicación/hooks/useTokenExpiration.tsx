@@ -74,10 +74,10 @@ export function useTokenExpiration() {
     setTimeRemaining(remaining)
 
     if (remaining <= 0) {
-      // Token expirado
+      // Token expirado - NO hacer logout automáticamente, dejar que el diálogo se muestre
       setIsExpired(true)
       setIsExpiringSoon(false)
-      logout()
+      // NO llamar logout() aquí - el diálogo se encargará de eso
     } else if (remaining <= WARNING_TIME_SECONDS) {
       // Token próximo a expirar
       setIsExpiringSoon(true)

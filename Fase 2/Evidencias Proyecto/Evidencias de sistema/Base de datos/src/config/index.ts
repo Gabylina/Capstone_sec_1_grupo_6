@@ -28,7 +28,7 @@ export const config = {
   // Configuración de archivos
   upload: {
     path: process.env.UPLOAD_PATH || './uploads',
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760') // 10MB
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '52428800') // 50MB
   },
 
   // Configuración de rate limiting

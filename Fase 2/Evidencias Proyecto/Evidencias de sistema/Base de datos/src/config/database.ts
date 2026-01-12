@@ -26,7 +26,7 @@ const sequelize = new Sequelize({
     max: 10, // Reducido de 20 a 10 para evitar exceder límites
     min: 1,  // Reducido de 2 a 1 para conservar conexiones
     acquire: 30000,
-    idle: 5000,  // Reducido de 10000 a 5000 para liberar conexiones más rápido
+    idle: 30000,  // Aumentado a 30 segundos para reducir reconexiones frecuentes
     evict: 1000
   },
   define: {

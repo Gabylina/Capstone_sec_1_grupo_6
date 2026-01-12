@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation"
 import { TokenExpiredDialog } from "./token-expired-dialog"
 import { useTokenExpiration } from "@/hooks/useTokenExpiration"
 import { TOKEN_EXPIRED_EVENT } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/hooks/auth"
 
 /**
  * Componente que monitorea la expiración del token y muestra un diálogo
@@ -13,8 +15,11 @@ import { TOKEN_EXPIRED_EVENT } from "@/lib/api"
 export function TokenExpirationMonitor() {
   const [showDialog, setShowDialog] = useState(false)
   const [userDismissed, setUserDismissed] = useState(false)
+  const [warningShown, setWarningShown] = useState(false)
   const pathname = usePathname()
   const { isExpired, isExpiringSoon, timeRemaining, formatTimeRemaining } = useTokenExpiration()
+  const { toast } = useToast()
+  const { logout } = useAuth()
 
   // No mostrar el diálogo si estamos en la página de login
   const isLoginPage = pathname === '/login'
@@ -51,35 +56,53 @@ export function TokenExpirationMonitor() {
       return
     }
     
-    if (isExpired && !userDismissed && !isLoginPage) {
+    // Forzar mostrar el diálogo cuando el token expire
+    if (isExpired && !isLoginPage) {
+      // Resetear el flag de dismissed para asegurar que se muestre
+      setUserDismissed(false)
       setShowDialog(true)
     } else if (isLoginPage) {
       // Si estamos en login, cerrar el diálogo si está abierto
       setShowDialog(false)
     }
-  }, [isExpired, userDismissed, isLoginPage])
+  }, [isExpired, isLoginPage])
 
   // Manejar el cierre del diálogo
   const handleDialogChange = (open: boolean) => {
     setShowDialog(open)
-    // Si el usuario cierra el diálogo manualmente, marcar como descartado
-    if (!open) {
+    // Si el usuario cierra el diálogo manualmente cuando el token está expirado,
+    // forzar el logout y redirigir al login
+    if (!open && isExpired) {
+      // Si el token está expirado y el usuario cierra el diálogo, hacer logout
+      logout()
+      window.location.href = "/login"
+    } else if (!open) {
+      // Si no está expirado, solo marcar como descartado temporalmente
       setUserDismissed(true)
-      // Resetear el flag después de un tiempo para permitir que se muestre de nuevo si es necesario
       setTimeout(() => {
         setUserDismissed(false)
       }, 5000)
     }
   }
 
-  // Opcional: Mostrar advertencia cuando el token esté próximo a expirar
-  // Puedes descomentar esto si quieres mostrar una notificación antes de que expire
-  // useEffect(() => {
-  //   if (isExpiringSoon && timeRemaining !== null) {
-  //     // Aquí podrías mostrar un toast o notificación
-  //     console.warn(`Tu sesión expirará en ${formatTimeRemaining(timeRemaining)}`)
-  //   }
-  // }, [isExpiringSoon, timeRemaining, formatTimeRemaining])
+  // Mostrar advertencia cuando el token esté próximo a expirar (30 minutos antes)
+  useEffect(() => {
+    if (isExpiringSoon && timeRemaining !== null && !warningShown && !isLoginPage) {
+      const timeText = formatTimeRemaining(timeRemaining)
+      toast({
+        title: "⚠️ Tu sesión expirará pronto",
+        description: `Tu sesión expirará en ${timeText}. Renueva tu sesión para continuar trabajando.`,
+        variant: "default",
+        duration: 10000, // 10 segundos
+      })
+      setWarningShown(true)
+    }
+    
+    // Resetear el warning si el token ya no está próximo a expirar
+    if (!isExpiringSoon) {
+      setWarningShown(false)
+    }
+  }, [isExpiringSoon, timeRemaining, formatTimeRemaining, warningShown, isLoginPage, toast])
 
   return (
     <TokenExpiredDialog 

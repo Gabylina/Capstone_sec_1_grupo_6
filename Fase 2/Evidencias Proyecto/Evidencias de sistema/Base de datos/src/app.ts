@@ -134,10 +134,10 @@ app.use(limiter);
 app.use(compression());
 
 // Parse JSON
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Parse URL-encoded
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ===========================================
 // MIDDLEWARE DE LOGGING
