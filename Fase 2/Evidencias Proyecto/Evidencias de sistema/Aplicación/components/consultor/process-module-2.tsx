@@ -232,9 +232,10 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   const isBlocked = isProcessBlocked(processStatus)
 
   // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
-  const isInAdvancedModule = process.etapa && (
-    process.etapa.includes("Módulo 4") || 
-    process.etapa.includes("Módulo 5")
+  const processAny = process as any
+  const isInAdvancedModule = processAny.etapa && (
+    processAny.etapa.includes("Módulo 4") || 
+    processAny.etapa.includes("Módulo 5")
   )
 
   // Verificar si hay al menos un candidato presentado
@@ -325,7 +326,8 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   // Cargar estados disponibles para PP (Publicación Portales)
   useEffect(() => {
     const loadEstados = async () => {
-      if (process.tipo_servicio !== "PP") return
+      const processAny = process as any
+      if (processAny.tipo_servicio !== "PP" && process.service_type !== "PP") return
       
       setLoadingEstados(true)
       try {
@@ -349,7 +351,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
     }
 
     loadEstados()
-  }, [process.tipo_servicio])
+  }, [(process as any).tipo_servicio, process.service_type])
 
   // Función para obtener el label dinámico según el estado seleccionado (PP)
   const getReasonLabel = (): string => {
@@ -1195,18 +1197,26 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       console.log('📊 Longitud de workExperienceFormsData:', workExperienceFormsData.length);
       console.log('📊 Longitud de educationFormsData:', educationFormsData.length);
 
-      // ✅ CAMBIO: Enviar nombre, primer_apellido y segundo_apellido por separado
-      // Si segundo_apellido está vacío o es muy corto, usar "N/A"
+      // ✅ Campos opcionales: segundo_apellido, email, phone
+      // Si están vacíos o muy cortos, usar undefined (NULL en BD)
       const segundoApellidoCreate = formData.segundo_apellido && formData.segundo_apellido.trim().length >= 2 
         ? formData.segundo_apellido.trim() 
-        : 'N/A';
+        : undefined;
+      
+      const emailCreate = formData.email && formData.email.trim() 
+        ? formData.email.trim() 
+        : undefined;
+      
+      const phoneCreate = formData.phone && formData.phone.trim() 
+        ? formData.phone.trim() 
+        : undefined;
       
       const candidateData = {
         nombre: formData.nombre,
         primer_apellido: formData.primer_apellido,
         segundo_apellido: segundoApellidoCreate,
-        email: formData.email,
-        phone: formData.phone,
+        email: emailCreate,
+        phone: phoneCreate,
         rut: formData.rut || undefined,
         birth_date: formData.birth_date || undefined,
         comuna: formData.comuna || undefined,
@@ -1625,18 +1635,26 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         return
       }
 
-      // ✅ CAMBIO: Enviar nombre, primer_apellido y segundo_apellido por separado
-      // Si segundo_apellido está vacío o es muy corto, usar "N/A"
+      // ✅ Campos opcionales: segundo_apellido, email, phone
+      // Si están vacíos o muy cortos, usar undefined (NULL en BD)
       const segundoApellido = formData.segundo_apellido && formData.segundo_apellido.trim().length >= 2 
         ? formData.segundo_apellido.trim() 
-        : 'N/A';
+        : undefined;
+      
+      const email = formData.email && formData.email.trim() 
+        ? formData.email.trim() 
+        : undefined;
+      
+      const phone = formData.phone && formData.phone.trim() 
+        ? formData.phone.trim() 
+        : undefined;
       
       const candidateData = {
         nombre: formData.nombre,
         primer_apellido: formData.primer_apellido,
         segundo_apellido: segundoApellido,
-        email: formData.email,
-        phone: formData.phone,
+        email: email,
+        phone: phone,
         rut: formData.rut || undefined,
         birth_date: formData.birth_date || undefined,
         comuna: formData.comuna || undefined,
@@ -2813,7 +2831,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
   }
 
   // Verificar si es tipo de servicio PP (Publicación Portales) - solo muestra publicaciones
-  const isPublicacionPortales = process.tipo_servicio === "PP"
+  const isPublicacionPortales = (processAny.tipo_servicio === "PP" || process.service_type === "PP")
 
   return (
 

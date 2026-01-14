@@ -45,10 +45,8 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
       const isAdmin = userRole === 'admin'
       // Si es admin, no pasar userId para obtener todas las alertas
       const consultorId = isAdmin ? undefined : userId
-      console.log('[NOTIFICATIONS] Cargando notificaciones para usuario:', consultorId || 'TODOS (admin)')
       
       const hitos = await getHitosAlertas(consultorId)
-      console.log('[NOTIFICATIONS] Hitos recibidos:', hitos.length)
       
       const readIds = getReadNotificationIds()
       
@@ -121,8 +119,6 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
 
       const unread = newNotifications.filter(n => !n.read).length
       
-      console.log('[NOTIFICATIONS] Notificaciones totales:', newNotifications.length, 'No leídas:', unread)
-      
       setNotifications(newNotifications)
       setUnreadCount(unread)
     } catch (error) {
@@ -137,13 +133,10 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
   const markAsRead = useCallback(() => {
     if (!userId) return
     
-    console.log('[NOTIFICATIONS] markAsRead llamado, notificaciones actuales:', notifications.length)
-    
     // Marcar todas las notificaciones actuales como leídas
     const readIds = new Set<string>()
     notifications.forEach(n => {
       readIds.add(n.id)
-      console.log('[NOTIFICATIONS] Marcando como leída:', n.id)
     })
     
     saveReadNotificationIds(readIds)
@@ -151,12 +144,9 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
     // Actualizar estado inmediatamente
     setNotifications(prev => {
       const updated = prev.map(n => ({ ...n, read: true }))
-      console.log('[NOTIFICATIONS] Estado actualizado, todas marcadas como leídas')
       return updated
     })
     setUnreadCount(0)
-    
-    console.log('[NOTIFICATIONS] Todas las notificaciones marcadas como leídas, contador:', 0)
   }, [userId, notifications, saveReadNotificationIds])
 
   const markNotificationAsRead = useCallback((notificationId: string) => {
@@ -181,7 +171,6 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
       // Auto-refresh: actualizar notificaciones cada 5 minutos
       // Esto asegura que las alertas se actualicen progresivamente
       const intervalId = setInterval(() => {
-        console.log('[NOTIFICATIONS] Auto-refresh: recargando notificaciones...')
         loadNotifications()
       }, 5 * 60 * 1000) // 5 minutos
       

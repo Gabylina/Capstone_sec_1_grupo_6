@@ -589,9 +589,21 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       let hasErrors = false
 
       // Validar campos básicos del formulario
-      const basicValidation = validateAllFields(formData, validationSchemas.processForm)
+      // Si es proceso de evaluación con "Sin cargo", no validar description (se auto-completa)
+      const isSinCargo = isEvaluationProcess && formData.position_title === "Sin cargo"
+      
+      // Crear schema de validación sin description si es "Sin cargo"
+      const { description, ...schemaWithoutDescription } = validationSchemas.processForm
+      const schemaToValidate = isSinCargo ? schemaWithoutDescription : validationSchemas.processForm
+      
+      const basicValidation = validateAllFields(formData, schemaToValidate)
       if (!basicValidation) {
         hasErrors = true
+      }
+      
+      // Si es "Sin cargo", asegurar que description tenga un valor para el envío
+      if (isSinCargo && !formData.description) {
+        formData.description = "Sin cargo especificado"
       }
 
       // Validación adicional para cliente con contactos

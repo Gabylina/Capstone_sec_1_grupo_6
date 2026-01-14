@@ -37,10 +37,11 @@ export class SolicitudEvaluacionController {
             }
 
             // Validar que cada candidato tenga los campos requeridos
+            // Solo nombre y primer_apellido son obligatorios; email y phone son opcionales
             for (let i = 0; i < candidatos.length; i++) {
                 const candidato = candidatos[i];
-                if (!candidato.nombre || !candidato.primer_apellido || !candidato.email || !candidato.phone) {
-                    return sendError(res, `Candidato ${i + 1}: Faltan campos requeridos (nombre, primer_apellido, email, phone)`, 400);
+                if (!candidato.nombre || !candidato.primer_apellido) {
+                    return sendError(res, `Candidato ${i + 1}: Faltan campos requeridos (nombre y primer_apellido son obligatorios)`, 400);
                 }
             }
 
@@ -109,11 +110,12 @@ export class SolicitudEvaluacionController {
             }
 
             // Validar candidatos si se proporcionan
+            // Solo nombre y primer_apellido son obligatorios; email y phone son opcionales
             if (candidatos && Array.isArray(candidatos) && candidatos.length > 0) {
                 for (let i = 0; i < candidatos.length; i++) {
                     const candidato = candidatos[i];
-                    if (!candidato.nombre || !candidato.primer_apellido || !candidato.email || !candidato.phone) {
-                        return sendError(res, `Candidato ${i + 1}: Faltan campos requeridos (nombre, primer_apellido, email, phone)`, 400);
+                    if (!candidato.nombre || !candidato.primer_apellido) {
+                        return sendError(res, `Candidato ${i + 1}: Faltan campos requeridos (nombre y primer_apellido son obligatorios)`, 400);
                     }
                 }
             }

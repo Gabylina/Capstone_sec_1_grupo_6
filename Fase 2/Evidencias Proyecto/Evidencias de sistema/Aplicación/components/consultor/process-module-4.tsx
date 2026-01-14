@@ -305,9 +305,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
     }
 
     const loadEstados = async () => {
-      // Solo cargar estados si es ES o TS
+      // Cargar estados si es ES, EP o TS
       const serviceType = (process.service_type as string)?.toUpperCase() || ""
-      const isEvaluationProcess = serviceType === "ES" || serviceType === "TS"
+      const processAny = process as any
+      const tipoServicio = processAny.tipo_servicio?.toUpperCase() || serviceType
+      
+      const isEvaluationProcess = serviceType === "ES" || serviceType === "EP" || serviceType === "TS" ||
+                                 tipoServicio === "ES" || tipoServicio === "EP" || tipoServicio === "TS"
       
       if (!isEvaluationProcess) {
         return

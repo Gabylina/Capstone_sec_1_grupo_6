@@ -42,8 +42,6 @@ export function AppHeader() {
         const vencidas = unreadNotifications.filter(n => n.hito.estado === 'vencido').length
         const porVencer = unreadNotifications.filter(n => n.hito.estado === 'por_vencer').length
         
-        console.log('🔔 [HEADER] Mostrando toast de notificaciones:', { unreadCount, vencidas, porVencer })
-        
         if (vencidas > 0 && porVencer > 0) {
           toast.warning(
             `Tienes ${unreadCount} notificación${unreadCount !== 1 ? 'es' : ''} nueva${unreadCount !== 1 ? 's' : ''}`,
@@ -87,23 +85,19 @@ export function AppHeader() {
   const [popoverOpen, setPopoverOpen] = useState(false)
 
   const handleButtonClick = () => {
-    console.log('🔔 [HEADER] Botón de notificaciones clickeado, estado actual:', popoverOpen)
     const newState = !popoverOpen
     setPopoverOpen(newState)
     if (newState && unreadCount > 0) {
       // Marcar como leídas al abrir
-      console.log('🔔 [HEADER] Marcando notificaciones como leídas')
       markAsRead()
       // Recargar notificaciones después de marcarlas para actualizar el contador
       setTimeout(() => {
-        console.log('🔔 [HEADER] Recargando notificaciones')
         loadNotifications()
       }, 500)
     }
   }
 
   const handleNotificationClick = (hitoId: number) => {
-    console.log('🔔 [HEADER] Click en notificación:', hitoId)
     // Ir a la página de alertas al hacer click
     setPopoverOpen(false)
     router.push('/alertas')

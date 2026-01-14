@@ -906,7 +906,7 @@ export function CandidateForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="candidate_segundo_apellido">Segundo Apellido <span className="text-red-500">*</span></Label>
+            <Label htmlFor="candidate_segundo_apellido">Segundo Apellido (Opcional)</Label>
             <Input
               id="candidate_segundo_apellido"
               value={formData.segundo_apellido}
@@ -923,7 +923,7 @@ export function CandidateForm({
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="candidate_email">Email <span className="text-red-500">*</span></Label>
+            <Label htmlFor="candidate_email">Email (Opcional)</Label>
             <Input
               id="candidate_email"
               type="email"
@@ -941,7 +941,7 @@ export function CandidateForm({
 
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="candidate_phone">Teléfono (8-12 caracteres) <span className="text-red-500">*</span></Label>
+            <Label htmlFor="candidate_phone">Teléfono (8-12 caracteres) (Opcional)</Label>
             <Input
               id="candidate_phone"
               value={formData.phone}

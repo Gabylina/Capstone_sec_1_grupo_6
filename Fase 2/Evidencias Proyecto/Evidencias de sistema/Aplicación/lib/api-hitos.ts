@@ -79,10 +79,6 @@ export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]
       ? `${API_BASE_URL}/api/hitos-solicitud/alertas?consultor_id=${consultorId}`
       : `${API_BASE_URL}/api/hitos-solicitud/alertas`
     
-    console.log(`🔍 [API-HITOS] Obteniendo alertas para consultor: ${consultorId || 'TODOS (admin)'}`)
-    console.log(`🔍 [API-HITOS] URL: ${url}`)
-    console.log(`🔍 [API-HITOS] API_BASE_URL: ${API_BASE_URL}`)
-    
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -92,8 +88,6 @@ export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]
       cache: 'no-store',
     })
     
-    console.log(`🔍 [API-HITOS] Response status: ${response.status}`)
-    
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`❌ [API-HITOS] Error response:`, errorText)
@@ -101,22 +95,17 @@ export async function getHitosAlertas(consultorId?: string): Promise<HitoAlert[]
     }
     
     const data = await response.json()
-    console.log(`✅ [API-HITOS] Data recibida:`, data)
     
     // Combinar hitos por vencer y vencidos
     const alertas: HitoAlert[] = []
     
     if (data.data?.por_vencer) {
-      console.log(`📊 [API-HITOS] Hitos por vencer: ${data.data.por_vencer.length}`)
       alertas.push(...data.data.por_vencer)
     }
     
     if (data.data?.vencidos) {
-      console.log(`📊 [API-HITOS] Hitos vencidos: ${data.data.vencidos.length}`)
       alertas.push(...data.data.vencidos)
     }
-    
-    console.log(`📊 [API-HITOS] Total alertas: ${alertas.length}`)
     return alertas
   } catch (error) {
     // Mejorar el manejo de errores para identificar el problema

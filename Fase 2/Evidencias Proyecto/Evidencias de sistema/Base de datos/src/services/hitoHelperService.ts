@@ -206,8 +206,8 @@ export class HitoHelperService {
                 nombreHito = 'Entrega de resultado';
             } else if (codigoServicio === 'PP') {
                 nombreHito = 'Entrega de perfiles y cierre';
-            } else if (codigoServicio === 'LL' || codigoServicio === 'FI' || codigoServicio === 'TR') {
-                // Long List, Filtro Inteligente y Target Recruitment
+            } else if (codigoServicio === 'LL' || codigoServicio === 'FI' || codigoServicio === 'TR' || codigoServicio === 'HH' || codigoServicio === 'HS') {
+                // Long List, Filtro Inteligente, Target Recruitment y Head Hunting
                 // completan su hito al finalizar la solicitud
                 nombreHito = 'Presentación de candidatos';
             }

@@ -109,9 +109,10 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const isBlocked = isProcessBlocked(processStatus)
 
   // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
-  const isInAdvancedModule = process.etapa && (
-    process.etapa.includes("Módulo 4") || 
-    process.etapa.includes("Módulo 5")
+  const processAny = process as any
+  const isInAdvancedModule = processAny.etapa && (
+    processAny.etapa.includes("Módulo 4") || 
+    processAny.etapa.includes("Módulo 5")
   )
 
   // Cargar datos reales desde el backend
@@ -144,14 +145,22 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
     loadData()
   }, [process.id])
 
-  // Cargar estados de solicitud disponibles para finalización (solo Long List)
+  // Cargar estados de solicitud disponibles para finalización (LL, FI, HH, TR)
   useEffect(() => {
     const loadEstados = async () => {
-      // Solo cargar estados si es Long List o Filtro Inteligente
+      // Cargar estados si es Long List, Filtro Inteligente, Head Hunting o Targeted Recruitment
       const serviceType = (process.service_type as string)?.toLowerCase() || ""
-      const isLongListOrFI = serviceType === "long_list" || serviceType === "ll" || serviceType === "filtro_inteligente" || serviceType === "fi"
+      const processAny = process as any
+      const tipoServicio = processAny.tipo_servicio?.toLowerCase() || serviceType
       
-      if (!isLongListOrFI) {
+      const shouldLoadEstados = serviceType === "long_list" || serviceType === "ll" || 
+                               serviceType === "filtro_inteligente" || serviceType === "fi" ||
+                               serviceType === "headhunting" || serviceType === "hs" || serviceType === "hh" ||
+                               serviceType === "talent_retention" || serviceType === "tr" ||
+                               tipoServicio === "ll" || tipoServicio === "fi" || 
+                               tipoServicio === "hh" || tipoServicio === "hs" || tipoServicio === "tr"
+      
+      if (!shouldLoadEstados) {
         return
       }
 
@@ -650,22 +659,20 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
   const approvedCandidates = candidates.filter((c) => c.client_response === "aprobado")
   const hasApprovedWithoutFeedback = approvedCandidates.some((c) => !c.client_feedback_date)
   
+  // Solo Proceso Completo (PC) y Targeted Recruitment (TR) pueden avanzar al módulo 4
   const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc" || 
-                              serviceType === "headhunting" || serviceType === "hs" || 
                               serviceType === "talent_retention" || serviceType === "tr") && 
                               hasApproved && !hasApprovedWithoutFeedback
-  const processEndsHere = serviceType === "long_list" || serviceType === "ll" || serviceType === "filtro_inteligente" || serviceType === "fi"
   
-  // Debug: mostrar el tipo de servicio
-  console.log("🔍 Module 3 - Service Type:", {
-    original: process.service_type,
-    normalized: serviceType,
-    processEndsHere,
-    canAdvanceToModule4,
-    hasApproved,
-    hasApprovedWithoutFeedback,
-    approvedCandidatesCount: approvedCandidates.length
-  })
+  // Los procesos que terminan en módulo 3: LL, FI, HH (siempre terminan aquí)
+  // TR también termina aquí si no puede avanzar al módulo 4
+  const isLongListOrFI = serviceType === "long_list" || serviceType === "ll" || 
+                         serviceType === "filtro_inteligente" || serviceType === "fi"
+  const isHeadHunting = serviceType === "headhunting" || serviceType === "hs" || serviceType === "hh"
+  const isTRThatEndsHere = (serviceType === "talent_retention" || serviceType === "tr") && !canAdvanceToModule4
+  
+  const processEndsHere = isLongListOrFI || isHeadHunting || isTRThatEndsHere
+  
 
   // Mostrar indicador de carga
   if (isLoading) {
@@ -756,7 +763,6 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       )}
 
       {hasApproved && hasApprovedWithoutFeedback && (serviceType === "proceso_completo" || serviceType === "pc" || 
-       serviceType === "headhunting" || serviceType === "hs" || 
        serviceType === "talent_retention" || serviceType === "tr") && (
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="pt-6">
@@ -776,7 +782,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         </Card>
       )}
 
-      {/* Finalizar Solicitud - Solo para Long List */}
+      {/* Finalizar Solicitud - Para procesos que terminan en módulo 3 (LL, FI, HH, TR) */}
       {processEndsHere && (
         <Card>
           <CardHeader>
