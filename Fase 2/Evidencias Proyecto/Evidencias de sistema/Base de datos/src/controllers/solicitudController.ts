@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
+import { parseLocalDate } from '@/utils/validators';
 import { SolicitudService } from '@/services/solicitudService';
 
 /**
@@ -131,7 +132,7 @@ export class SolicitudController {
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
-                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined
+                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? parseLocalDate(fecha_ingreso_solicitud) : undefined
             }, req.user?.id);
 
             Logger.info(`Solicitud creada: ${nuevaSolicitud.id}`);
@@ -253,7 +254,7 @@ export class SolicitudController {
                 vacancies: vacancies ? parseInt(vacancies) : undefined,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
-                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined
+                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? parseLocalDate(fecha_ingreso_solicitud) : undefined
             }, req.user?.id);
 
             Logger.info(`Solicitud actualizada: ${id}`);

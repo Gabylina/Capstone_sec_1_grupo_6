@@ -67,3 +67,30 @@ export const validateRating = (valoracion: number): boolean => {
   return Number.isInteger(valoracion) && valoracion >= 1 && valoracion <= 5;
 };
 
+/**
+ * Parsea una fecha en formato YYYY-MM-DD a Date en zona horaria local
+ * Evita problemas de conversión UTC que pueden cambiar el día
+ */
+export const parseLocalDate = (dateString: string): Date => {
+  if (!dateString || typeof dateString !== 'string') {
+    throw new Error('Fecha inválida: debe ser un string en formato YYYY-MM-DD');
+  }
+  
+  // Parsear la fecha
+  const parts = dateString.split('-');
+  if (parts.length !== 3) {
+    throw new Error('Formato de fecha inválido: debe ser YYYY-MM-DD');
+  }
+  
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1; // Los meses en Date son 0-indexed
+  const day = parseInt(parts[2], 10);
+  
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    throw new Error('Fecha inválida: los componentes deben ser números');
+  }
+  
+  // Crear fecha en zona horaria local (no UTC)
+  return new Date(year, month, day);
+};
+

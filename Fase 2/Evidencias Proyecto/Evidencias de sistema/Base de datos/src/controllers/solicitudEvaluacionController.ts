@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { SolicitudEvaluacionService } from '@/services/solicitudEvaluacionService';
+import { parseLocalDate } from '@/utils/validators';
 
 /**
  * Controlador para solicitudes de evaluación/test psicolaboral
@@ -54,7 +55,7 @@ export class SolicitudEvaluacionController {
                 requirements,
                 consultant_id,
                 deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
-                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined,
+                fecha_ingreso_solicitud: fecha_ingreso_solicitud ? parseLocalDate(fecha_ingreso_solicitud) : undefined,
                 candidatos
             }, req.user?.id);
 
@@ -131,7 +132,7 @@ export class SolicitudEvaluacionController {
                     requirements,
                     consultant_id,
                     deadline_days: deadline_days ? parseInt(deadline_days) : undefined,
-                    fecha_ingreso_solicitud: fecha_ingreso_solicitud ? new Date(fecha_ingreso_solicitud) : undefined,
+                    fecha_ingreso_solicitud: fecha_ingreso_solicitud ? parseLocalDate(fecha_ingreso_solicitud) : undefined,
                     candidatos: candidatos && Array.isArray(candidatos) && candidatos.length > 0 ? candidatos : undefined
                 },
                 req.user?.id

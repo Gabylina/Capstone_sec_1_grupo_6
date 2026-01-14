@@ -11,7 +11,7 @@ import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, 
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
-import { solicitudService } from "@/lib/api"
+import { solicitudService, getCandidatesByProcess } from "@/lib/api"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
@@ -156,6 +156,10 @@ export default function SolicitudesPage() {
   // Estados para las alertas
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [solicitudToDelete, setSolicitudToDelete] = useState<string | null>(null)
+  
+  // Estado para almacenar candidatos por solicitud
+  const [candidatesBySolicitud, setCandidatesBySolicitud] = useState<Record<string, { nombre: string; apellido: string } | null>>({})
+  const [loadingCandidates, setLoadingCandidates] = useState<Record<string, boolean>>({})
 
   const handleDelete = (id: string) => {
     setSolicitudToDelete(id)
@@ -215,6 +219,88 @@ export default function SolicitudesPage() {
       setSolicitudToEdit(null)
     }
   }
+
+  // Función para cargar candidatos de una solicitud
+  const loadCandidatesForSolicitud = async (solicitudId: string) => {
+    // Si ya está cargando o ya tenemos los datos, no hacer nada
+    if (loadingCandidates[solicitudId] || candidatesBySolicitud[solicitudId] !== undefined) {
+      return
+    }
+
+    setLoadingCandidates(prev => ({ ...prev, [solicitudId]: true }))
+    
+    try {
+      const candidates = await getCandidatesByProcess(solicitudId)
+      
+      if (candidates && candidates.length > 0) {
+        // Obtener el primer candidato
+        const firstCandidate = candidates[0]
+        const nombre = firstCandidate.nombre || firstCandidate.nombre_candidato || ''
+        const apellido = firstCandidate.primer_apellido || firstCandidate.primer_apellido_candidato || ''
+        
+        setCandidatesBySolicitud(prev => ({
+          ...prev,
+          [solicitudId]: nombre && apellido ? { nombre, apellido } : null
+        }))
+      } else {
+        setCandidatesBySolicitud(prev => ({
+          ...prev,
+          [solicitudId]: null
+        }))
+      }
+    } catch (error) {
+      console.error(`Error al cargar candidatos para solicitud ${solicitudId}:`, error)
+      setCandidatesBySolicitud(prev => ({
+        ...prev,
+        [solicitudId]: null
+      }))
+    } finally {
+      setLoadingCandidates(prev => ({ ...prev, [solicitudId]: false }))
+    }
+  }
+
+  // Cargar candidatos cuando cambian las solicitudes
+  useEffect(() => {
+    solicitudes.forEach(solicitud => {
+      const solicitudId = solicitud.id.toString()
+      // Si ya está cargando o ya tenemos los datos, no hacer nada
+      if (loadingCandidates[solicitudId] || candidatesBySolicitud[solicitudId] !== undefined) {
+        return
+      }
+
+      setLoadingCandidates(prev => ({ ...prev, [solicitudId]: true }))
+      
+      getCandidatesByProcess(solicitudId)
+        .then(candidates => {
+          if (candidates && candidates.length > 0) {
+            // Obtener el primer candidato
+            const firstCandidate = candidates[0]
+            const nombre = firstCandidate.nombre || firstCandidate.nombre_candidato || ''
+            const apellido = firstCandidate.primer_apellido || firstCandidate.primer_apellido_candidato || ''
+            
+            setCandidatesBySolicitud(prev => ({
+              ...prev,
+              [solicitudId]: nombre && apellido ? { nombre, apellido } : null
+            }))
+          } else {
+            setCandidatesBySolicitud(prev => ({
+              ...prev,
+              [solicitudId]: null
+            }))
+          }
+        })
+        .catch(error => {
+          console.error(`Error al cargar candidatos para solicitud ${solicitudId}:`, error)
+          setCandidatesBySolicitud(prev => ({
+            ...prev,
+            [solicitudId]: null
+          }))
+        })
+        .finally(() => {
+          setLoadingCandidates(prev => ({ ...prev, [solicitudId]: false }))
+        })
+    })
+  }, [solicitudes])
 
   // Los solicitudes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
@@ -345,6 +431,7 @@ export default function SolicitudesPage() {
                 <TableHead className="min-w-[100px]">Cliente</TableHead>
                 <TableHead className="min-w-[120px]">Tipo de Servicio</TableHead>
                 <TableHead className="min-w-[90px]">Consultor</TableHead>
+                <TableHead className="min-w-[150px]">Candidato</TableHead>
                 <TableHead className="w-28">Estado</TableHead>
                 <TableHead className="w-24">Etapa</TableHead>
                 <TableHead className="w-32">Fecha Creación</TableHead>
@@ -374,6 +461,17 @@ export default function SolicitudesPage() {
                       <div className="whitespace-normal break-words">
                         {solicitud.consultor}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {loadingCandidates[solicitud.id.toString()] ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : candidatesBySolicitud[solicitud.id.toString()] ? (
+                        <div className="whitespace-normal break-words">
+                          {candidatesBySolicitud[solicitud.id.toString()]?.nombre} {candidatesBySolicitud[solicitud.id.toString()]?.apellido}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                   <TableCell>
                         <Badge className={getStatusColor(solicitud.status || '')}>
