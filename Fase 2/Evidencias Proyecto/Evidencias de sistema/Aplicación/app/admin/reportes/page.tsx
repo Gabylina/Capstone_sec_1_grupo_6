@@ -942,7 +942,7 @@ export default function ReportesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Reportes y KPIs</h1>
         <p className="text-muted-foreground">Análisis integral de rendimiento y métricas operativas</p>
@@ -1421,6 +1421,7 @@ export default function ReportesPage() {
                 </div>
               ) : (
                 <>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1476,6 +1477,7 @@ export default function ReportesPage() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
                   {totalProcessesPages > 1 && (
                     <div className="flex items-center justify-between mt-4 pt-4 border-t">
                       <div className="text-sm text-muted-foreground">
@@ -1768,6 +1770,7 @@ export default function ReportesPage() {
                   <p className="text-sm text-muted-foreground">No hay datos de rendimiento disponibles</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1795,6 +1798,7 @@ export default function ReportesPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

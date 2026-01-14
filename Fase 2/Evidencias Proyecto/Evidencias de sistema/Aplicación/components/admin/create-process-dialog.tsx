@@ -1262,13 +1262,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
                       <SelectItem value="Sin cargo">Sin cargo</SelectItem>
                       {apiData?.cargos.filter(cargo => cargo !== "Sin cargo").map((cargo) => (
                         <SelectItem key={cargo} value={cargo}>
                           {cargo}
                         </SelectItem>
                       ))}
-                      <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
@@ -1302,12 +1302,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                   <SelectValue placeholder="Seleccionar cargo" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
                       {apiData?.cargos.map((cargo) => (
                         <SelectItem key={cargo} value={cargo}>
                           {cargo}
                     </SelectItem>
                   ))}
-                  <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
                 </SelectContent>
               </Select>
             ) : (

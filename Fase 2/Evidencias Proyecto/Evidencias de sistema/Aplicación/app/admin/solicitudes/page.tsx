@@ -18,17 +18,17 @@ import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 
 interface Solicitud {
-  id: number
-  cargo: string
-  cliente: string
-  tipo_servicio: string
-  tipo_servicio_nombre: string
-  consultor: string
-  estado_solicitud: string
-  etapa: string
-  status: string
-  fecha_creacion: string
-  id_descripcion_cargo: number
+  id: string | number
+  cargo?: string
+  cliente?: string
+  tipo_servicio?: string
+  tipo_servicio_nombre?: string
+  consultor?: string
+  estado_solicitud?: string
+  etapa?: string
+  status?: string
+  fecha_creacion?: string
+  id_descripcion_cargo?: number
 }
 
 // Función para formatear nombres de servicios (agregar espacios entre palabras)
@@ -336,40 +336,67 @@ export default function SolicitudesPage() {
                 : "No se encontraron solicitudes con los filtros aplicados."}
             </div>
           ) : (
+          <div className="w-full overflow-x-auto lg:overflow-x-visible">
           <Table>
             <TableHeader>
               <TableRow>
-                  <TableHead>ID</TableHead>
-                <TableHead>Cargo</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Tipo de Servicio</TableHead>
-                <TableHead>Consultor</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Fecha Creación</TableHead>
-                <TableHead>Acciones</TableHead>
+                  <TableHead className="w-16">ID</TableHead>
+                <TableHead className="min-w-[100px]">Cargo</TableHead>
+                <TableHead className="min-w-[100px]">Cliente</TableHead>
+                <TableHead className="min-w-[120px]">Tipo de Servicio</TableHead>
+                <TableHead className="min-w-[90px]">Consultor</TableHead>
+                <TableHead className="w-28">Estado</TableHead>
+                <TableHead className="w-24">Etapa</TableHead>
+                <TableHead className="w-32">Fecha Creación</TableHead>
+                <TableHead className="w-20 text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
                 {solicitudes.map((solicitud) => (
                   <TableRow key={solicitud.id}>
                     <TableCell className="font-mono text-sm">{solicitud.id}</TableCell>
-                    <TableCell className="font-medium">{solicitud.cargo}</TableCell>
-                    <TableCell>{solicitud.cliente}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="whitespace-normal break-words">
+                        {solicitud.cargo}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="whitespace-normal break-words">
+                        {solicitud.cliente}
+                      </div>
+                    </TableCell>
                   <TableCell>
-                      <Badge variant="outline">{formatServiceName(solicitud.tipo_servicio_nombre)}</Badge>
+                      <Badge variant="outline">
+                        {formatServiceName(solicitud.tipo_servicio_nombre || '')}
+                      </Badge>
                   </TableCell>
-                    <TableCell>{solicitud.consultor}</TableCell>
+                    <TableCell>
+                      <div className="whitespace-normal break-words">
+                        {solicitud.consultor}
+                      </div>
+                    </TableCell>
                   <TableCell>
-                      <div className="space-y-1">
-                        <Badge className={getStatusColor(solicitud.status)}>
+                        <Badge className={getStatusColor(solicitud.status || '')}>
                           {solicitud.estado_solicitud}
                         </Badge>
-                        <div className="text-xs text-muted-foreground">{solicitud.etapa}</div>
-                      </div>
                   </TableCell>
-                    <TableCell>{formatDate(solicitud.fecha_creacion)}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
+                    {solicitud.estado_solicitud === 'Creado' ? (
+                      <span className="text-sm text-muted-foreground italic">No iniciado</span>
+                    ) : solicitud.etapa ? (
+                      <span 
+                        className="text-sm text-muted-foreground cursor-help" 
+                        title={solicitud.etapa}
+                      >
+                        {solicitud.etapa.match(/Módulo \d+/i)?.[0] || solicitud.etapa}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Sin etapa</span>
+                    )}
+                  </TableCell>
+                    <TableCell>{formatDate(solicitud.fecha_creacion || '')}</TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-2">
                         <Button 
                           variant="ghost" 
                           size="sm"
@@ -384,6 +411,7 @@ export default function SolicitudesPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
           )}
         </CardContent>
       </Card>

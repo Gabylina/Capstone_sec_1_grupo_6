@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
@@ -22,13 +22,13 @@ import type { Hito } from "@/lib/types"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 interface ProcessPageProps {
-  params: Promise<{
+  params: {
     id: string
-  }>
+  }
 }
 
 export default function ProcessPage({ params }: ProcessPageProps) {
-  const { id } = use(params)
+  const { id } = params
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)

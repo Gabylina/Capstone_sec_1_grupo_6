@@ -39,11 +39,11 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full overflow-x-hidden">
         <AppSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <AppHeader />
-          <main className="flex-1 p-6 bg-muted/30">{children}</main>
+          <main className="flex-1 p-6 bg-muted/30 overflow-x-hidden">{children}</main>
         </div>
       </div>
     </SidebarProvider>

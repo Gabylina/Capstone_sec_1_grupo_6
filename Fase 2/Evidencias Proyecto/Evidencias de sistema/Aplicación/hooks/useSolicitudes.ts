@@ -15,6 +15,7 @@ interface HookSolicitud extends Process {
   tipo_servicio_nombre?: string
   fecha_creacion?: string
   id_descripcion_cargo?: number
+  etapa?: string
 }
 
 interface PaginationInfo {
@@ -122,6 +123,7 @@ export function useSolicitudes() {
           tipo_servicio_nombre: solicitud.tipo_servicio_nombre || solicitud.service_type || '',
           fecha_creacion: solicitud.fecha_creacion || solicitud.created_at || new Date().toISOString(),
           id_descripcion_cargo: solicitud.id_descripcion_cargo || 0,
+          etapa: solicitud.etapa || undefined,
         }))
         
         setSolicitudes(transformedSolicitudes)
@@ -184,13 +186,13 @@ export function useSolicitudes() {
         setAllServiceTypes(serviceTypesResponse.data)
       } else {
         // Fallback: extraer tipos de servicio de las solicitudes si falla la API
-        const serviceTypes = Array.from(
+        const serviceTypes = (Array.from(
           new Set(
             (data?.data || [])
               .map((s: any) => s.service_type || s.tipo_servicio)
               .filter(Boolean)
           )
-        ).sort().map((codigo: string) => ({ codigo, nombre: codigo }))
+        ) as string[]).sort().map((codigo: string) => ({ codigo, nombre: codigo }))
         
         setAllServiceTypes(serviceTypes)
       }
