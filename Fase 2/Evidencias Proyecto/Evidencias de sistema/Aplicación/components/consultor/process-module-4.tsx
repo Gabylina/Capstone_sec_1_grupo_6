@@ -333,7 +333,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         }
       } catch (error: any) {
         console.error("Error al cargar estados de solicitud:", error)
-        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados disponibles")
+        const errorMsg = processApiErrorMessage(error.message, "No se pudieron cargar los estados disponibles. Por favor recarga la página.")
         showToast({
           type: "error",
           title: "Error",
@@ -602,7 +602,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo finalizar la solicitud. Por favor intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -611,7 +611,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
       }
     } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo finalizar la solicitud. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",
@@ -2230,7 +2230,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
         try {
           const etapaResponse = await solicitudService.avanzarAModulo5(Number(process.id))
           if (!etapaResponse.success) {
-            const errorMsg = processApiErrorMessage(etapaResponse.message, "Error al actualizar etapa de solicitud")
+            const errorMsg = processApiErrorMessage(etapaResponse.message, "No se pudo avanzar al Módulo 5. Por favor intenta nuevamente.")
             console.warn('Advertencia: No se pudo actualizar la etapa de la solicitud:', errorMsg)
           }
         } catch (error: any) {
@@ -2315,7 +2315,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
 
     } catch (error: any) {
       console.error('Error al avanzar candidatos al módulo 5:', error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar candidatos al módulo 5")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo avanzar al Módulo 5. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",

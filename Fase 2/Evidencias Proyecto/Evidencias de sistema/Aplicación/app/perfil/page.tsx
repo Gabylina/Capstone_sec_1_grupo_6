@@ -21,6 +21,7 @@ import {
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ValidatedInput, ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { formatFieldName } from "@/lib/utils"
 
 export default function PerfilPage() {
   const { user } = useAuth()
@@ -161,10 +162,29 @@ export default function PerfilPage() {
     }
 
     if (!isValid) {
+      // Construir mensaje con campos específicos
+      const errorFields: string[] = []
+      
+      Object.keys(errors).forEach(field => {
+        if (typeof errors[field] === 'string' && errors[field]) {
+          errorFields.push(formatFieldName(field))
+        }
+      })
+      
+      let errorMessage = ''
+      if (errorFields.length === 1) {
+        errorMessage = `Por favor corrige el campo: ${errorFields[0]}`
+      } else if (errorFields.length > 1) {
+        const lastField = errorFields.pop()
+        errorMessage = `Por favor corrige los campos: ${errorFields.join(', ')} y ${lastField}`
+      } else {
+        errorMessage = "Por favor, complete todos los campos correctamente"
+      }
+      
       showToast({
         type: "error",
         title: "Error de validación",
-        description: "Por favor, complete todos los campos correctamente",
+        description: errorMessage,
       })
       return
     }
@@ -206,7 +226,7 @@ export default function PerfilPage() {
       } else {
         // Usar el mensaje de la API o un mensaje genérico
         const errorMessage = data?.message || "Ha ocurrido un error al procesar la solicitud. Por favor, verifique los datos e intente nuevamente."
-        const processedErrorMessage = processApiErrorMessage(errorMessage, "Error al cambiar la contraseña")
+        const processedErrorMessage = processApiErrorMessage(errorMessage, "No se pudo cambiar la contraseña. Por favor verifica los datos e intenta nuevamente.")
         
         // Si es error 400 (contraseña incorrecta), limpiar solo el campo de contraseña actual
         if (res.status === 400) {

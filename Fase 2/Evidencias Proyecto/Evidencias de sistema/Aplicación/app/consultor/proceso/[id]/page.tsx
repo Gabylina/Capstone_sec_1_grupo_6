@@ -146,7 +146,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       const processId = parseInt(id)
       if (isNaN(processId)) {
         console.error('ID de proceso inválido:', id)
-        toast.error("ID de proceso inválido")
+        toast.error("El proceso solicitado no es válido. Por favor verifica la URL e intenta nuevamente.")
         notFound()
         return
       }
@@ -209,12 +209,12 @@ export default function ProcessPage({ params }: ProcessPageProps) {
           setHasCandidatesWithReportStatus(false)
         }
       } else {
-        toast.error("No se pudo cargar la solicitud")
+        toast.error("No se pudo cargar la información del proceso. Por favor recarga la página.")
         notFound()
       }
     } catch (error) {
       console.error("Error loading process:", error)
-      toast.error("Error al cargar los datos")
+      toast.error("No se pudieron cargar los datos del proceso. Por favor recarga la página.")
     } finally {
       setIsLoading(false)
     }
@@ -390,11 +390,11 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         // Cambiar al módulo 2
         setActiveTab("modulo-2")
       } else {
-        toast.error("Error al avanzar al Módulo 2")
+        toast.error("No se pudo avanzar al Módulo 2. Por favor intenta nuevamente.")
       }
     } catch (error) {
       console.error("Error al avanzar al Módulo 2:", error)
-      toast.error("Error al avanzar al Módulo 2")
+      toast.error("No se pudo avanzar al Módulo 2. Por favor intenta nuevamente.")
     }
   }
 

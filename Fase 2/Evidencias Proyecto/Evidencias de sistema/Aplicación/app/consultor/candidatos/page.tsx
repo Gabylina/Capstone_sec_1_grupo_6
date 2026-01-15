@@ -183,7 +183,7 @@ export default function HistorialCandidatosPage() {
       showToast({
         type: "error",
         title: "Error",
-        description: "No se pudieron cargar los candidatos"
+        description: "No se pudieron cargar los candidatos. Por favor recarga la página."
       })
     } finally {
       setIsLoading(false)

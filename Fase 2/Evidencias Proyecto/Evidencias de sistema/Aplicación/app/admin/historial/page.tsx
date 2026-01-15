@@ -140,7 +140,7 @@ export default function HistorialPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(err?.message, "Error al cargar datos iniciales del historial"),
+          description: processApiErrorMessage(err?.message, "No se pudo cargar el historial. Por favor recarga la página."),
         })
       }
     }

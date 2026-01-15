@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { Loader2, Plus, Trash2, Calendar as CalendarIcon } from "lucide-react"
-import { validateRut } from "@/lib/utils"
+import { validateRut, formatFieldName } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format } from "date-fns"
@@ -273,7 +273,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       showToast({
         type: "error",
         title: "Error",
-        description: "Error al cargar regiones y comunas",
+        description: "No se pudieron cargar las regiones. Por favor recarga la página.",
       })
     } finally {
       setLoadingRegionComuna(false)
@@ -310,7 +310,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         showToast({
           type: "error",
           title: "Error",
-          description: "Error al cargar los datos del formulario",
+          description: "No se pudieron cargar los datos necesarios. Por favor intenta nuevamente.",
         })
       }
     } catch (error) {
@@ -318,7 +318,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       showToast({
         type: "error",
         title: "Error",
-        description: "Error al cargar los datos del formulario",
+        description: "No se pudieron cargar los datos necesarios. Por favor intenta nuevamente.",
       })
     } finally {
       setIsLoading(false)
@@ -446,7 +446,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       showToast({
         type: "error",
         title: "Error",
-        description: "Error al cargar los datos de la solicitud",
+        description: "No se pudo cargar la información de la solicitud. Por favor intenta nuevamente.",
       })
     } finally {
       setLoadingSolicitudData(false)
@@ -664,10 +664,45 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       // Si hay errores, no continuar
       if (hasErrors) {
         setIsSubmitting(false)
+        
+        // Construir mensaje específico con los campos con errores
+        const errorFields: string[] = []
+        
+        // Agregar campos del formulario principal con errores
+        Object.keys(validationErrors).forEach(field => {
+          if (typeof validationErrors[field] === 'string' && validationErrors[field]) {
+            errorFields.push(formatFieldName(field))
+          }
+        })
+        
+        // Agregar error general de candidatos si existe
+        if (candidateGeneralError) {
+          errorFields.push('Candidatos')
+        }
+        
+        // Agregar errores específicos de candidatos
+        Object.keys(candidateErrors).forEach(index => {
+          const candidatoIndex = parseInt(index) + 1
+          const candidatoErrores = candidateErrors[parseInt(index)]
+          if (candidatoErrores && Object.keys(candidatoErrores).length > 0) {
+            errorFields.push(`Candidato ${candidatoIndex}`)
+          }
+        })
+        
+        let errorMessage = ''
+        if (errorFields.length === 1) {
+          errorMessage = `Por favor corrige el campo: ${errorFields[0]}`
+        } else if (errorFields.length > 1) {
+          const lastField = errorFields.pop()
+          errorMessage = `Por favor corrige los campos: ${errorFields.join(', ')} y ${lastField}`
+        } else {
+          errorMessage = "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar."
+        }
+        
         showToast({
           type: "error",
           title: "Error de validación",
-          description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
+          description: errorMessage,
         })
         return
       }
@@ -1067,8 +1102,25 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
   const [candidateGeneralError, setCandidateGeneralError] = useState<string | undefined>(undefined)
 
   // Helper para obtener errores de candidatos de forma segura
+  // Convierte automáticamente nombres de campos técnicos a nombres amigables en los mensajes
   const getCandidateError = (index: number, field: string): string | undefined => {
-    return candidateErrors[index]?.[field]
+    const errorMessage = candidateErrors[index]?.[field]
+    if (!errorMessage) return undefined
+    
+    // Procesar el mensaje de error para convertir nombres de campos técnicos
+    let processedMessage = errorMessage
+    
+    // Buscar nombres de campos con guiones bajos en el mensaje y reemplazarlos
+    const fieldNamePattern = /\b([a-z][a-z0-9_]*[a-z0-9])\b/gi
+    processedMessage = processedMessage.replace(fieldNamePattern, (match) => {
+      // Si el match contiene guiones bajos, probablemente es un nombre de campo técnico
+      if (match.includes('_') && match.length > 2) {
+        return formatFieldName(match)
+      }
+      return match
+    })
+    
+    return processedMessage
   }
 
   // Helper para obtener error general de candidatos

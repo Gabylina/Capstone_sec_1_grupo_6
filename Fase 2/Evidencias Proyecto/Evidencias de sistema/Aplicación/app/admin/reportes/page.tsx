@@ -307,7 +307,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar procesos activos por consultor"),
+          description: processApiErrorMessage(error?.message, "No se pudieron cargar los procesos activos. Por favor recarga la página."),
         })
       } finally {
         setLoadingActiveProcesses(false)
@@ -334,7 +334,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar distribución por tipo de servicio"),
+          description: processApiErrorMessage(error?.message, "No se pudo cargar la distribución por tipo de servicio. Por favor recarga la página."),
         })
       } finally {
         setLoadingServiceType(false)
@@ -361,7 +361,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar fuentes de candidatos"),
+          description: processApiErrorMessage(error?.message, "No se pudieron cargar las fuentes de candidatos. Por favor recarga la página."),
         })
       } finally {
         setLoadingCandidateSource(false)
@@ -391,7 +391,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar estadísticas de procesos"),
+          description: processApiErrorMessage(error?.message, "No se pudieron cargar las estadísticas de procesos. Por favor recarga la página."),
         })
       } finally {
         setLoadingProcessStats(false)
@@ -429,7 +429,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar tiempo promedio por servicio"),
+          description: processApiErrorMessage(error?.message, "No se pudo cargar el tiempo promedio. Por favor recarga la página."),
         })
       } finally {
         setLoadingAverageTime(false)
@@ -477,7 +477,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar resumen de procesos"),
+          description: processApiErrorMessage(error?.message, "No se pudo cargar el resumen de procesos. Por favor recarga la página."),
         })
         } finally {
           setLoadingProcessOverview(false)
@@ -540,7 +540,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar procesos cerrados exitosos"),
+          description: processApiErrorMessage(error?.message, "No se pudieron cargar los procesos cerrados. Por favor recarga la página."),
         })
       } finally {
         setLoadingClosedProcesses(false)
@@ -572,7 +572,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar rendimiento por consultor"),
+          description: processApiErrorMessage(error?.message, "No se pudo cargar el rendimiento por consultor. Por favor recarga la página."),
         })
       } finally {
         setLoadingPerformance(false)
@@ -605,7 +605,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar estadísticas de cumplimiento"),
+          description: processApiErrorMessage(error?.message, "No se pudieron cargar las estadísticas de cumplimiento. Por favor recarga la página."),
         })
       } finally {
         setLoadingCompletion(false)
@@ -632,7 +632,7 @@ export default function ReportesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(error?.message, "Error al cargar hitos vencidos"),
+          description: processApiErrorMessage(error?.message, "No se pudieron cargar los hitos vencidos. Por favor recarga la página."),
         })
       } finally {
         setLoadingOverdue(false)
