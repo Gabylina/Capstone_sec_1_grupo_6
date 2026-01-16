@@ -9,6 +9,9 @@ import { FechasLaborales } from '@/utils/fechasLaborales';
 // Importar modelos para que Sequelize los reconozca
 import '@/models';
 
+// Configurar zona horaria de Chile al inicio de la aplicación
+process.env.TZ = 'America/Santiago';
+
 /**
  * Función principal para iniciar el servidor
  */

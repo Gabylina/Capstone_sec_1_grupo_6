@@ -1254,35 +1254,35 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             {isEvaluationProcess ? (
               <>
                 {!showCustomPosition ? (
-                  <Select 
-                    value={formData.position_title} 
-                    onValueChange={(value) => {
+              <Select 
+                value={formData.position_title} 
+                onValueChange={(value) => {
                       if (value === "custom") {
                         setShowCustomPosition(true)
                         setFormData({ ...formData, position_title: "" })
                         setCustomPosition("")
                       } else {
-                        setFormData({ ...formData, position_title: value })
-                        validateSpecificField('position_title', value)
+                  setFormData({ ...formData, position_title: value })
+                  validateSpecificField('position_title', value)
                       }
-                    }} 
-                    required
-                  >
-                    <SelectTrigger className={validationErrors.position_title ? "border-red-500" : ""}>
-                      <SelectValue placeholder="Seleccionar cargo">
-                        {formData.position_title === "Sin cargo" ? "Sin cargo" : formData.position_title}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
+                }} 
+                required
+              >
+                <SelectTrigger className={validationErrors.position_title ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Seleccionar cargo">
+                    {formData.position_title === "Sin cargo" ? "Sin cargo" : formData.position_title}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
                       <SelectItem value="custom">+ Agregar nuevo cargo</SelectItem>
-                      <SelectItem value="Sin cargo">Sin cargo</SelectItem>
-                      {apiData?.cargos.filter(cargo => cargo !== "Sin cargo").map((cargo) => (
-                        <SelectItem key={cargo} value={cargo}>
-                          {cargo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SelectItem value="Sin cargo">Sin cargo</SelectItem>
+                  {apiData?.cargos.filter(cargo => cargo !== "Sin cargo").map((cargo) => (
+                    <SelectItem key={cargo} value={cargo}>
+                      {cargo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
                 ) : (
                   <div className="flex gap-2">
                     <Input
@@ -1645,19 +1645,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           )}
 
           {!isEvaluationProcess && (
-            <ValidatedTextarea
-              id="requirements"
-              label="Requisitos"
-              value={formData.requirements}
-              onChange={(value) => {
-                setFormData({ ...formData, requirements: value })
-                validateSpecificField('requirements', value)
-              }}
+          <ValidatedTextarea
+            id="requirements"
+            label="Requisitos"
+            value={formData.requirements}
+            onChange={(value) => {
+              setFormData({ ...formData, requirements: value })
+              validateSpecificField('requirements', value)
+            }}
               placeholder="Requisitos y condiciones (opcional)"
-              error={typeof validationErrors.requirements === 'string' ? validationErrors.requirements : undefined}
-              maxLength={500}
-              showCharCount
-            />
+            error={typeof validationErrors.requirements === 'string' ? validationErrors.requirements : undefined}
+            maxLength={500}
+            showCharCount
+          />
           )}
 
           <div className="grid grid-cols-2 gap-4">

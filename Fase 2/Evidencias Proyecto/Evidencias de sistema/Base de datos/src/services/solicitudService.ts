@@ -604,7 +604,11 @@ export class SolicitudService {
 
             // Calcular plazo máximo basado en la duración del proceso según codigo_servicio
             // Usar la fecha proporcionada o la fecha actual si no se proporciona
-            const fechaIngreso = data.fecha_ingreso_solicitud || new Date();
+            let fechaIngreso = data.fecha_ingreso_solicitud || new Date();
+            
+            // Asegurar que la fecha esté a medianoche (solo día, mes, año)
+            fechaIngreso = new Date(fechaIngreso.getFullYear(), fechaIngreso.getMonth(), fechaIngreso.getDate(), 0, 0, 0, 0);
+            
             const diasHabiles = obtenerDuracionProceso(service_type);
             const plazoMaximo = await FechasLaborales.sumarDiasHabiles(fechaIngreso, diasHabiles);
 
@@ -712,7 +716,14 @@ export class SolicitudService {
             
             // Actualizar fecha de ingreso si se proporciona
             if (data.fecha_ingreso_solicitud) {
-                solicitud.fecha_ingreso_solicitud = data.fecha_ingreso_solicitud;
+                // Asegurar que la fecha esté a medianoche (solo día, mes, año)
+                const fechaIngreso = new Date(
+                    data.fecha_ingreso_solicitud.getFullYear(),
+                    data.fecha_ingreso_solicitud.getMonth(),
+                    data.fecha_ingreso_solicitud.getDate(),
+                    0, 0, 0, 0
+                );
+                solicitud.fecha_ingreso_solicitud = fechaIngreso;
             }
 
             // Recalcular fecha límite si se cambia el servicio o la fecha de ingreso
@@ -1361,6 +1372,7 @@ export class SolicitudService {
             estado_solicitud: estadoActual?.nombre_estado_solicitud || 'Abierto',
             etapa: etapa?.nombre_etapa || 'Sin etapa',
             fecha_creacion: solicitud.fecha_ingreso_solicitud,
+            fecha_ingreso_solicitud: solicitud.fecha_ingreso_solicitud,
             datos_excel: descripcionCargo?.datos_excel || null,
             
             // Información detallada (para compatibilidad con otros componentes)

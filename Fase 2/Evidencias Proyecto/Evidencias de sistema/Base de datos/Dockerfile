@@ -20,6 +20,11 @@ RUN npm run build
 # Imagen de producción
 FROM node:20-alpine
 
+# Instalar tzdata y configurar zona horaria de Chile
+RUN apk add --no-cache tzdata
+ENV TZ=America/Santiago
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 WORKDIR /app
 
 # Copiar package.json y node_modules de producción

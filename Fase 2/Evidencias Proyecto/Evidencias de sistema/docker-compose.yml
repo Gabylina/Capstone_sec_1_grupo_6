@@ -47,6 +47,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       PORT: 3001
       NODE_ENV: production
+      TZ: America/Santiago
       JWT_SECRET: ${JWT_SECRET:-secret}
       JWT_EXPIRES_IN: 24h
       FRONTEND_URL: ${FRONTEND_URL:-https://web.llconsulting.cl}

@@ -68,8 +68,8 @@ export const validateRating = (valoracion: number): boolean => {
 };
 
 /**
- * Parsea una fecha en formato YYYY-MM-DD a Date en zona horaria local
- * Evita problemas de conversión UTC que pueden cambiar el día
+ * Parsea una fecha en formato YYYY-MM-DD a Date en zona horaria de Chile
+ * Establece la hora a medianoche (00:00:00) - solo importa día, mes y año
  */
 export const parseLocalDate = (dateString: string): Date => {
   if (!dateString || typeof dateString !== 'string') {
@@ -90,7 +90,27 @@ export const parseLocalDate = (dateString: string): Date => {
     throw new Error('Fecha inválida: los componentes deben ser números');
   }
   
-  // Crear fecha en zona horaria local (no UTC)
-  return new Date(year, month, day);
+  // Crear fecha a medianoche (00:00:00) en la zona horaria local del servidor
+  // Con TZ=America/Santiago configurado, esto creará la fecha correctamente
+  // Solo importa día, mes y año - la hora siempre será 00:00:00
+  return new Date(year, month, day, 0, 0, 0, 0);
+};
+
+/**
+ * Formatea una fecha Date a string SQL para usar con Sequelize.literal
+ * Evita conversiones UTC de Sequelize al guardar en PostgreSQL
+ * Formato de salida: "YYYY-MM-DD HH:mm:ss"
+ */
+export const formatDateForSQL = (date: Date | null | undefined): string | null => {
+  if (!date) return null;
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  const second = String(date.getSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
 };
 
