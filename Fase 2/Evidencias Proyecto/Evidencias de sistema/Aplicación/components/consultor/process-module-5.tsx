@@ -149,12 +149,12 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         
         setContractedCandidates(contractedData)
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al cargar candidatos del módulo 5")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudieron cargar los candidatos. Por favor recarga la página.")
         console.error('Error al cargar candidatos del módulo 5:', errorMsg)
         setCandidates([])
       }
     } catch (error: any) {
-      const errorMsg = processApiErrorMessage(error.message, "Error al cargar candidatos")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudieron cargar los candidatos. Por favor recarga la página.")
       console.error('Error al cargar candidatos:', errorMsg)
       setCandidates([])
     } finally {
@@ -202,11 +202,11 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         console.log('[DEBUG FRONTEND] Contracted candidates actualizados:', contractedData)
         setContractedCandidates(contractedData)
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al recargar candidatos del módulo 5")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudieron recargar los candidatos. Por favor intenta nuevamente.")
         console.error('Error al recargar candidatos del módulo 5:', errorMsg)
       }
     } catch (error: any) {
-      const errorMsg = processApiErrorMessage(error.message, "Error al recargar candidatos")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudieron recargar los candidatos. Por favor intenta nuevamente.")
       console.error('Error al recargar candidatos:', errorMsg)
     }
   }
@@ -233,11 +233,11 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
           })
           setEstadosDisponibles(estadosFinales)
         } else if (!response.success) {
-          const errorMsg = processApiErrorMessage(response.message, "Error al cargar estados de solicitud")
+          const errorMsg = processApiErrorMessage(response.message, "No se pudieron cargar los estados disponibles. Por favor recarga la página.")
           console.error("Error al cargar estados de solicitud:", errorMsg)
         }
       } catch (error: any) {
-        const errorMsg = processApiErrorMessage(error.message, "Error al cargar estados de solicitud")
+        const errorMsg = processApiErrorMessage(error.message, "No se pudieron cargar los estados disponibles. Por favor recarga la página.")
         console.error("Error al cargar estados de solicitud:", errorMsg)
       } finally {
         setLoadingEstados(false)
@@ -338,7 +338,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Forzar un re-render adicional
         setCandidates(prev => [...prev])
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el estado del candidato")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo actualizar el estado del candidato. Por favor intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -347,7 +347,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       }
     } catch (error: any) {
       console.error('Error al actualizar candidato:', error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al actualizar el estado del candidato")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo actualizar el estado del candidato. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",
@@ -553,7 +553,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Recargar la página para reflejar el cambio
         window.location.reload()
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al finalizar la solicitud")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo finalizar la solicitud. Por favor intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -562,7 +562,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       }
     } catch (error: any) {
       console.error("Error al cambiar estado:", error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al finalizar la solicitud")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo finalizar la solicitud. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",
@@ -685,7 +685,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
         // Recargar datos para actualizar el conteo de vacantes
         await reloadData()
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al actualizar el estado del candidato")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo guardar la información de contratación. Por favor verifica los datos e intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -694,7 +694,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
       }
     } catch (error: any) {
       console.error('[ERROR] Error al guardar contratación:', error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al guardar la contratación")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo guardar la información de contratación. Por favor verifica los datos e intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",

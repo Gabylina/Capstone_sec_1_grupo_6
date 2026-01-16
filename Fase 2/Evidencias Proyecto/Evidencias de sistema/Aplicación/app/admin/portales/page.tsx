@@ -119,7 +119,7 @@ export default function PortalesPage() {
         showToast({
           type: "error",
           title: "Error",
-          description: processApiErrorMessage(response.message, "Error al cargar portales"),
+          description: processApiErrorMessage(response.message, "No se pudieron cargar los portales. Por favor recarga la página."),
         })
       }
     } catch (error: any) {
@@ -127,7 +127,7 @@ export default function PortalesPage() {
       showToast({
         type: "error",
         title: "Error",
-        description: "Error al cargar portales",
+        description: "No se pudieron cargar los portales. Por favor recarga la página.",
       })
     } finally {
       setIsLoading(false)

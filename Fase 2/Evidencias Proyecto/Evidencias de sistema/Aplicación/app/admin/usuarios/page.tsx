@@ -23,6 +23,7 @@ import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { useUsuarios } from "@/hooks/useUsuarios"
 import { useFormValidation, validationSchemas, type ValidationRule } from "@/hooks/useFormValidation"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
+import { formatFieldName } from "@/lib/utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -228,10 +229,29 @@ export default function UsuariosPage() {
     if (!isValid || !passwordMatch) {
       // Mostrar toast cuando hay errores de validación
       if (!isValid) {
+        // Construir mensaje con campos específicos
+        const errorFields: string[] = []
+        
+        Object.keys(errors).forEach(field => {
+          if (typeof errors[field] === 'string' && errors[field]) {
+            errorFields.push(formatFieldName(field))
+          }
+        })
+        
+        let errorMessage = ''
+        if (errorFields.length === 1) {
+          errorMessage = `Por favor corrige el campo: ${errorFields[0]}`
+        } else if (errorFields.length > 1) {
+          const lastField = errorFields.pop()
+          errorMessage = `Por favor corrige los campos: ${errorFields.join(', ')} y ${lastField}`
+        } else {
+          errorMessage = "Faltan campos por completar o existen datos incorrectos"
+        }
+        
         showToast({
           type: "error",
           title: "Error de validación",
-          description: "Faltan campos por completar o existen datos incorrectos",
+          description: errorMessage,
         })
       }
       if (!passwordMatch) {
@@ -260,7 +280,7 @@ export default function UsuariosPage() {
       clearAllErrors()
     } else {
       // Mostrar toast con el mensaje de error de la API
-      const errorMsg = processApiErrorMessage(res.message, "Error creando usuario")
+      const errorMsg = processApiErrorMessage(res.message, "No se pudo crear el usuario. Por favor verifica los datos e intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",
@@ -326,10 +346,29 @@ export default function UsuariosPage() {
     if (!isValid || !passwordMatch) {
       // Mostrar toast cuando hay errores de validación
       if (!isValid) {
+        // Construir mensaje con campos específicos
+        const errorFields: string[] = []
+        
+        Object.keys(errors).forEach(field => {
+          if (typeof errors[field] === 'string' && errors[field]) {
+            errorFields.push(formatFieldName(field))
+          }
+        })
+        
+        let errorMessage = ''
+        if (errorFields.length === 1) {
+          errorMessage = `Por favor corrige el campo: ${errorFields[0]}`
+        } else if (errorFields.length > 1) {
+          const lastField = errorFields.pop()
+          errorMessage = `Por favor corrige los campos: ${errorFields.join(', ')} y ${lastField}`
+        } else {
+          errorMessage = "Faltan campos por completar o existen datos incorrectos"
+        }
+        
         showToast({
           type: "error",
           title: "Error de validación",
-          description: "Faltan campos por completar o existen datos incorrectos",
+          description: errorMessage,
         })
       }
       if (!passwordMatch) {
@@ -357,7 +396,7 @@ export default function UsuariosPage() {
       clearAllErrors()
     } else {
       // Mostrar toast con el mensaje de error de la API
-      const errorMsg = processApiErrorMessage(res.message, "Error actualizando usuario")
+      const errorMsg = processApiErrorMessage(res.message, "No se pudo actualizar el usuario. Por favor verifica los datos e intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",

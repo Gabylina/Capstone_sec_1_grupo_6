@@ -517,7 +517,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
         currentUrl.searchParams.set('tab', 'modulo-4')
         window.location.href = currentUrl.toString()
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al avanzar al Módulo 4")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo avanzar al Módulo 4. Por favor intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -527,7 +527,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
       }
     } catch (error: any) {
       console.error("Error al avanzar al Módulo 4:", error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar al Módulo 4")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo avanzar al Módulo 4. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",

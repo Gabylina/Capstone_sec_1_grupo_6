@@ -10,6 +10,7 @@ import { candidatoService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { UserCheck, AlertCircle, XCircle, Plus } from "lucide-react"
 import type { Candidate } from "@/lib/types"
+import { processApiErrorMessage } from "@/lib/utils"
 
 interface CandidateStatusDialogProps {
   open: boolean
@@ -107,11 +108,12 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
       } else {
         throw new Error(response.message || 'Error al actualizar estado')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar estado:', error)
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo actualizar el estado del candidato. Por favor intenta nuevamente.")
       toast({
         title: "Error",
-        description: "No se pudo actualizar el estado del candidato",
+        description: errorMsg,
         variant: "destructive",
       })
     } finally {

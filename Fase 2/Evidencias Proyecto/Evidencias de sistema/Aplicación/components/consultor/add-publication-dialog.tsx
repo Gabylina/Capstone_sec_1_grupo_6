@@ -15,6 +15,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
+import { processApiErrorMessage, formatFieldName } from "@/lib/utils"
 
 interface AddPublicationDialogProps {
   open: boolean
@@ -68,15 +69,15 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
       } else {
         toast({
           title: "Error",
-          description: "Error al cargar portales de postulación",
+          description: "No se pudieron cargar los portales. Por favor recarga la página.",
           variant: "destructive",
         })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cargar portales:", error)
       toast({
         title: "Error",
-        description: "Error al cargar portales de postulación",
+        description: processApiErrorMessage(error.message, "No se pudieron cargar los portales. Por favor recarga la página."),
         variant: "destructive",
       })
     } finally {
@@ -91,9 +92,28 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
     const isValid = validateAllFields(formData, validationSchemas.publicationForm)
     
     if (!isValid) {
+      // Construir mensaje con campos específicos
+      const errorFields: string[] = []
+      
+      Object.keys(errors).forEach(field => {
+        if (typeof errors[field] === 'string' && errors[field]) {
+          errorFields.push(formatFieldName(field))
+        }
+      })
+      
+      let errorMessage = ''
+      if (errorFields.length === 1) {
+        errorMessage = `Por favor corrige el campo: ${errorFields[0]}`
+      } else if (errorFields.length > 1) {
+        const lastField = errorFields.pop()
+        errorMessage = `Por favor corrige los campos: ${errorFields.join(', ')} y ${lastField}`
+      } else {
+        errorMessage = "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar."
+      }
+      
       toast({
-        title: "Campos incompletos",
-        description: "Por favor completa todos los campos obligatorios y corrige los errores antes de continuar.",
+        title: "Error de validación",
+        description: errorMessage,
         variant: "destructive",
       })
       return
@@ -132,17 +152,19 @@ export function AddPublicationDialog({ open, onOpenChange, solicitudId, onSucces
           onSuccess()
         }
       } else {
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo crear la publicación. Por favor verifica los datos e intenta nuevamente.")
         toast({
           title: "Error",
-          description: response.message || "Error al crear publicación",
+          description: errorMsg,
           variant: "destructive",
         })
       }
     } catch (error: any) {
       console.error("Error al crear publicación:", error)
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo crear la publicación. Por favor verifica los datos e intenta nuevamente.")
       toast({
         title: "Error",
-        description: error.message || "Error al crear publicación",
+        description: errorMsg,
         variant: "destructive",
       })
     } finally {

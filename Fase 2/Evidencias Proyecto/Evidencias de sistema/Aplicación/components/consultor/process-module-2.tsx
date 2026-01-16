@@ -1831,7 +1831,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
         showToast({
           type: "error",
           title: "Error",
-          description: "Error al avanzar al Módulo 3",
+          description: "No se pudo avanzar al Módulo 3. Por favor intenta nuevamente.",
         })
         setIsAdvancingToModule3(false)
       }
@@ -1840,7 +1840,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
       showToast({
         type: "error",
         title: "Error",
-        description: "Error al avanzar al Módulo 3",
+        description: "No se pudo avanzar al Módulo 3. Por favor intenta nuevamente.",
       })
       setIsAdvancingToModule3(false)
     }

@@ -474,7 +474,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         const candidatesData = await getCandidatesByProcess(process.id)
         setCandidates(candidatesData)
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al guardar los datos del candidato")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudieron guardar los datos del candidato. Por favor verifica los datos e intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -484,7 +484,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
 
     } catch (error: any) {
       console.error('Error saving candidate data:', error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al guardar los datos del candidato")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudieron guardar los datos del candidato. Por favor verifica los datos e intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",
@@ -873,7 +873,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         currentUrl.searchParams.set('tab', 'modulo-2')
         window.location.href = currentUrl.toString()
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al avanzar al Módulo 2")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo avanzar al Módulo 2. Por favor intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -883,7 +883,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       }
     } catch (error: any) {
       console.error("Error al avanzar al Módulo 2:", error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar al Módulo 2")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo avanzar al Módulo 2. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",
@@ -919,7 +919,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
         currentUrl.searchParams.set('tab', 'modulo-4')
         window.location.href = currentUrl.toString()
       } else {
-        const errorMsg = processApiErrorMessage(response.message, "Error al avanzar al Módulo 4")
+        const errorMsg = processApiErrorMessage(response.message, "No se pudo avanzar al Módulo 4. Por favor intenta nuevamente.")
         showToast({
           type: "error",
           title: "Error",
@@ -929,7 +929,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
       }
     } catch (error: any) {
       console.error("Error al avanzar al Módulo 4:", error)
-      const errorMsg = processApiErrorMessage(error.message, "Error al avanzar al Módulo 4")
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo avanzar al Módulo 4. Por favor intenta nuevamente.")
       showToast({
         type: "error",
         title: "Error",

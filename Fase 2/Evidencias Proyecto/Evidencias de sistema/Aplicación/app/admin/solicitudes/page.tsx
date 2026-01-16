@@ -182,7 +182,7 @@ export default function SolicitudesPage() {
           description: result.message || 'La solicitud ha sido eliminada exitosamente',
         })
       } else {
-        const errorMsg = processApiErrorMessage(result.message, 'Hubo un error al eliminar la solicitud')
+        const errorMsg = processApiErrorMessage(result.message, 'No se pudo eliminar la solicitud. Por favor intenta nuevamente.')
         showToast({
           type: "error",
           title: "Error",
@@ -193,7 +193,7 @@ export default function SolicitudesPage() {
       console.error('Error deleting solicitud:', error)
       setIsDeleteConfirmOpen(false)
       setSolicitudToDelete(null)
-      const errorMsg = processApiErrorMessage(error.message, 'Hubo un error al eliminar la solicitud')
+      const errorMsg = processApiErrorMessage(error.message, 'No se pudo eliminar la solicitud. Por favor intenta nuevamente.')
       showToast({
         type: "error",
         title: "Error",

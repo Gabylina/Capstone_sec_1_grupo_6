@@ -22,14 +22,14 @@ interface LoginResponse {
 export const loginUser = async ({ email, password }: LoginPayload): Promise<LoginResponse> => {
   // Buscar usuario por email
   const usuario = await Usuario.findOne({ where: { email_usuario: email } });
-  if (!usuario) throw new Error('Usuario no encontrado');
+  if (!usuario) throw new Error('Credenciales incorrectas');
 
   // Verificar si está activo
-  if (!usuario.isActive()) throw new Error('Usuario inactivo');
+  if (!usuario.isActive()) throw new Error('Tu cuenta ha sido desactivada. Contacta al administrador para más información.');
 
   // Verificar contraseña
   const isMatch = await bcrypt.compare(password, usuario.contrasena_usuario);
-  if (!isMatch) throw new Error('Contraseña incorrecta');
+  if (!isMatch) throw new Error('Credenciales incorrectas');
 
   // Verificar que la secret exista
   if (!config.jwt.secret) throw new Error('JWT secret no definida');

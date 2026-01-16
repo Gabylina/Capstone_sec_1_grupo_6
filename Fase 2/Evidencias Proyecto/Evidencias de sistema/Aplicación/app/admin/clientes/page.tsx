@@ -361,7 +361,7 @@ export default function ClientesPage() {
         })
         setIsCreateDialogOpen(false)
       } else {
-        const errorMsg = processApiErrorMessage(result.message, 'Error al crear el cliente')
+        const errorMsg = processApiErrorMessage(result.message, 'No se pudo crear el cliente. Por favor verifica los datos e intenta nuevamente.')
         showToast({
           type: "error",
           title: "Error",
@@ -370,7 +370,7 @@ export default function ClientesPage() {
       }
     } catch (error: any) {
       console.error('Error creating client:', error)
-      const errorMsg = processApiErrorMessage(error.message, 'Error al crear el cliente')
+      const errorMsg = processApiErrorMessage(error.message, 'No se pudo crear el cliente. Por favor verifica los datos e intenta nuevamente.')
       showToast({
         type: "error",
         title: "Error",
@@ -416,7 +416,7 @@ export default function ClientesPage() {
         })
         setIsEditDialogOpen(false)
       } else {
-        const errorMsg = processApiErrorMessage(result.message, 'Error al actualizar el cliente')
+        const errorMsg = processApiErrorMessage(result.message, 'No se pudo actualizar el cliente. Por favor verifica los datos e intenta nuevamente.')
         showToast({
           type: "error",
           title: "Error",
@@ -425,7 +425,7 @@ export default function ClientesPage() {
       }
     } catch (error: any) {
       console.error('Error updating client:', error)
-      const errorMsg = processApiErrorMessage(error.message, 'Error al actualizar el cliente')
+      const errorMsg = processApiErrorMessage(error.message, 'No se pudo actualizar el cliente. Por favor verifica los datos e intenta nuevamente.')
       showToast({
         type: "error",
         title: "Error",
@@ -454,7 +454,7 @@ export default function ClientesPage() {
           description: result.message || 'Cliente eliminado exitosamente',
         })
       } else {
-        const errorMsg = processApiErrorMessage(result.message, 'Error al eliminar el cliente')
+        const errorMsg = processApiErrorMessage(result.message, 'No se pudo eliminar el cliente. Por favor intenta nuevamente.')
         showToast({
           type: "error",
           title: "Error",
@@ -463,7 +463,7 @@ export default function ClientesPage() {
       }
     } catch (error: any) {
       console.error('Error deleting client:', error)
-      const errorMsg = processApiErrorMessage(error.message, 'Error al eliminar el cliente')
+      const errorMsg = processApiErrorMessage(error.message, 'No se pudo eliminar el cliente. Por favor intenta nuevamente.')
       showToast({
         type: "error",
         title: "Error",
