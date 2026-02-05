@@ -32,9 +32,10 @@ import { ProcessBlocked } from "./ProcessBlocked"
 interface ProcessModule1Props {
   process: Process
   descripcionCargo?: any
+  readOnly?: boolean
 }
 
-export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Props) {
+export function ProcessModule1({ process, descripcionCargo, readOnly = false }: ProcessModule1Props) {
   const { showToast } = useToastNotification()
 
   // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
@@ -988,7 +989,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule}
+                disabled={readOnly || isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule}
               >
                 {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 4
@@ -1009,7 +1010,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule2}
-                disabled={isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule}
+                disabled={readOnly || isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule}
               >
                 {isAdvancingToModule2 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 2
@@ -1040,8 +1041,9 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
             </div>
             <Button
               variant="outline"
+              disabled={readOnly}
               onClick={() => setShowStatusChange(!showStatusChange)}
-              disabled={loadingEstados}
+              disabled={readOnly || loadingEstados}
             >
               {loadingEstados ? "Cargando..." : "Cambiar Estado"}
             </Button>
@@ -1102,7 +1104,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <div className="flex gap-2">
                 <Button
                   onClick={() => handleStatusChange(selectedEstado)}
-                  disabled={!selectedEstado}
+                  disabled={readOnly || !selectedEstado}
                 >
                   Actualizar Estado
                 </Button>
@@ -1215,7 +1217,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
           {process.excel_file && (
             <div>
               <h4 className="font-medium mb-2">Archivo Adjunto</h4>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" disabled={readOnly}>
                 <Download className="mr-2 h-4 w-4" />
                 Descargar {process.excel_file}
               </Button>
@@ -1499,7 +1501,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => {
                         setPersonalData({ ...personalData, region: value, comuna: "" })
                       }}
-                      disabled={loadingLists}
+                      disabled={readOnly || loadingLists}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione región" />
@@ -1518,7 +1520,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <Select
                       value={personalData.comuna}
                       onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
-                      disabled={loadingLists || !personalData.region}
+                      disabled={readOnly || loadingLists || !personalData.region}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
@@ -1537,7 +1539,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <Select
                       value={personalData.nacionalidad}
                       onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
-                      disabled={loadingLists}
+                      disabled={readOnly || loadingLists}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione nacionalidad" />
@@ -1556,7 +1558,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <Select
                       value={personalData.rubro}
                       onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
-                      disabled={loadingLists}
+                      disabled={readOnly || loadingLists}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione rubro" />
@@ -1661,7 +1663,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       <Select
                         value={newProfession.institution}
                         onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
-                        disabled={loadingLists}
+                        disabled={readOnly || loadingLists}
                       >
                         <SelectTrigger className="bg-white dark:bg-gray-950">
                           <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
@@ -1706,7 +1708,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                                 <div className="flex gap-2">
                                   <Button
                                     onClick={handleAddProfession}
-                                    disabled={!newProfession.profession || !newProfession.institution}
+                                    disabled={readOnly || !newProfession.profession || !newProfession.institution}
                                     className="flex-1"
                                   >
                                     {editingProfessionId ? "Guardar Cambios" : "Agregar Profesión"}
@@ -1843,7 +1845,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   <div className="flex gap-2">
                     <Button
                       onClick={handleAddEducation}
-                      disabled={!newEducation.institution || !newEducation.title || !newEducation.completion_date}
+                      disabled={readOnly || !newEducation.institution || !newEducation.title || !newEducation.completion_date}
                       className="flex-1"
                     >
                       {editingEducationId ? "Guardar Cambios" : "Agregar Formación"}
@@ -2040,7 +2042,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         maxDate={new Date()}
                         minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
                         yearDropdownItemNumber={50}
-                        disabled={newWorkExperience.is_current}
+                        disabled={readOnly || newWorkExperience.is_current}
                         locale="es"
                       />
                     </div>
@@ -2071,7 +2073,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         <div className="flex gap-2">
                   <Button
                     onClick={handleAddWorkExperience}
-                    disabled={!newWorkExperience.company || !newWorkExperience.position}
+                    disabled={readOnly || !newWorkExperience.company || !newWorkExperience.position}
                             className="flex-1"
                           >
                             {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
@@ -2112,7 +2114,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <div className="flex justify-end pt-4">
                 <Button
                   onClick={handlePersonalDataSubmit}
-                  disabled={savingCandidate}
+                  disabled={readOnly || savingCandidate}
                 >
                   {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
                 </Button>
@@ -2282,7 +2284,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       onValueChange={(value) => {
                         setPersonalData({ ...personalData, region: value, comuna: "" })
                       }}
-                      disabled={loadingLists}
+                      disabled={readOnly || loadingLists}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione región" />
@@ -2301,7 +2303,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <Select
                       value={personalData.comuna}
                       onValueChange={(value) => setPersonalData({ ...personalData, comuna: value })}
-                      disabled={loadingLists || !personalData.region}
+                      disabled={readOnly || loadingLists || !personalData.region}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder={personalData.region ? "Seleccione comuna" : "Primero seleccione región"} />
@@ -2320,7 +2322,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <Select
                       value={personalData.nacionalidad}
                       onValueChange={(value) => setPersonalData({ ...personalData, nacionalidad: value })}
-                      disabled={loadingLists}
+                      disabled={readOnly || loadingLists}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione nacionalidad" />
@@ -2339,7 +2341,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                     <Select
                       value={personalData.rubro}
                       onValueChange={(value) => setPersonalData({ ...personalData, rubro: value })}
-                      disabled={loadingLists}
+                      disabled={readOnly || loadingLists}
                     >
                       <SelectTrigger className="bg-white dark:bg-gray-950">
                         <SelectValue placeholder="Seleccione rubro" />
@@ -2444,7 +2446,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                       <Select
                         value={newProfession.institution}
                         onValueChange={(value) => setNewProfession({ ...newProfession, institution: value })}
-                        disabled={loadingLists}
+                        disabled={readOnly || loadingLists}
                       >
                         <SelectTrigger className="bg-white dark:bg-gray-950">
                           <SelectValue placeholder={loadingLists ? "Cargando instituciones..." : "Seleccione institución"} />
@@ -2489,7 +2491,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                                 <div className="flex gap-2">
                                   <Button
                                     onClick={handleAddProfession}
-                                    disabled={!newProfession.profession || !newProfession.institution}
+                                    disabled={readOnly || !newProfession.profession || !newProfession.institution}
                                     className="flex-1"
                                   >
                                     {editingProfessionId ? "Guardar Cambios" : "Agregar Profesión"}
@@ -2626,7 +2628,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                   <div className="flex gap-2">
                     <Button
                       onClick={handleAddEducation}
-                      disabled={!newEducation.institution || !newEducation.title || !newEducation.completion_date}
+                      disabled={readOnly || !newEducation.institution || !newEducation.title || !newEducation.completion_date}
                       className="flex-1"
                     >
                       {editingEducationId ? "Guardar Cambios" : "Agregar Formación"}
@@ -2823,7 +2825,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         maxDate={new Date()}
                         minDate={newWorkExperience.start_date ? new Date(newWorkExperience.start_date) : undefined}
                         yearDropdownItemNumber={50}
-                        disabled={newWorkExperience.is_current}
+                        disabled={readOnly || newWorkExperience.is_current}
                         locale="es"
                       />
                     </div>
@@ -2854,7 +2856,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
                         <div className="flex gap-2">
                   <Button
                             onClick={handleAddWorkExperience}
-                            disabled={!newWorkExperience.company || !newWorkExperience.position}
+                            disabled={readOnly || !newWorkExperience.company || !newWorkExperience.position}
                             className="flex-1"
                           >
                             {editingWorkExperienceId ? "Guardar Cambios" : "Agregar Experiencia"}
@@ -2895,7 +2897,7 @@ export function ProcessModule1({ process, descripcionCargo }: ProcessModule1Prop
               <div className="flex justify-end pt-4">
                 <Button
                   onClick={handlePersonalDataSubmit}
-                  disabled={savingCandidate}
+                  disabled={readOnly || savingCandidate}
                 >
                   {savingCandidate ? "Guardando..." : "Guardar Datos del Candidato"}
                 </Button>

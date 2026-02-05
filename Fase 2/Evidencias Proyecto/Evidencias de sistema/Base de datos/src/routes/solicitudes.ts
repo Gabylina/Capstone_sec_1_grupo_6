@@ -14,6 +14,9 @@ const router = Router();
 // Obtener solicitudes paginadas con filtros
 router.get('/', SolicitudController.getAll);
 
+// Obtener estadísticas con los mismos filtros (para contadores en vista admin)
+router.get('/stats', SolicitudController.getStats);
+
 // Obtener todas las solicitudes (sin paginación)
 router.get('/all', SolicitudController.getAllSolicitudes);
 

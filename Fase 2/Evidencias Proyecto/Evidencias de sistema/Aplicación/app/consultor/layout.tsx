@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/hooks/auth"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 import DashboardLayout from "../dashboard-layout"
 import { Loader2 } from "lucide-react"
@@ -13,20 +13,25 @@ export default function ConsultorLayout({
 }) {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // Permitir a admin ver una solicitud en solo lectura (botón ojo en tabla admin)
+  const isAdminViewOnly =
+    user?.role === "admin" &&
+    pathname?.match(/\/consultor\/proceso\/\d+/) &&
+    searchParams.get("viewOnly") === "1"
 
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        // No está logueado, redirigir a login
         router.push("/login")
-      } else if (user.role !== "consultor") {
-        // Es admin intentando acceder a consultor, redirigir a su área
+      } else if (user.role !== "consultor" && !isAdminViewOnly) {
         router.push("/admin/solicitudes")
       }
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, router, isAdminViewOnly])
 
-  // Mostrar loading mientras se verifica
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -38,8 +43,7 @@ export default function ConsultorLayout({
     )
   }
 
-  // Si no hay usuario o no es consultor, no mostrar nada (se está redirigiendo)
-  if (!user || user.role !== "consultor") {
+  if (!user || (user.role !== "consultor" && !isAdminViewOnly)) {
     return null
   }
 

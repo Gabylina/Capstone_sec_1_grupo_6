@@ -15,7 +15,7 @@ import { ProcessModule2 } from "@/components/consultor/process-module-2"
 import { ProcessModule3 } from "@/components/consultor/process-module-3"
 import { ProcessModule4 } from "@/components/consultor/process-module-4"
 import { ProcessModule5 } from "@/components/consultor/process-module-5"
-import { notFound } from "next/navigation"
+import { notFound, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import type { Hito } from "@/lib/types"
 
@@ -29,6 +29,8 @@ interface ProcessPageProps {
 
 export default function ProcessPage({ params }: ProcessPageProps) {
   const { id } = use(params)
+  const searchParams = useSearchParams()
+  const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)
@@ -264,7 +266,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
   }
 
-  if (user?.role !== "consultor") {
+  // Permitir consultor o admin en vista solo lectura (viewOnly=1)
+  if (user?.role !== "consultor" && !viewOnly) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -400,6 +403,12 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
   return (
     <div className="space-y-6">
+      {viewOnly && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+          <span className="font-medium">Vista solo lectura (Administrador)</span>
+          <span className="text-amber-600 dark:text-amber-400">— Puedes ver detalles, botones y estados pero no modificar.</span>
+        </div>
+      )}
       {/* Process Header */}
       <div className="flex items-start justify-between">
         <div className="space-y-1">
@@ -501,35 +510,35 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
             <div className="p-6">
               <TabsContent value="modulo-1" className="mt-0">
-                <ProcessModule1 process={process} descripcionCargo={descripcionCargo} />
+                <ProcessModule1 process={process} descripcionCargo={descripcionCargo} readOnly={viewOnly} />
               </TabsContent>
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
                 <TabsContent value="modulo-2" className="mt-0">
-                  <ProcessModule2 process={process} />
+                  <ProcessModule2 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-3" className="mt-0">
-                  <ProcessModule3 process={process} />
+                  <ProcessModule3 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES" || process.tipo_servicio === "EP") && (
                 <TabsContent value="modulo-4" className="mt-0">
-                  <ProcessModule4 process={process} />
+                  <ProcessModule4 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
               {process.tipo_servicio === "PC" && (
                 <TabsContent value="modulo-5" className="mt-0">
-                  <ProcessModule5 process={process} />
+                  <ProcessModule5 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
               <TabsContent value="timeline" className="mt-0">
-                <ProcessTimeline process={process} hitos={hitos} />
+                <ProcessTimeline process={process} hitos={hitos} readOnly={viewOnly} />
               </TabsContent>
             </div>
           </Tabs>

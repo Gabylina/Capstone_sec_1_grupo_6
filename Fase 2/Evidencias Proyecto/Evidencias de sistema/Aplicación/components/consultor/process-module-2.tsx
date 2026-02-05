@@ -120,14 +120,11 @@ const processApiErrorMessage = (errorMessage: string | undefined | null, default
 }
 
 interface ProcessModule2Props {
-
   process: Process
-
+  readOnly?: boolean
 }
 
-
-
-export function ProcessModule2({ process }: ProcessModule2Props) {
+export function ProcessModule2({ process, readOnly = false }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
   const { showToast } = useToastNotification()
@@ -2868,7 +2865,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule3}
-                disabled={isBlocked || isAdvancingToModule3 || isInAdvancedModule}
+                disabled={readOnly || isBlocked || isAdvancingToModule3 || isInAdvancedModule}
               >
                 {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 3
@@ -2981,7 +2978,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
             </div>
 
-            <Button onClick={() => setShowAddPublication(true)} disabled={isBlocked}>
+            <Button onClick={() => setShowAddPublication(true)} disabled={readOnly || isBlocked}>
                   <Plus className="mr-2 h-4 w-4" />
 
                   Agregar Publicación
@@ -3092,7 +3089,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                             setEditingPublication(publication)
                             setShowEditPublication(true)
                           }}
-                          disabled={isBlocked}
+                          disabled={readOnly || isBlocked}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -3149,7 +3146,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                 variant="default"
                 className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                 onClick={() => setShowStatusChange(!showStatusChange)}
-                disabled={loadingEstados || isBlocked}
+                disabled={readOnly || loadingEstados || isBlocked}
               >
                 {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
               </Button>
@@ -3179,7 +3176,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               {/* Botón para agregar desde historial */}
               <Button 
                 variant="outline" 
-                disabled={isBlocked}
+                disabled={readOnly || isBlocked}
                 onClick={() => setShowHistorialDialog(true)}
               >
                 <History className="mr-2 h-4 w-4" />
@@ -3205,7 +3202,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
 
                 <DialogTrigger asChild>
 
-                  <Button disabled={isBlocked}>
+                  <Button disabled={readOnly || isBlocked}>
 
                     <Plus className="mr-2 h-4 w-4" />
 
@@ -3372,7 +3369,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           size="sm"
                           onClick={() => handleOpenStatusDialog(candidate)}
                           className="text-xs h-7"
-                          disabled={isBlocked}
+                          disabled={readOnly || isBlocked}
                         >
                           Cambiar Estado
                         </Button>
@@ -3389,7 +3386,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           size="sm"
                           onClick={() => handleViewCV(candidate)}
                           title="Ver CV"
-                          disabled={!candidate.cv_file}
+                          disabled={readOnly || !candidate.cv_file}
                         >
                           <FileText className="h-4 w-4" />
                         </Button>
@@ -3402,7 +3399,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
                           onClick={() => handleEditCandidate(candidate)}
 
                           title="Editar candidato"
-                          disabled={isBlocked}
+                          disabled={readOnly || isBlocked}
                         >
 
                           <Edit className="h-4 w-4" />
@@ -3673,7 +3670,7 @@ export function ProcessModule2({ process }: ProcessModule2Props) {
               </Button>
               <Button
                 onClick={() => handleStatusChange(selectedEstado)}
-                disabled={!selectedEstado || isSavingStatus}
+                disabled={readOnly || !selectedEstado || isSavingStatus}
               >
                 {isSavingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSavingStatus ? "Actualizando..." : "Finalizar y Cerrar Hito"}

@@ -35,6 +35,25 @@ export class SolicitudController {
     }
 
     /**
+     * GET /api/solicitudes/stats
+     * Obtener contadores (total, en_progreso, completadas, pendientes) con los mismos filtros que la lista
+     */
+    static async getStats(req: Request, res: Response): Promise<Response> {
+        try {
+            const search = (req.query.search as string) || "";
+            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
+            const service_type = (req.query.service_type as string) || undefined;
+            const consultor_id = (req.query.consultor_id as string) || undefined;
+
+            const stats = await SolicitudService.getFilteredStats(search, status, service_type, consultor_id);
+            return sendSuccess(res, stats, "Estadísticas obtenidas correctamente");
+        } catch (error: any) {
+            Logger.error("Error al obtener estadísticas de solicitudes:", error);
+            return sendError(res, error.message || "Error al obtener estadísticas", 500);
+        }
+    }
+
+    /**
      * GET /api/solicitudes/all
      * Obtener todas las solicitudes con filtros opcionales (sin paginación)
      */

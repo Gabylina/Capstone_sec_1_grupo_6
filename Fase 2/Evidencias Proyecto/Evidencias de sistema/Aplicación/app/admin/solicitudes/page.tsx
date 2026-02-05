@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, Edit } from "lucide-react"
+import Link from "next/link"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
@@ -495,6 +496,16 @@ export default function SolicitudesPage() {
                     <TableCell>{formatDate(solicitud.fecha_creacion || '')}</TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                          title="Ver solicitud (solo lectura)"
+                        >
+                          <Link href={`/consultor/proceso/${solicitud.id}?viewOnly=1`}>
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="sm"

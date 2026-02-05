@@ -297,6 +297,25 @@ export class SolicitudService {
     }
 
     /**
+     * Obtener estadísticas (contadores) aplicando los mismos filtros que getSolicitudes.
+     * Usado para que los contadores de la vista admin reflejen búsqueda, estado y tipo de servicio.
+     */
+    static async getFilteredStats(
+        search: string = "",
+        status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
+        service_type?: string,
+        consultor_id?: string
+    ): Promise<{ total: number; en_progreso: number; completadas: number; pendientes: number }> {
+        const result = await this.getSolicitudes(1, 100000, search, status, service_type, consultor_id, undefined, "fecha", "DESC");
+        const solicitudes = result.solicitudes as any[];
+        const total = solicitudes.length;
+        const pendientes = solicitudes.filter((s: any) => s.estado_solicitud === "Creado").length;
+        const en_progreso = solicitudes.filter((s: any) => s.estado_solicitud === "En Progreso").length;
+        const completadas = solicitudes.filter((s: any) => s.estado_solicitud === "Cerrado").length;
+        return { total, en_progreso, completadas, pendientes };
+    }
+
+    /**
      * Obtener todas las solicitudes con filtros opcionales
      */
     static async getAllSolicitudes(filters?: {

@@ -75,9 +75,10 @@ const processApiErrorMessage = (errorMessage: string | undefined | null, default
 
 interface ProcessModule3Props {
   process: Process
+  readOnly?: boolean
 }
 
-export function ProcessModule3({ process }: ProcessModule3Props) {
+export function ProcessModule3({ process, readOnly = false }: ProcessModule3Props) {
   const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -752,7 +753,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={isBlocked || isAdvancingToModule4 || isInAdvancedModule}
+                disabled={readOnly || isBlocked || isAdvancingToModule4 || isInAdvancedModule}
               >
                 {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 4
@@ -806,7 +807,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                 variant="default"
                 className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                 onClick={() => setShowStatusChange(!showStatusChange)}
-                disabled={loadingEstados}
+                disabled={readOnly || loadingEstados}
               >
                 {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
               </Button>
@@ -875,7 +876,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
             </Button>
             <Button
               onClick={() => handleStatusChange(selectedEstado)}
-              disabled={!selectedEstado}
+              disabled={readOnly || !selectedEstado}
             >
               Actualizar Estado
             </Button>
@@ -976,7 +977,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
                         <TableCell>
                           <Button
                             onClick={() => handleOpenUpdateModal(candidate)}
-                            disabled={savingState[candidate.id] || isBlocked}
+                            disabled={readOnly || savingState[candidate.id] || isBlocked}
                             size="sm"
                             className="w-full"
                           >
@@ -1417,7 +1418,7 @@ export function ProcessModule3({ process }: ProcessModule3Props) {
             </Button>
             <Button 
               onClick={handleUpdateCandidateState}
-              disabled={savingState[updatingCandidate?.id || '']}
+              disabled={readOnly || savingState[updatingCandidate?.id || '']}
             >
               {savingState[updatingCandidate?.id || ''] ? (
                 <>

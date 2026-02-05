@@ -9,9 +9,10 @@ import type { Process, Hito } from "@/lib/types"
 interface ProcessTimelineProps {
   process: Process
   hitos: Hito[]
+  readOnly?: boolean
 }
 
-export function ProcessTimeline({ process, hitos }: ProcessTimelineProps) {
+export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelineProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completado":

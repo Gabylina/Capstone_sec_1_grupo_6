@@ -145,89 +145,82 @@ export function useSolicitudes() {
     }
   }
 
-  // Función para cargar estadísticas y tipos de servicio
-  const fetchStatsAndServiceTypes = async () => {
+  // Función para cargar estadísticas con los mismos filtros que la lista (contadores que reaccionan a filtros)
+  const fetchFilteredStats = async () => {
     try {
-      // Hacer una llamada sin paginación para obtener todas las solicitudes para estadísticas
-      const res = await fetch(`${API_URL}/api/solicitudes/all`, {
+      const params = new URLSearchParams({ search: searchTerm })
+      if (statusFilter !== "all") params.append("status", statusFilter)
+      if (serviceFilter !== "all") params.append("service_type", serviceFilter)
+
+      const res = await fetch(`${API_URL}/api/solicitudes/stats?${params}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("llc_token")}`,
         },
       })
-
       const data = await res.json()
-      
-      if (res.ok && data?.success) {
-        const allSolicitudes = data.data || []
-        
-        // Calcular estadísticas
-        const total = allSolicitudes.length
-        const en_progreso = allSolicitudes.filter((s: any) => 
-          s.status === 'en_progreso' || s.estado_solicitud === 'En Progreso'
-        ).length
-        const completadas = allSolicitudes.filter((s: any) => 
-          s.status === 'cerrado' || s.estado_solicitud === 'Cerrado'
-        ).length
-        const pendientes = allSolicitudes.filter((s: any) => 
-          s.status === 'creado' || s.estado_solicitud === 'Creado'
-        ).length
-        
+
+      if (res.ok && data?.success && data.data) {
         setStats({
-          total,
-          en_progreso,
-          completadas,
-          pendientes,
+          total: data.data.total ?? 0,
+          en_progreso: data.data.en_progreso ?? 0,
+          completadas: data.data.completadas ?? 0,
+          pendientes: data.data.pendientes ?? 0,
         })
       }
-      
-      // Obtener tipos de servicio completos desde la API
+    } catch (error) {
+      console.error("Error fetching filtered stats:", error)
+    }
+  }
+
+  // Función para cargar solo tipos de servicio (usado al montar)
+  const fetchServiceTypes = async () => {
+    try {
       const serviceTypesResponse = await tipoServicioService.getAll()
       if (serviceTypesResponse.success && serviceTypesResponse.data) {
         setAllServiceTypes(serviceTypesResponse.data)
       } else {
-        // Fallback: extraer tipos de servicio de las solicitudes si falla la API
+        const res = await fetch(`${API_URL}/api/solicitudes/all`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("llc_token")}` },
+        })
+        const data = await res.json()
+        const list = data?.data || []
         const serviceTypes = (Array.from(
-          new Set(
-            (data?.data || [])
-              .map((s: any) => s.service_type || s.tipo_servicio)
-              .filter(Boolean)
-          )
+          new Set(list.map((s: any) => s.service_type || s.tipo_servicio).filter(Boolean))
         ) as string[]).sort().map((codigo: string) => ({ codigo, nombre: codigo }))
-        
         setAllServiceTypes(serviceTypes)
       }
     } catch (error) {
-      console.error("Error fetching stats and service types:", error)
+      console.error("Error fetching service types:", error)
     }
   }
 
-  // Efecto inicial para cargar estadísticas y tipos de servicio
+  // Efecto inicial: tipos de servicio y estadísticas con filtros actuales (vacíos al montar)
   useEffect(() => {
-    fetchStatsAndServiceTypes()
-  }, []) // Solo ejecutar al montar el componente
+    fetchServiceTypes()
+    fetchFilteredStats()
+  }, [])
 
-  // Efecto para recargar solicitudes cuando cambien los filtros o paginación
+  // Efecto para recargar solicitudes y contadores cuando cambien los filtros o paginación
   useEffect(() => {
     // Detectar si cambiaron los filtros (no la paginación)
     const searchChanged = prevSearchTerm.current !== searchTerm
     const statusChanged = prevStatusFilter.current !== statusFilter
     const serviceChanged = prevServiceFilter.current !== serviceFilter
-    
+
     // Si cambiaron los filtros, resetear a página 1
     if ((searchChanged || statusChanged || serviceChanged) && currentPage !== 1) {
       setCurrentPage(1)
       return
     }
-    
-    // Actualizar las referencias después de verificar cambios
+
     prevSearchTerm.current = searchTerm
     prevStatusFilter.current = statusFilter
     prevServiceFilter.current = serviceFilter
-    
-    // Debounce para búsqueda
+
     const timeoutId = setTimeout(() => {
       fetchSolicitudes()
-    }, searchTerm ? 300 : 0) // 300ms de debounce solo para búsqueda
+      fetchFilteredStats()
+    }, searchTerm ? 300 : 0)
 
     return () => clearTimeout(timeoutId)
   }, [currentPage, pageSize, searchTerm, statusFilter, serviceFilter, sortBy, sortOrder])
@@ -278,11 +271,10 @@ export function useSolicitudes() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
-  // Función para refrescar todos los datos (solicitudes y estadísticas)
+  // Función para refrescar todos los datos (solicitudes y contadores con filtros actuales)
   const refreshData = async () => {
     await fetchSolicitudes()
-    // Recargar estadísticas y tipos de servicio
-    await fetchStatsAndServiceTypes()
+    await fetchFilteredStats()
   }
 
   return {

@@ -122,9 +122,10 @@ interface CandidateReport {
 
 interface ProcessModule4Props {
   process: Process
+  readOnly?: boolean
 }
 
-export function ProcessModule4({ process }: ProcessModule4Props) {
+export function ProcessModule4({ process, readOnly = false }: ProcessModule4Props) {
   const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -2468,7 +2469,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                     </div>
                     <Button 
                       onClick={handleAdvanceToModule5}
-                      disabled={!canAdvanceToModule5 || isAdvancingToModule5}
+                      disabled={readOnly || !canAdvanceToModule5 || isAdvancingToModule5}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
                     >
                       {isAdvancingToModule5 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -2887,7 +2888,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                     <Button 
                                       onClick={() => openTestDialog(candidate)} 
                                       size="sm"
-                                      disabled={!hasEvaluation}
+                                      disabled={readOnly || !hasEvaluation}
                                     >
                                       <Plus className="mr-2 h-4 w-4" />
                                       Agregar Test
@@ -2912,7 +2913,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                       variant="outline" 
                                       onClick={() => openReferencesDialog(candidate)} 
                                       size="sm"
-                                      disabled={!hasEvaluation}
+                                      disabled={readOnly || !hasEvaluation}
                                     >
                                       <Building className="mr-2 h-4 w-4" />
                                       Agregar Referencias
@@ -2939,7 +2940,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                                 variant="outline" 
                                 onClick={() => openReportDialog(candidate)} 
                                 size="sm"
-                                disabled={!isRealized}
+                                disabled={readOnly || !isRealized}
                               >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Gestionar Estado del Informe
@@ -3268,13 +3269,13 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                 setShowInterviewDialog(false)
                 clearAllErrors()
               }}
-              disabled={isSavingInterview}
+              disabled={readOnly || isSavingInterview}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleSaveInterview}
-              disabled={isSavingInterview}
+              disabled={readOnly || isSavingInterview}
             >
               {isSavingInterview && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingInterview ? "Guardando..." : "Guardar"}
@@ -3410,7 +3411,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                           <Select
                             value={form.test_name}
                             onValueChange={(value) => updateTestForm(form.id, "test_name", value)}
-                            disabled={isMarkedForDeletion}
+                            disabled={readOnly || isMarkedForDeletion}
                           >
                             <SelectTrigger className={`bg-white ${errors[`test_name_${form.id}`] ? "border-destructive" : ""}`}>
                               <SelectValue placeholder="Seleccionar test" />
@@ -3434,7 +3435,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
                             placeholder="Ej: Alto dominio en habilidades de liderazgo, muestra capacidad para..."
                             rows={4}
                             maxLength={300}
-                            disabled={isMarkedForDeletion}
+                            disabled={readOnly || isMarkedForDeletion}
                             className={`bg-white min-h-[100px] ${errors[`test_result_${form.id}`] ? "border-destructive" : ""}`}
                           />
                           <div className="text-sm text-muted-foreground text-right">
@@ -3462,7 +3463,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             }}>
               Cerrar
             </Button>
-            <Button onClick={handleSaveTest} disabled={isSavingTest}>
+            <Button onClick={handleSaveTest} disabled={readOnly || isSavingTest}>
               {isSavingTest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingTest ? "Guardando..." : "Guardar Tests"}
             </Button>
@@ -3731,7 +3732,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </Button>
             <Button
               onClick={handleAddReference}
-              disabled={isSavingReference}
+              disabled={readOnly || isSavingReference}
             >
               {isSavingReference && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingReference ? "Guardando..." : "Guardar Referencias"}
@@ -3920,7 +3921,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
             </Button>
             <Button 
               onClick={handleSaveReport} 
-              disabled={!reportForm.report_status || isSavingReport}
+              disabled={readOnly || !reportForm.report_status || isSavingReport}
             >
               {isSavingReport && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingReport ? "Guardando..." : "Guardar Estado del Informe"}
@@ -4021,7 +4022,7 @@ export function ProcessModule4({ process }: ProcessModule4Props) {
               </Button>
               <Button
                 onClick={() => handleStatusChange(selectedEstado)}
-                disabled={!selectedEstado || isSavingStatus}
+                disabled={readOnly || !selectedEstado || isSavingStatus}
               >
                 {isSavingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSavingStatus ? "Actualizando..." : "Actualizar Estado"}

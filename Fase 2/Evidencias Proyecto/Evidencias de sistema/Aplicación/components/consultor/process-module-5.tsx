@@ -30,6 +30,7 @@ import { es } from "date-fns/locale"
 
 interface ProcessModule5Props {
   process: Process
+  readOnly?: boolean
 }
 
 // Estados de contratación
@@ -54,7 +55,7 @@ interface ContractedCandidate {
   contratacion_status?: 'contratado' | 'no_contratado' | null
 }
 
-export function ProcessModule5({ process }: ProcessModule5Props) {
+export function ProcessModule5({ process, readOnly = false }: ProcessModule5Props) {
   const { showToast } = useToastNotification()
 
   // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
@@ -1032,7 +1033,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
                   variant="default"
                   className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                   onClick={() => setShowStatusChange(!showStatusChange)}
-                  disabled={isBlocked || loadingEstados}
+                  disabled={readOnly || isBlocked || loadingEstados}
                 >
                   {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
                   </Button>
@@ -1396,13 +1397,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             <Button 
               variant="outline" 
               onClick={() => setShowContractDialog(false)}
-              disabled={isSavingContract}
+              disabled={readOnly || isSavingContract}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleContractSubmit}
-              disabled={isSavingContract}
+              disabled={readOnly || isSavingContract}
             >
               {isSavingContract && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingContract ? "Guardando..." : "Guardar Estado"}
@@ -1500,7 +1501,7 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             </Button>
             <Button
               onClick={handleProcessClosure}
-              disabled={!selectedEstado || isBlocked}
+              disabled={readOnly || !selectedEstado || isBlocked}
             >
               Actualizar Estado
             </Button>
@@ -1715,13 +1716,13 @@ export function ProcessModule5({ process }: ProcessModule5Props) {
             <Button 
               variant="outline" 
               onClick={() => setShowContratacionDialog(false)}
-              disabled={isSavingContratacion}
+              disabled={readOnly || isSavingContratacion}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleSaveContratacion}
-              disabled={isSavingContratacion}
+              disabled={readOnly || isSavingContratacion}
               className={contratacionAction === "no_contratado" ? "bg-orange-600 hover:bg-orange-700" : ""}
             >
               {isSavingContratacion ? (
