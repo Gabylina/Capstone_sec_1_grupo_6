@@ -126,6 +126,22 @@ export class HitoSolicitudService {
     }
 
     /**
+     * Crear hitos (línea de tiempo) para una solicitud recién creada.
+     * Copia plantillas según el tipo de servicio y activa el hito "inicio_proceso".
+     * Usar en todos los flujos que crean una nueva solicitud (createSolicitud, crearSolicitudConCandidatos, etc.).
+     * No lanza: si falla, se registra y la creación de la solicitud no se ve afectada.
+     */
+    static async crearHitosParaSolicitudNueva(idSolicitud: number, usuarioRut?: string): Promise<void> {
+        try {
+            await this.copiarPlantillasASolicitud(idSolicitud, usuarioRut);
+            await this.activarHitosPorEvento(idSolicitud, 'inicio_proceso', new Date(), usuarioRut);
+            console.log(`✅ Hitos creados y activados para solicitud ${idSolicitud}`);
+        } catch (error) {
+            console.warn(`⚠️ No se pudieron crear hitos para la solicitud ${idSolicitud}:`, error);
+        }
+    }
+
+    /**
      * Activar hitos por evento ancla
      */
     static async activarHitosPorEvento(idSolicitud: number, tipoAncla: string, fechaEvento: Date, usuarioRut?: string) {
@@ -166,7 +182,9 @@ export class HitoSolicitudService {
     }
 
     /**
-     * Obtener hitos de una solicitud específica
+     * Obtener hitos de una solicitud específica.
+     * No se filtran por estado de la solicitud: la línea de tiempo se mantiene visible
+     * aunque la solicitud esté Cerrada o finalizada.
      */
     static async getHitosBySolicitud(idSolicitud: number) {
         const hitos = await HitoSolicitud.findAll({

@@ -107,9 +107,14 @@ async function apiRequest<T>(
 // ===========================================
 
 export const clientService = {
-  // Obtener todos los clientes
+  // Obtener todos los clientes (paginado)
   async getAll(): Promise<ApiResponse<any[]>> {
     return apiRequest('/api/clientes');
+  },
+
+  // Obtener todos los clientes sin paginación (para filtros/selects)
+  async getAllClientes(): Promise<ApiResponse<any[]>> {
+    return apiRequest('/api/clientes/all');
   },
 
   // Obtener un cliente por ID
@@ -1383,6 +1388,17 @@ export async function getCandidatesByProcess(processId: string): Promise<any[]> 
     console.error('Error al obtener candidatos por proceso:', error);
     return [];
   }
+}
+
+/**
+ * Copiar plantillas de hitos a una solicitud (genera la línea de tiempo si no existe).
+ * Usado cuando se abre un proceso sin hitos (ej. procesos antiguos).
+ */
+export async function copiarPlantillasASolicitud(id_solicitud: number): Promise<ApiResponse<any[]>> {
+  return apiRequest('/api/hitos-solicitud/copiar-plantillas', {
+    method: 'POST',
+    body: JSON.stringify({ id_solicitud }),
+  });
 }
 
 export async function getPublicationsByProcess(processId: string): Promise<any[]> {

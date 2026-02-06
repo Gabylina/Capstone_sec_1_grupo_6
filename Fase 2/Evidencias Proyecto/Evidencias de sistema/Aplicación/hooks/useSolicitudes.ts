@@ -31,6 +31,7 @@ export function useSolicitudes() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const [clientFilter, setClientFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<"fecha" | "cargo" | "cliente">("fecha")
   const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("DESC")
   
@@ -74,6 +75,9 @@ export function useSolicitudes() {
       }
       if (serviceFilter !== "all") {
         params.append("service_type", serviceFilter)
+      }
+      if (clientFilter !== "all") {
+        params.append("cliente_id", clientFilter)
       }
 
       const res = await fetch(`${API_URL}/api/solicitudes?${params}`, {
@@ -206,9 +210,10 @@ export function useSolicitudes() {
     const searchChanged = prevSearchTerm.current !== searchTerm
     const statusChanged = prevStatusFilter.current !== statusFilter
     const serviceChanged = prevServiceFilter.current !== serviceFilter
+    const clientChanged = prevClientFilter.current !== clientFilter
 
     // Si cambiaron los filtros, resetear a página 1
-    if ((searchChanged || statusChanged || serviceChanged) && currentPage !== 1) {
+    if ((searchChanged || statusChanged || serviceChanged || clientChanged) && currentPage !== 1) {
       setCurrentPage(1)
       return
     }
@@ -216,6 +221,7 @@ export function useSolicitudes() {
     prevSearchTerm.current = searchTerm
     prevStatusFilter.current = statusFilter
     prevServiceFilter.current = serviceFilter
+    prevClientFilter.current = clientFilter
 
     const timeoutId = setTimeout(() => {
       fetchSolicitudes()
@@ -284,6 +290,7 @@ export function useSolicitudes() {
     searchTerm,
     statusFilter,
     serviceFilter,
+    clientFilter,
     sortBy,
     sortOrder,
     currentPage,
@@ -297,6 +304,7 @@ export function useSolicitudes() {
     setSearchTerm,
     setStatusFilter,
     setServiceFilter,
+    setClientFilter,
     setSortBy,
     setSortOrder,
     

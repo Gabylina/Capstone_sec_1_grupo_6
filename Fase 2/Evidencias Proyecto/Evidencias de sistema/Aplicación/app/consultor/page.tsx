@@ -357,6 +357,9 @@ export default function ConsultorPage() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    <TableCell className="font-medium">
+                      {process.cargo || process.position_title || <span className="text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
@@ -532,6 +535,9 @@ export default function ConsultorPage() {
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {process.cargo || process.position_title || <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">

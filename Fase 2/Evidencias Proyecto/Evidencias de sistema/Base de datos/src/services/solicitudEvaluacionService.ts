@@ -2,6 +2,7 @@ import { Transaction } from 'sequelize';
 import sequelize from '@/config/database';
 import { SolicitudService } from './solicitudService';
 import { CandidatoService } from './candidatoService';
+import { HitoSolicitudService } from './hitoSolicitudService';
 import { setDatabaseUser } from '@/utils/databaseUser';
 import { Logger } from '@/utils/logger';
 import { obtenerDuracionProceso } from '@/utils/duracionProcesos';
@@ -115,6 +116,9 @@ export class SolicitudEvaluacionService {
             await transaction.commit();
 
             Logger.info(`✅ Transacción completada: Solicitud ${solicitudId} con ${candidatosCreados.length} candidatos`);
+
+            // 4. Crear hitos (línea de tiempo) para la nueva solicitud
+            await HitoSolicitudService.crearHitosParaSolicitudNueva(solicitudId, usuarioRut);
 
             return {
                 success: true,

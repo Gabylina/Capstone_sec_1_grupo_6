@@ -45,7 +45,8 @@ export class SolicitudService {
         consultor_id?: string,
         exclude_status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         sortBy: "fecha" | "cargo" | "cliente" = "fecha",
-        sortOrder: "ASC" | "DESC" = "DESC"
+        sortOrder: "ASC" | "DESC" = "DESC",
+        cliente_id?: string
     ) {
         const offset = (page - 1) * limit;
 
@@ -200,6 +201,14 @@ export class SolicitudService {
             andConditions.push({ rut_usuario: consultor_id });
         }
 
+        // Filtro por cliente (id_cliente del contacto)
+        if (cliente_id) {
+            const idCliente = parseInt(cliente_id, 10);
+            if (!isNaN(idCliente)) {
+                andConditions.push({ '$contacto.id_cliente$': idCliente });
+            }
+        }
+
         // Construir la condición final
         const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
 
@@ -313,9 +322,10 @@ export class SolicitudService {
         search: string = "",
         status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         service_type?: string,
-        consultor_id?: string
+        consultor_id?: string,
+        cliente_id?: string
     ): Promise<{ total: number; en_progreso: number; completadas: number; pendientes: number }> {
-        const result = await this.getSolicitudes(1, 100000, search, status, service_type, consultor_id, undefined, "fecha", "DESC");
+        const result = await this.getSolicitudes(1, 100000, search, status, service_type, consultor_id, undefined, "fecha", "DESC", cliente_id);
         const solicitudes = result.solicitudes as any[];
         const total = solicitudes.length;
         const pendientes = solicitudes.filter((s: any) => s.estado_solicitud === "Creado").length;
@@ -677,24 +687,8 @@ export class SolicitudService {
 
             await transaction.commit();
 
-            // Crear hitos automáticamente basados en las plantillas del servicio
-            try {
-                await HitoSolicitudService.copiarPlantillasASolicitud(nuevaSolicitud.id_solicitud, usuarioRut);
-                
-                // Activar hitos de "inicio_proceso" inmediatamente
-                await HitoSolicitudService.activarHitosPorEvento(
-                    nuevaSolicitud.id_solicitud,
-                    'inicio_proceso',
-                    new Date(),
-                    usuarioRut
-                );
-                
-                console.log(`✅ Hitos creados y activados para solicitud ${nuevaSolicitud.id_solicitud}`);
-            } catch (hitoError) {
-                // Log del error pero no fallar la creación de solicitud
-                console.warn(`⚠️  Advertencia: No se pudieron crear hitos para la solicitud ${nuevaSolicitud.id_solicitud}:`, hitoError);
-                // Los hitos se pueden crear manualmente después si es necesario
-            }
+            // Crear hitos (línea de tiempo) para la nueva solicitud
+            await HitoSolicitudService.crearHitosParaSolicitudNueva(nuevaSolicitud.id_solicitud, usuarioRut);
 
             return { 
                 id: nuevaSolicitud.id_solicitud,

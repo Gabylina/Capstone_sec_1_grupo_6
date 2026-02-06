@@ -12,7 +12,7 @@ import Link from "next/link"
 import { formatDate, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
-import { solicitudService, getCandidatesByProcess } from "@/lib/api"
+import { solicitudService, getCandidatesByProcess, clientService } from "@/lib/api"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
@@ -153,6 +153,7 @@ export default function SolicitudesPage() {
   const [showExcelDialog, setShowExcelDialog] = useState(false)
   const [selectedDescripcionCargoId, setSelectedDescripcionCargoId] = useState<number | null>(null)
   const [solicitudToEdit, setSolicitudToEdit] = useState<Solicitud | null>(null)
+  const [clientes, setClientes] = useState<Array<{ id_cliente: number; nombre_cliente: string }>>([])
   
   // Estados para las alertas
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
@@ -259,6 +260,18 @@ export default function SolicitudesPage() {
       setLoadingCandidates(prev => ({ ...prev, [solicitudId]: false }))
     }
   }
+
+  // Cargar lista de clientes para el filtro
+  useEffect(() => {
+    clientService.getAllClientes().then(res => {
+      if (res.success && res.data && Array.isArray(res.data)) {
+        setClientes(res.data.map((c: any) => ({
+          id_cliente: c.id_cliente ?? c.id,
+          nombre_cliente: c.nombre_cliente ?? c.name ?? String(c.id)
+        })))
+      }
+    }).catch(() => setClientes([]))
+  }, [])
 
   // Cargar candidatos cuando cambian las solicitudes
   useEffect(() => {
@@ -395,6 +408,19 @@ export default function SolicitudesPage() {
                 {serviceTypes.map((type) => (
                   <SelectItem key={type.codigo} value={type.codigo}>
                     {type.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={clientFilter} onValueChange={setClientFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Cliente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los clientes</SelectItem>
+                {clientes.map((c) => (
+                  <SelectItem key={c.id_cliente} value={String(c.id_cliente)}>
+                    {c.nombre_cliente}
                   </SelectItem>
                 ))}
               </SelectContent>

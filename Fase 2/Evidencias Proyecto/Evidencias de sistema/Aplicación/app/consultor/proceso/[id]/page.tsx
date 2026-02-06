@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react"
 import { useAuth } from "@/hooks/auth"
-import { solicitudService, descripcionCargoService } from "@/lib/api"
+import { solicitudService, descripcionCargoService, getCandidatesByProcess, copiarPlantillasASolicitud } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +38,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const [hitos, setHitos] = useState<Hito[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [hasCandidatesWithReportStatus, setHasCandidatesWithReportStatus] = useState(false)
+  const [firstCandidateName, setFirstCandidateName] = useState<string | null>(null)
 
   // Función para determinar el módulo activo basado en la etapa
   const getModuleFromStage = (etapa: string | null | undefined, serviceType: string | null | undefined): string => {
@@ -143,7 +144,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const loadProcessData = async () => {
     try {
       setIsLoading(true)
-      
+      setFirstCandidateName(null)
+
       // Validar que el ID sea un número válido
       const processId = parseInt(id)
       if (isNaN(processId)) {
@@ -166,41 +168,40 @@ export default function ProcessPage({ params }: ProcessPageProps) {
           }
         }
 
-        // Cargar hitos del proceso
-        const hitosData = await getHitosBySolicitud(processId)
-        const hitosMapeados: Hito[] = hitosData.map((hito) => {
-          // Determinar estado: primero verificar si está completado (tiene fecha_cumplimiento)
-          let status: Hito['status'] = 'pendiente'
-          
-          if (hito.fecha_cumplimiento) {
-            // Si tiene fecha de cumplimiento, está completado
-            status = 'completado'
-          } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) {
-            // Si está vencido o la fecha límite ya pasó
-            status = 'vencido'
-          } else if (hito.fecha_base && hito.fecha_limite) {
-            // Si tiene fecha de inicio y límite, está en progreso
-            status = 'en_progreso'
-          } else {
-            // Por defecto, pendiente
-            status = 'pendiente'
+        // Cargar hitos del proceso (línea de tiempo)
+        let hitosData = await getHitosBySolicitud(processId)
+        // Si no hay hitos, intentar generarlos desde plantillas (procesos antiguos o sin hitos)
+        if (hitosData.length === 0 && response.data.codigo_servicio) {
+          try {
+            const copyRes = await copiarPlantillasASolicitud(processId)
+            if (copyRes.success) {
+              hitosData = await getHitosBySolicitud(processId)
+            }
+          } catch {
+            // Si falla (ej. sin plantillas para el servicio), se mantiene lista vacía
           }
-
-          return {
-            id: hito.id_hito_solicitud.toString(),
-            process_id: processId.toString(),
-            name: hito.nombre_hito,
-            description: hito.descripcion || '',
-            start_trigger: hito.tipo_ancla || '',
-            duration_days: hito.duracion_dias || 0,
-            anticipation_days: hito.avisar_antes_dias || 0,
-            status: status,
-            start_date: hito.fecha_base ? new Date(hito.fecha_base).toISOString() : undefined,
-            due_date: hito.fecha_limite ? new Date(hito.fecha_limite).toISOString() : undefined,
-            completed_date: hito.fecha_cumplimiento ? new Date(hito.fecha_cumplimiento).toISOString() : undefined,
-          }
-        })
-        setHitos(hitosMapeados)
+        }
+        const mapHitosToFrontend = (data: typeof hitosData): Hito[] =>
+          data.map((hito: any) => {
+            let status: Hito['status'] = 'pendiente'
+            if (hito.fecha_cumplimiento) status = 'completado'
+            else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) status = 'vencido'
+            else if (hito.fecha_base && hito.fecha_limite) status = 'en_progreso'
+            return {
+              id: hito.id_hito_solicitud.toString(),
+              process_id: processId.toString(),
+              name: hito.nombre_hito,
+              description: hito.descripcion || '',
+              start_trigger: hito.tipo_ancla || '',
+              duration_days: hito.duracion_dias || 0,
+              anticipation_days: hito.avisar_antes_dias || 0,
+              status,
+              start_date: hito.fecha_base ? new Date(hito.fecha_base).toISOString() : undefined,
+              due_date: hito.fecha_limite ? new Date(hito.fecha_limite).toISOString() : undefined,
+              completed_date: hito.fecha_cumplimiento ? new Date(hito.fecha_cumplimiento).toISOString() : undefined,
+            }
+          })
+        setHitos(mapHitosToFrontend(hitosData))
 
         // Verificar si hay candidatos con estado de informe definido (solo para procesos PC)
         const serviceType = response.data.tipo_servicio || response.data.service_type
@@ -209,6 +210,23 @@ export default function ProcessPage({ params }: ProcessPageProps) {
           await checkCandidatesWithReportStatus(processId)
         } else {
           setHasCandidatesWithReportStatus(false)
+        }
+
+        // Primer candidato (por fecha) para mostrar en el encabezado: Nombre Apellido - Cargo
+        const candidates = await getCandidatesByProcess(String(processId))
+        if (candidates && candidates.length > 0) {
+          const sorted = [...candidates].sort((a: any, b: any) => {
+            const dateA = a.fecha_postulacion || a.created_at || a.fecha_creacion || 0
+            const dateB = b.fecha_postulacion || b.created_at || b.fecha_creacion || 0
+            return new Date(dateA).getTime() - new Date(dateB).getTime()
+          })
+          const first = sorted[0]
+          const nombre = first.nombre || first.nombre_candidato || ""
+          const apellido = first.primer_apellido || first.primer_apellido_candidato || ""
+          const fullName = [nombre, apellido].filter(Boolean).join(" ").trim()
+          setFirstCandidateName(fullName || null)
+        } else {
+          setFirstCandidateName(null)
         }
       } else {
         toast.error("No se pudo cargar la información del proceso. Por favor recarga la página.")
@@ -412,7 +430,11 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       {/* Process Header */}
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">{process.cargo || process.position_title}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {firstCandidateName
+              ? `${firstCandidateName} - ${process.cargo || process.position_title}`
+              : (process.cargo || process.position_title)}
+          </h1>
           <div className="flex items-center gap-4 text-muted-foreground">
             <div className="flex items-center gap-1">
               <Building2 className="h-4 w-4" />

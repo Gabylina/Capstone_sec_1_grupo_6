@@ -183,9 +183,9 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         {
             nombre_hito: "Agendar entrevista",
             tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
+            duracion_dias: 1,
             avisar_antes_dias: 0,
-            descripcion: "Agendar entrevista dentro de 4 horas del mismo día",
+            descripcion: "Agendar entrevista dentro de 1 día hábil desde el inicio del proceso",
             codigo_servicio: "ES"
         },
         {
@@ -203,9 +203,9 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
         {
             nombre_hito: "Agendar entrevista",
             tipo_ancla: 'inicio_proceso',
-            duracion_dias: 0,
+            duracion_dias: 1,
             avisar_antes_dias: 0,
-            descripcion: "Agendar entrevista dentro de 4 horas del mismo día",
+            descripcion: "Agendar entrevista dentro de 1 día hábil desde el inicio del proceso",
             codigo_servicio: "EP"
         },
         {
