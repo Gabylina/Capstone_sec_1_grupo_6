@@ -16,7 +16,9 @@ import {
     Postulacion,
     EstadoClientePostulacionM5,
     PortalPostulacion,
-    EstadoCliente
+    EstadoCliente,
+    Contratacion,
+    EstadoContratacion
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
 import { HitoHelperService } from './hitoHelperService';
@@ -270,8 +272,15 @@ export class SolicitudService {
             distinct: true, // Importante para contar correctamente con includes
         });
 
+        // Vacantes cubiertas (contratados) por solicitud, para formato X/Y en frontend
+        const vacantesCubiertasMap = rows.length > 0
+            ? await this.getVacantesCubiertasBySolicitudIds(rows.map((r: any) => r.id_solicitud))
+            : {};
+
         // Transformar al formato del frontend
-        const transformedSolicitudes = rows.map(solicitud => this.transformSolicitud(solicitud));
+        const transformedSolicitudes = rows.map((solicitud: any) =>
+            this.transformSolicitud(solicitud, vacantesCubiertasMap[solicitud.id_solicitud] ?? 0)
+        );
 
         // Verificar y actualizar etapas para solicitudes PC con candidatos en módulo 5 (de forma asíncrona, no bloquea la respuesta)
         if (transformedSolicitudes.length > 0) {
@@ -1362,9 +1371,35 @@ export class SolicitudService {
     }
 
     /**
+     * Obtener cantidad de vacantes cubiertas (candidatos contratados) por id_solicitud.
+     * Usado para mostrar formato "X/Y" (cubiertas/total) en tabla consultor.
+     */
+    private static async getVacantesCubiertasBySolicitudIds(ids: number[]): Promise<Record<number, number>> {
+        if (ids.length === 0) return {};
+        const raw = await sequelize.query(
+            `SELECT p.id_solicitud, COUNT(c.id_contratacion)::int AS vacantes_cubiertas
+             FROM contratacion c
+             INNER JOIN postulacion p ON c.id_postulacion = p.id_postulacion
+             INNER JOIN estado_contratacion ec ON c.id_estado_contratacion = ec.id_estado_contratacion
+             WHERE ec.nombre_estado_contratacion = 'Contratado' AND p.id_solicitud IN (:ids)
+             GROUP BY p.id_solicitud`,
+            { replacements: { ids }, type: QueryTypes.SELECT }
+        );
+        const results = raw as unknown as { id_solicitud: number; vacantes_cubiertas: number | string }[];
+        const rows = Array.isArray(results) ? results : [results];
+        const map: Record<number, number> = {};
+        for (const id of ids) map[id] = 0;
+        for (const row of rows) {
+            const id = row?.id_solicitud;
+            if (id != null) map[id] = typeof row.vacantes_cubiertas === 'string' ? parseInt(row.vacantes_cubiertas, 10) : (row.vacantes_cubiertas ?? 0);
+        }
+        return map;
+    }
+
+    /**
      * Transformar solicitud a formato frontend
      */
-    private static transformSolicitud(solicitud: any) {
+    private static transformSolicitud(solicitud: any, vacantesCubiertas: number = 0) {
         const contacto = solicitud.get('contacto') as any;
         const cliente = contacto?.cliente;
         const descripcionCargo = solicitud.get('descripcionCargo') as any;
@@ -1416,6 +1451,7 @@ export class SolicitudService {
             description: descripcionCargo?.descripcion_cargo || '',
             requirements: descripcionCargo?.requisitos_y_condiciones || '',
             vacancies: descripcionCargo?.num_vacante || 0,
+            vacantes_cubiertas: vacantesCubiertas,
             consultant_id: usuario?.rut_usuario || '',
             consultant: {
                 id: usuario?.rut_usuario || '',

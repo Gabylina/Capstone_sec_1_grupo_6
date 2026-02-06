@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { KeyboardEvent } from "react"
 import { useAuth } from "@/hooks/auth"
 import { useConsultorProcesses } from "@/hooks/useConsultorProcesses"
-import { solicitudService } from "@/lib/api"
+import { solicitudService, getCandidatesByProcess } from "@/lib/api"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,9 +13,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+
+const getDiasTranscurridos = (process: { fecha_creacion?: string; created_at?: string; started_at?: string }) => {
+  const fecha = process.started_at || process.fecha_creacion || process.created_at
+  if (!fecha) return 0
+  const inicio = new Date(fecha).getTime()
+  const hoy = Date.now()
+  return Math.floor((hoy - inicio) / (1000 * 60 * 60 * 24))
+}
 
 const getStatusColor = (status: string) => {
   const colors: Record<string, string> = {
@@ -75,6 +83,11 @@ export default function ConsultorPage() {
   }
   
   const [startingProcess, setStartingProcess] = useState<string | null>(null)
+
+  // Candidato (primero ingresado) y cantidad por proceso para mostrar en tabla
+  const [candidatesByProcess, setCandidatesByProcess] = useState<Record<string, { nombre: string; apellido: string } | null>>({})
+  const [candidateCountByProcess, setCandidateCountByProcess] = useState<Record<string, number>>({})
+  const [loadingCandidates, setLoadingCandidates] = useState<Record<string, boolean>>({})
   
   // Estado local para el término de búsqueda (antes de aplicarlo)
   const [localSearchTerm, setLocalSearchTerm] = useState("")
@@ -102,6 +115,46 @@ export default function ConsultorPage() {
     handlePageSizeChange,
     refreshData
   } = useConsultorProcesses(user?.id)
+
+  // Cargar primer candidato (por fecha de ingreso) por proceso para procesos visibles
+  const loadCandidatesForProcess = async (processId: string) => {
+    if (loadingCandidates[processId] || candidatesByProcess[processId] !== undefined) return
+    setLoadingCandidates((prev) => ({ ...prev, [processId]: true }))
+    try {
+      const candidates = await getCandidatesByProcess(processId)
+      if (candidates && candidates.length > 0) {
+        setCandidateCountByProcess((prev) => ({ ...prev, [processId]: candidates.length }))
+        const sorted = [...candidates].sort((a: any, b: any) => {
+          const dateA = a.fecha_postulacion || a.created_at || a.fecha_creacion || 0
+          const dateB = b.fecha_postulacion || b.created_at || b.fecha_creacion || 0
+          return new Date(dateA).getTime() - new Date(dateB).getTime()
+        })
+        const first = sorted[0]
+        const nombre = first.nombre || first.nombre_candidato || ""
+        const apellido = first.primer_apellido || first.primer_apellido_candidato || ""
+        setCandidatesByProcess((prev) => ({
+          ...prev,
+          [processId]: nombre || apellido ? { nombre, apellido } : null,
+        }))
+      } else {
+        setCandidateCountByProcess((prev) => ({ ...prev, [processId]: 0 }))
+        setCandidatesByProcess((prev) => ({ ...prev, [processId]: null }))
+      }
+    } catch {
+      setCandidateCountByProcess((prev) => ({ ...prev, [processId]: 0 }))
+      setCandidatesByProcess((prev) => ({ ...prev, [processId]: null }))
+    } finally {
+      setLoadingCandidates((prev) => ({ ...prev, [processId]: false }))
+    }
+  }
+
+  useEffect(() => {
+    const allIds = [
+      ...pendingProcesses.map((p) => p.id),
+      ...otherProcesses.map((p) => p.id),
+    ]
+    allIds.forEach((id) => loadCandidatesForProcess(id))
+  }, [pendingProcesses, otherProcesses])
   
   // Detectar si hay filtros aplicados
   const hasFiltersApplied = searchTerm !== "" || statusFilter !== "all" || serviceFilter !== "all"
@@ -274,20 +327,36 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Solicitud</TableHead>
-                  <TableHead>Cargo</TableHead>
+                  <TableHead className="w-16">Sol.</TableHead>
+                  <TableHead className="w-16">Días</TableHead>
+                  <TableHead className="w-14">Vac.</TableHead>
+                  <TableHead>Candidato</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Vacantes</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead>Servicio</TableHead>
+                  <TableHead className="w-24">F. creación</TableHead>
+                  <TableHead className="w-20">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingProcesses.map((process) => (
+                {pendingProcesses.map((process) => {
+                  const candidato = candidatesByProcess[process.id]
+                  const vacantes = process.vacancies ?? process.vacantes ?? 0
+                  const cubiertas = Math.min((process as any).vacantes_cubiertas ?? 0, vacantes)
+                  const vacantesStr = `${cubiertas}/${vacantes}`
+                  return (
                   <TableRow key={process.id}>
                     <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
-                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
+                    <TableCell>{getDiasTranscurridos(process)}</TableCell>
+                    <TableCell>{vacantesStr}</TableCell>
+                    <TableCell>
+                      {loadingCandidates[process.id] ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : candidato ? (
+                        `${candidato.nombre} ${candidato.apellido}`.trim()
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
@@ -299,7 +368,6 @@ export default function ConsultorPage() {
                         {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
                       </Badge>
                     </TableCell>
-                    <TableCell>{process.vacancies || process.vacantes || 0}</TableCell>
                     <TableCell>{new Date(process.created_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Button
@@ -321,7 +389,7 @@ export default function ConsultorPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
             </div>
@@ -433,21 +501,38 @@ export default function ConsultorPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Solicitud</TableHead>
-                  <TableHead>Cargo</TableHead>
+                  <TableHead className="w-16">Sol.</TableHead>
+                  <TableHead className="w-16">Días</TableHead>
+                  <TableHead className="w-14">Vac.</TableHead>
+                  <TableHead>Candidato</TableHead>
                   <TableHead>Cliente</TableHead>
-                  <TableHead>Tipo de Servicio</TableHead>
-                  <TableHead>Estado Actual</TableHead>
-                  <TableHead>Etapa Específica</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <TableHead>Servicio</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Etapa</TableHead>
+                  <TableHead className="w-24">Fecha</TableHead>
+                  <TableHead className="w-20">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {otherProcesses.map((process) => (
+                {otherProcesses.map((process) => {
+                  const candidato = candidatesByProcess[process.id]
+                  const vacantes = process.vacancies ?? process.vacantes ?? 0
+                  const cubiertas = Math.min((process as any).vacantes_cubiertas ?? 0, vacantes)
+                  const vacantesStr = `${cubiertas}/${vacantes}`
+                  return (
                   <TableRow key={process.id}>
                     <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
-                    <TableCell className="font-medium">{process.position_title || process.cargo}</TableCell>
+                    <TableCell>{getDiasTranscurridos(process)}</TableCell>
+                    <TableCell>{vacantesStr}</TableCell>
+                    <TableCell>
+                      {loadingCandidates[process.id] ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : candidato ? (
+                        `${candidato.nombre} ${candidato.apellido}`.trim()
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="h-3 w-3" />
@@ -465,7 +550,7 @@ export default function ConsultorPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm text-muted-foreground">{process.etapa || 'Sin etapa'}</div>
+                      <div className="text-sm text-muted-foreground">{process.etapa?.includes('Módulo 5') ? 'Módulo 5: Seguimiento Posterior' : (process.etapa || 'Sin etapa')}</div>
                     </TableCell>
                     <TableCell>
                       {new Date(process.started_at || process.completed_at || process.fecha_creacion).toLocaleDateString()}
@@ -479,7 +564,7 @@ export default function ConsultorPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
             </div>

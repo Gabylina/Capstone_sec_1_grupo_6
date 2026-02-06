@@ -487,7 +487,7 @@ export default function SolicitudesPage() {
                         className="text-sm text-muted-foreground cursor-help" 
                         title={solicitud.etapa}
                       >
-                        {solicitud.etapa.match(/Módulo \d+/i)?.[0] || solicitud.etapa}
+                        {solicitud.etapa.includes('Módulo 5') ? 'Módulo 5: Seguimiento Posterior' : (solicitud.etapa.match(/Módulo \d+/i)?.[0] || solicitud.etapa)}
                       </span>
                     ) : (
                       <span className="text-sm text-muted-foreground">Sin etapa</span>

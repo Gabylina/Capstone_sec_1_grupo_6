@@ -125,7 +125,7 @@ interface ProcessModule4Props {
   readOnly?: boolean
 }
 
-export function ProcessModule4({ process, readOnly = false }: ProcessModule4Props) {
+function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Props) {
   const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -4034,3 +4034,5 @@ export function ProcessModule4({ process, readOnly = false }: ProcessModule4Prop
     </div>
   )
 }
+
+export { ProcessModule4Component as ProcessModule4 }
