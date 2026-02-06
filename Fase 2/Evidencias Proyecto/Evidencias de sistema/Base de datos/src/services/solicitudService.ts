@@ -201,13 +201,8 @@ export class SolicitudService {
             andConditions.push({ rut_usuario: consultor_id });
         }
 
-        // Filtro por cliente (id_cliente del contacto)
-        if (cliente_id) {
-            const idCliente = parseInt(cliente_id, 10);
-            if (!isNaN(idCliente)) {
-                andConditions.push({ '$contacto.id_cliente$': idCliente });
-            }
-        }
+        // Filtro por cliente: se aplica en el include de contacto (más fiable que where en raíz)
+        const idClienteFilter = cliente_id ? (parseInt(cliente_id, 10) || undefined) : undefined;
 
         // Construir la condición final
         const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
@@ -229,6 +224,8 @@ export class SolicitudService {
                 {
                     model: Contacto,
                     as: 'contacto',
+                    where: idClienteFilter != null ? { id_cliente: idClienteFilter } : undefined,
+                    required: idClienteFilter != null,
                     include: [
                         {
                             model: Cliente,

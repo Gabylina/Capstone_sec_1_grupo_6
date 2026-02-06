@@ -56,6 +56,7 @@ export function useSolicitudes() {
   const prevSearchTerm = useRef(searchTerm)
   const prevStatusFilter = useRef(statusFilter)
   const prevServiceFilter = useRef(serviceFilter)
+  const prevClientFilter = useRef(clientFilter)
 
   // Función para obtener solicitudes con paginación y filtros
   const fetchSolicitudes = async () => {
@@ -155,6 +156,7 @@ export function useSolicitudes() {
       const params = new URLSearchParams({ search: searchTerm })
       if (statusFilter !== "all") params.append("status", statusFilter)
       if (serviceFilter !== "all") params.append("service_type", serviceFilter)
+      if (clientFilter !== "all") params.append("cliente_id", clientFilter)
 
       const res = await fetch(`${API_URL}/api/solicitudes/stats?${params}`, {
         headers: {
@@ -229,7 +231,7 @@ export function useSolicitudes() {
     }, searchTerm ? 300 : 0)
 
     return () => clearTimeout(timeoutId)
-  }, [currentPage, pageSize, searchTerm, statusFilter, serviceFilter, sortBy, sortOrder])
+  }, [currentPage, pageSize, searchTerm, statusFilter, serviceFilter, clientFilter, sortBy, sortOrder])
 
   // Función para eliminar solicitud
   const deleteSolicitud = async (solicitudId: string): Promise<{ success: boolean; message?: string }> => {
