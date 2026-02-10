@@ -37,10 +37,10 @@ export const loginUser = async ({ email, password }: LoginPayload): Promise<Logi
   // Opciones de JWT
   //const signOptions: SignOptions = { expiresIn: config.jwt.expiresIn || '1h' };
 
-  // Duración del token: 7200 segundos = 2 horas
+  // Duración del token: 28800 segundos = 8 horas
   // El frontend está configurado para mostrar una notificación cuando el token expire
   const signOptions: SignOptions = { 
-    expiresIn: 7200 // 2 horas en segundos (7200 segundos = 2 horas)
+    expiresIn: 28800 // 8 horas en segundos (28800 segundos = 8 horas)
   };
 
   // Generar token JWT
@@ -113,11 +113,11 @@ export const refreshToken = async (oldToken: string): Promise<LoginResponse> => 
       throw new Error('Usuario inactivo');
     }
 
-    // Generar nuevo token con la misma información pero 2 horas nuevas
+    // Generar nuevo token con la misma información pero 8 horas nuevas
     if (!config.jwt.secret) throw new Error('JWT secret no definida');
     
     const signOptions: SignOptions = {
-      expiresIn: 7200 // 2 horas en segundos
+      expiresIn: 28800 // 8 horas en segundos
     };
 
     const tokenPayload = {
