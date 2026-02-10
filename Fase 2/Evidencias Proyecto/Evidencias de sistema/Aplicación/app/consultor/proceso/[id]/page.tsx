@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService, getCandidatesByProcess, copiarPlantillasASolicitud } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
@@ -22,13 +22,13 @@ import type { Hito } from "@/lib/types"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 interface ProcessPageProps {
-  params: Promise<{
+  params: {
     id: string
-  }>
+  }
 }
 
 export default function ProcessPage({ params }: ProcessPageProps) {
-  const { id } = use(params)
+  const { id } = params
   const searchParams = useSearchParams()
   const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"
   const { user } = useAuth()

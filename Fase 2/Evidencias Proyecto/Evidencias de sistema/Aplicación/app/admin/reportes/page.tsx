@@ -1294,14 +1294,12 @@ export default function ReportesPage() {
                         <span className="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
                         Procesos por vencer ({urgencySummary.dueSoonCount})
                       </h4>
-                      {urgencySummary.dueSoonProcesses.length === 0 ? (
+                      {urgencySummary.dueSoonCount === 0 ? (
                         <p className="text-xs text-muted-foreground">No hay procesos próximos a vencer.</p>
                       ) : (
-                        <ul className="space-y-3 text-xs">
-                          {periodProcesses
-                            .filter((process) => urgencySummary.dueSoonProcesses.includes(process.id))
-                            .slice(0, 5)
-                            .map((process) => (
+                        <div className="max-h-[400px] overflow-y-auto pr-2">
+                          <ul className="space-y-3 text-xs">
+                            {(urgencySummary.dueSoonProcessesDetails || []).map((process) => (
                               <li key={`due-soon-${process.id}`} className="border-b pb-2 last:border-0 last:pb-0">
                                 <div className="space-y-1">
                                   <div className="flex items-start justify-between gap-2">
@@ -1337,7 +1335,8 @@ export default function ReportesPage() {
                                 </div>
                               </li>
                             ))}
-                        </ul>
+                          </ul>
+                        </div>
                       )}
                     </div>
 
@@ -1346,14 +1345,12 @@ export default function ReportesPage() {
                         <span className="inline-block h-2 w-2 rounded-full bg-red-600"></span>
                         Procesos vencidos ({urgencySummary.overdueCount})
                       </h4>
-                      {urgencySummary.overdueProcesses.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No hay procesos vencidos en el período.</p>
+                      {urgencySummary.overdueCount === 0 ? (
+                        <p className="text-xs text-muted-foreground">No hay procesos vencidos.</p>
                       ) : (
-                        <ul className="space-y-3 text-xs">
-                          {periodProcesses
-                            .filter((process) => urgencySummary.overdueProcesses.includes(process.id))
-                            .slice(0, 5)
-                            .map((process) => (
+                        <div className="max-h-[400px] overflow-y-auto pr-2">
+                          <ul className="space-y-3 text-xs">
+                            {(urgencySummary.overdueProcessesDetails || []).map((process) => (
                               <li key={`overdue-${process.id}`} className="border-b pb-2 last:border-0 last:pb-0">
                                 <div className="space-y-1">
                                   <div className="flex items-start justify-between gap-2">
@@ -1389,7 +1386,8 @@ export default function ReportesPage() {
                                 </div>
                               </li>
                             ))}
-                        </ul>
+                          </ul>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1426,7 +1424,7 @@ export default function ReportesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Cliente</TableHead>
-                      <TableHead>Posición</TableHead>
+                      <TableHead>Cargo</TableHead>
                       <TableHead>Tipo de Proceso</TableHead>
                       <TableHead>Consultor</TableHead>
                       <TableHead>Estado</TableHead>

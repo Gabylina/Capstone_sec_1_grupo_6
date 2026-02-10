@@ -2007,6 +2007,38 @@ export class SolicitudService {
             overdueCount: number;
             dueSoonProcesses: Array<number>;
             overdueProcesses: Array<number>;
+            dueSoonProcessesDetails: Array<{
+                id: number;
+                client: string;
+                position: string;
+                serviceCode: string;
+                serviceName: string;
+                consultant: string;
+                status: string;
+                statusRaw: string;
+                startDate: string | null;
+                deadline: string | null;
+                closedAt: string | null;
+                daysOpen: number | null;
+                daysUntilDeadline: number | null;
+                urgency: string;
+            }>;
+            overdueProcessesDetails: Array<{
+                id: number;
+                client: string;
+                position: string;
+                serviceCode: string;
+                serviceName: string;
+                consultant: string;
+                status: string;
+                statusRaw: string;
+                startDate: string | null;
+                deadline: string | null;
+                closedAt: string | null;
+                daysOpen: number | null;
+                daysUntilDeadline: number | null;
+                urgency: string;
+            }>;
         };
     }> {
         try {
@@ -2021,7 +2053,7 @@ export class SolicitudService {
                     s.codigo_servicio,
                     COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
                     c.nombre_cliente,
-                    dc.descripcion_cargo,
+                    car.nombre_cargo,
                     u.nombre_usuario AS consultor,
                     estado_actual.nombre_estado_solicitud AS estado_actual,
                     estado_actual.fecha_cambio AS fecha_estado,
@@ -2032,12 +2064,13 @@ export class SolicitudService {
                 LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
                 LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
                 LEFT JOIN LATERAL (
-                    SELECT dc.descripcion_cargo
+                    SELECT dc.id_cargo
                     FROM descripcioncargo dc
                     WHERE dc.id_solicitud = s.id_solicitud
                     ORDER BY dc.id_descripcioncargo DESC
                     LIMIT 1
                 ) dc ON true
+                LEFT JOIN cargo car ON dc.id_cargo = car.id_cargo
                 LEFT JOIN LATERAL (
                     SELECT 
                         es.nombre_estado_solicitud,
@@ -2086,7 +2119,7 @@ export class SolicitudService {
                     codigo_servicio: string | null;
                     nombre_servicio: string | null;
                     nombre_cliente: string | null;
-                    descripcion_cargo: string | null;
+                    nombre_cargo: string | null;
                     consultor: string | null;
                     estado_actual: string | null;
                     fecha_estado: Date | string | null;
@@ -2094,12 +2127,18 @@ export class SolicitudService {
                 }>;
             };
 
-            // Ejecutar query con filtro de fecha - NO hacer fallback si no hay resultados
+            // Ejecutar query con filtro de fecha para estadísticas del período
             let rows = await runOverviewQuery(true);
             
             // Asegurar que rows es siempre un array
             if (!Array.isArray(rows)) {
                 rows = [];
+            }
+
+            // Ejecutar query SIN filtro para calcular urgencias de TODOS los procesos activos
+            let allActiveRows = await runOverviewQuery(false);
+            if (!Array.isArray(allActiveRows)) {
+                allActiveRows = [];
             }
 
             const statusMapping: Record<string, { label: string; category: 'active' | 'completed' | 'paused' | 'cancelled' }> = {
@@ -2158,7 +2197,7 @@ export class SolicitudService {
                 return {
                     id: row.id_solicitud,
                     client: row.nombre_cliente || 'Sin cliente',
-                    position: row.descripcion_cargo || 'Sin cargo',
+                    position: row.nombre_cargo || 'Sin cargo',
                     serviceCode: row.codigo_servicio || 'sin_servicio',
                     serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
                     consultant: row.consultor || 'Sin asignar',
@@ -2182,11 +2221,8 @@ export class SolicitudService {
             };
 
             const statusCounts: Record<string, number> = {};
-            let dueSoonCount = 0;
-            let overdueCount = 0;
-            const dueSoonProcesses: number[] = [];
-            const overdueProcesses: number[] = [];
-
+            
+            // Calcular totales por estado del período filtrado
             processes.forEach(process => {
                 statusCounts[process.status] = (statusCounts[process.status] || 0) + 1;
 
@@ -2205,13 +2241,71 @@ export class SolicitudService {
                         totals.inProgress += 1;
                         break;
                 }
+            });
 
-                if (process.urgency === 'due_soon') {
-                    dueSoonCount += 1;
-                    dueSoonProcesses.push(process.id);
-                } else if (process.urgency === 'overdue' || process.urgency === 'closed_overdue') {
-                    overdueCount += 1;
-                    overdueProcesses.push(process.id);
+            // Calcular urgencias desde TODOS los procesos activos (sin filtro de período)
+            let dueSoonCount = 0;
+            let overdueCount = 0;
+            const dueSoonProcesses: number[] = [];
+            const overdueProcesses: number[] = [];
+            const dueSoonProcessesDetails: any[] = [];
+            const overdueProcessesDetails: any[] = [];
+
+            allActiveRows.forEach(row => {
+                const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
+                const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
+                const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                const statusRaw = row.estado_actual || 'Creado';
+                const statusInfo = statusMapping[statusRaw] || { label: statusRaw, category: 'active' as const };
+                const isClosed = statusInfo.category === 'completed' || statusInfo.category === 'cancelled';
+
+                // Solo procesar procesos ACTIVOS (no cerrados ni cancelados)
+                if (!isClosed && deadlineValue) {
+                    const diffMs = deadlineValue.getTime() - now.getTime();
+                    const daysUntilDeadline = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    const referenceEnd = closedAtValue ?? now;
+                    const daysOpen = startDateValue
+                        ? Math.round((referenceEnd.getTime() - startDateValue.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+
+                    let urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue' = 'no_deadline';
+                    
+                    if (diffMs < 0) {
+                        urgency = 'overdue';
+                    } else if (diffMs <= SolicitudService.DUE_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) {
+                        urgency = 'due_soon';
+                    } else {
+                        urgency = 'on_track';
+                    }
+
+                    const processDetail = {
+                        id: row.id_solicitud,
+                        client: row.nombre_cliente || 'Sin cliente',
+                        position: row.nombre_cargo || 'Sin cargo',
+                        serviceCode: row.codigo_servicio || 'sin_servicio',
+                        serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
+                        consultant: row.consultor || 'Sin asignar',
+                        status: statusInfo.label,
+                        statusRaw,
+                        startDate: startDateValue ? startDateValue.toISOString() : null,
+                        deadline: deadlineValue ? deadlineValue.toISOString() : null,
+                        closedAt: closedAtValue ? closedAtValue.toISOString() : null,
+                        daysOpen,
+                        daysUntilDeadline,
+                        urgency
+                    };
+
+                    if (diffMs < 0) {
+                        // Proceso vencido
+                        overdueCount += 1;
+                        overdueProcesses.push(row.id_solicitud);
+                        overdueProcessesDetails.push(processDetail);
+                    } else if (diffMs <= SolicitudService.DUE_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) {
+                        // Proceso por vencer (próximos 7 días)
+                        dueSoonCount += 1;
+                        dueSoonProcesses.push(row.id_solicitud);
+                        dueSoonProcessesDetails.push(processDetail);
+                    }
                 }
             });
 
@@ -2223,7 +2317,9 @@ export class SolicitudService {
                     dueSoonCount,
                     overdueCount,
                     dueSoonProcesses,
-                    overdueProcesses
+                    overdueProcesses,
+                    dueSoonProcessesDetails,
+                    overdueProcessesDetails
                 }
             };
         } catch (error: any) {
