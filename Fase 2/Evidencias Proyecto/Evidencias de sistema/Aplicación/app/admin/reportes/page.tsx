@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { solicitudService } from "@/lib/api"
-import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight, Download, Eye, Pause } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo, Fragment } from "react"
 import { format } from "date-fns"
@@ -63,6 +64,15 @@ type ProcessOverviewData = {
     overdueCount: number
     dueSoonProcesses: number[]
     overdueProcesses: number[]
+    dueSoonProcessesDetails?: ProcessOverviewProcess[]
+    overdueProcessesDetails?: ProcessOverviewProcess[]
+  }
+  currentActiveProcesses?: ProcessOverviewProcess[]
+  periodSummary?: {
+    createdCount: number
+    completedCount: number
+    averageCloseDays: number
+    cancelledCount: number
   }
 }
 
@@ -72,6 +82,19 @@ const weekLabelFormatter = new Intl.DateTimeFormat("es-CL", {
 })
 
 const padNumber = (value: number) => value.toString().padStart(2, "0")
+
+const abbreviateServiceName = (name: string): string => {
+  const map: Record<string, string> = {
+    "Evaluación Psicolaboral": "Ev. Psicolaboral",
+    "Evaluación Potencial": "Ev. Potencial",
+    "Proceso Completo": "Proc. Completo",
+    "Filtro Inteligente": "Filtro Int.",
+    "Publicación Portales": "Pub. Portales",
+    "Targeted Recruitment": "Targeted Rec.",
+    "Test Psicolaboral": "Test Psicolab.",
+  }
+  return map[name] ?? name
+}
 
 const startOfWeek = (date: Date) => {
   const result = new Date(date)
@@ -204,10 +227,11 @@ export default function ReportesPage() {
   const [loadingServiceType, setLoadingServiceType] = useState(true)
   const [candidateSourceData, setCandidateSourceData] = useState<Array<{ source: string; candidates: number; hired: number }>>([])
   const [loadingCandidateSource, setLoadingCandidateSource] = useState(true)
-  const [processStats, setProcessStats] = useState<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>({
+  const [processStats, setProcessStats] = useState<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount: number }>({
     activeProcesses: 0,
     avgTimeToHire: 0,
-    totalCandidates: 0
+    totalCandidates: 0,
+    pausedCount: 0
   })
   const [loadingProcessStats, setLoadingProcessStats] = useState(true)
   const [averageTimeData, setAverageTimeData] = useState<AverageTimeItem[]>([])
@@ -215,6 +239,7 @@ export default function ReportesPage() {
   const [processOverview, setProcessOverview] = useState<ProcessOverviewData | null>(null)
   const [loadingProcessOverview, setLoadingProcessOverview] = useState(true)
   const [currentProcessesPage, setCurrentProcessesPage] = useState(1)
+  const [processTypeFilter, setProcessTypeFilter] = useState<string>("all")
   const [performanceData, setPerformanceData] = useState<Array<{
     consultant: string;
     processesCompleted: number;
@@ -378,16 +403,16 @@ export default function ReportesPage() {
         setLoadingProcessStats(true)
         const response = await solicitudService.getProcessStats()
         if (response.success && response.data) {
-          const stats = response.data as { activeProcesses: number; avgTimeToHire: number; totalCandidates: number }
-          setProcessStats(stats)
+          const stats = response.data as { activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount?: number }
+          setProcessStats({ ...stats, pausedCount: stats.pausedCount ?? 0 })
         } else {
           // Fallback: usar valores por defecto
-          setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+          setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0, pausedCount: 0 })
         }
       } catch (error: any) {
         console.error("[FRONTEND] Error al cargar estadísticas de procesos:", error)
         // Fallback: usar valores por defecto
-        setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0 })
+        setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0, pausedCount: 0 })
         showToast({
           type: "error",
           title: "Error",
@@ -662,6 +687,12 @@ export default function ReportesPage() {
     paused: 0,
     cancelled: 0,
   }
+  const periodSummary = processOverview?.periodSummary ?? {
+    createdCount: 0,
+    completedCount: 0,
+    averageCloseDays: 0,
+    cancelledCount: 0,
+  }
   const statusCounts = processOverview?.statusCounts ?? {}
   const urgencySummary = processOverview?.urgencySummary ?? {
     dueSoonCount: 0,
@@ -684,11 +715,18 @@ export default function ReportesPage() {
   ]
 
   const processesInProgress = useMemo(
-    () =>
-      periodProcesses.filter((process) =>
-        ["Iniciado", "En Progreso", "En Revisión"].includes(process.status),
-      ),
-    [periodProcesses],
+    () => {
+      // Usar procesos activos actuales (sin filtro de período)
+      let filtered = processOverview?.currentActiveProcesses || []
+      
+      // Aplicar filtro de tipo de proceso
+      if (processTypeFilter !== "all") {
+        filtered = filtered.filter((process) => process.serviceCode === processTypeFilter)
+      }
+      
+      return filtered
+    },
+    [processOverview?.currentActiveProcesses, processTypeFilter],
   )
 
   const ITEMS_PER_PAGE = 10
@@ -725,6 +763,7 @@ export default function ReportesPage() {
   const avgTimeToHire = processStats.avgTimeToHire || 0
   const totalCandidates = processStats.totalCandidates || 0
   const totalActiveProcesses = processStats.activeProcesses || 0
+  const totalPausedProcesses = processStats.pausedCount || 0
   const totalProcesses = periodTotals.total
   const completedProcesses = processStatusData.find((p) => p.status === "Completado")?.count || 0
   const completionRate = totalProcesses > 0 ? Math.round((completedProcesses / totalProcesses) * 100) : 0
@@ -948,7 +987,7 @@ export default function ReportesPage() {
         <p className="text-muted-foreground">Análisis integral de rendimiento y métricas operativas</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Procesos Activos</CardTitle>
@@ -999,6 +1038,24 @@ export default function ReportesPage() {
               <>
             <div className="text-2xl font-bold">{totalCandidates}</div>
             <p className="text-xs text-muted-foreground">En todos los procesos</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Procesos Pausados</CardTitle>
+            <Pause className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loadingProcessStats ? (
+              <div className="flex items-center justify-center h-12">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <>
+            <div className="text-2xl font-bold">{totalPausedProcesses}</div>
+            <p className="text-xs text-muted-foreground">En estado congelado</p>
               </>
             )}
           </CardContent>
@@ -1137,11 +1194,11 @@ export default function ReportesPage() {
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total del Período</CardTitle>
+                <CardTitle className="text-sm font-medium">Solicitudes Ingresadas</CardTitle>
                 <Target className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{periodTotals.total}</div>
+                <div className="text-2xl font-bold">{periodSummary.createdCount}</div>
                 <p className="text-xs text-muted-foreground">
                   {timePeriod === "week"
                     ? selectedWeekOption?.label ?? "Semana seleccionada"
@@ -1154,38 +1211,34 @@ export default function ReportesPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">En Curso</CardTitle>
+                <CardTitle className="text-sm font-medium">Procesos Completados</CardTitle>
                 <TrendingUp className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{periodTotals.inProgress}</div>
-                <p className="text-xs text-muted-foreground">Procesos activos</p>
+                <div className="text-2xl font-bold text-blue-600">{periodSummary.completedCount}</div>
+                <p className="text-xs text-muted-foreground">Cerrados en el período</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Completados</CardTitle>
+                <CardTitle className="text-sm font-medium">Tiempo Promedio de Cierre</CardTitle>
                 <Target className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {periodTotals.completed}
-                </div>
-                <p className="text-xs text-muted-foreground">Finalizados</p>
+                <div className="text-2xl font-bold text-green-600">{periodSummary.averageCloseDays} días</div>
+                <p className="text-xs text-muted-foreground">Promedio (solo procesos cerrados)</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pausados</CardTitle>
+                <CardTitle className="text-sm font-medium">Procesos Cancelados</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-orange-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-orange-600">
-                  {periodTotals.paused}
-                </div>
-                <p className="text-xs text-muted-foreground">Requieren atención</p>
+                <div className="text-2xl font-bold text-orange-600">{periodSummary.cancelledCount}</div>
+                <p className="text-xs text-muted-foreground">Cancelados en el período</p>
               </CardContent>
             </Card>
           </div>
@@ -1304,11 +1357,20 @@ export default function ReportesPage() {
                                 <div className="space-y-1">
                                   <div className="flex items-start justify-between gap-2">
                                     <span className="font-semibold text-foreground">{process.client}</span>
-                                    <span className="text-amber-600 font-medium whitespace-nowrap">
-                                      {process.daysUntilDeadline !== null
-                                        ? `${process.daysUntilDeadline} días`
-                                        : "Sin plazo"}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-amber-600 font-medium whitespace-nowrap">
+                                        {process.daysUntilDeadline !== null
+                                          ? `${process.daysUntilDeadline} días`
+                                          : "Sin plazo"}
+                                      </span>
+                                      <Link 
+                                        href={`/consultor/proceso/${process.id}?viewOnly=1`}
+                                        className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-muted transition-colors"
+                                        title="Ver detalles del proceso"
+                                      >
+                                        <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                                      </Link>
+                                    </div>
                                   </div>
                                   <div className="text-muted-foreground space-y-0.5">
                                     <div className="flex items-center gap-2">
@@ -1355,11 +1417,20 @@ export default function ReportesPage() {
                                 <div className="space-y-1">
                                   <div className="flex items-start justify-between gap-2">
                                     <span className="font-semibold text-foreground">{process.client}</span>
-                                    <span className="text-red-600 font-medium whitespace-nowrap">
-                                      {process.daysUntilDeadline !== null
-                                        ? `Vencido hace ${Math.abs(process.daysUntilDeadline)} días`
-                                        : "Sin plazo"}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-red-600 font-medium whitespace-nowrap">
+                                        {process.daysUntilDeadline !== null
+                                          ? `Vencido hace ${Math.abs(process.daysUntilDeadline)} días`
+                                          : "Sin plazo"}
+                                      </span>
+                                      <Link 
+                                        href={`/consultor/proceso/${process.id}?viewOnly=1`}
+                                        className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-muted transition-colors"
+                                        title="Ver detalles del proceso"
+                                      >
+                                        <Eye className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                                      </Link>
+                                    </div>
                                   </div>
                                   <div className="text-muted-foreground space-y-0.5">
                                     <div className="flex items-center gap-2">
@@ -1398,17 +1469,32 @@ export default function ReportesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>
-                Procesos en Curso -{" "}
-                {timePeriod === "week"
-                  ? selectedWeekOption?.label ?? "Semana seleccionada"
-                  : timePeriod === "year"
-                  ? `Año ${selectedYear}`
-                  : `${monthNames[selectedMonth]} ${selectedYear}`}
-              </CardTitle>
-              <CardDescription>Lista detallada de procesos activos en el período seleccionado</CardDescription>
+              <CardTitle>Procesos en Curso Actuales</CardTitle>
+              <CardDescription>Todos los procesos activos en este momento (independiente del período seleccionado arriba)</CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Filtro de tipo de proceso */}
+              <div className="mb-4 flex items-center gap-2">
+                <label className="text-sm font-medium whitespace-nowrap">Filtrar por tipo:</label>
+                <Select value={processTypeFilter} onValueChange={setProcessTypeFilter}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los tipos</SelectItem>
+                    <SelectItem value="PC">Proceso Completo (PC)</SelectItem>
+                    <SelectItem value="LL">Long List (LL)</SelectItem>
+                    <SelectItem value="TR">Targeted Recruitment (TR)</SelectItem>
+                    <SelectItem value="HS">Headhunting (HS)</SelectItem>
+                    <SelectItem value="FI">Filtro Inteligente (FI)</SelectItem>
+                    <SelectItem value="ES">Evaluación Psicolaboral (ES)</SelectItem>
+                    <SelectItem value="TS">Test Psicolaboral (TS)</SelectItem>
+                    <SelectItem value="EP">Evaluación de Potencial (EP)</SelectItem>
+                    <SelectItem value="PP">Publicación Portales (PP)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
               {processesInProgress.length === 0 ? (
                 <div className="text-center py-12">
                   <Target className="mx-auto h-12 w-12 text-muted-foreground/50" />
@@ -1430,6 +1516,7 @@ export default function ReportesPage() {
                       <TableHead>Estado</TableHead>
                       <TableHead>Fecha Inicio</TableHead>
                       <TableHead>Días Transcurridos</TableHead>
+                      <TableHead className="text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1469,6 +1556,15 @@ export default function ReportesPage() {
                             <span className={daysSinceStart > 60 ? "text-red-600 font-medium" : ""}>
                               {daysSinceStart} días
                             </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Link 
+                              href={`/consultor/proceso/${process.id}?viewOnly=1`}
+                              className="inline-flex items-center justify-center h-8 w-8 rounded hover:bg-muted transition-colors"
+                              title="Ver detalles del proceso"
+                            >
+                              <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                            </Link>
                           </TableCell>
                         </TableRow>
                       )
@@ -1578,12 +1674,12 @@ export default function ReportesPage() {
 
         <TabsContent value="operacional" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
+            <Card className="min-w-0 gap-2 py-4">
+              <CardHeader className="pb-2">
                 <CardTitle>Carga Operativa por Consultor</CardTitle>
                 <CardDescription>Procesos activos asignados</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="w-full min-w-0 pl-3 pr-6 min-h-[360px] pt-0 flex flex-col justify-center">
                 {loadingActiveProcesses ? (
                   <div className="flex items-center justify-center h-[300px]">
                     <div className="text-center">
@@ -1592,28 +1688,36 @@ export default function ReportesPage() {
                     </div>
                   </div>
                 ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={Object.entries(activeProcesses).map(([name, count]) => ({
-                      name,
-                      procesos: count,
-                    }))}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="procesos" fill="#00BCD4" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div className="w-full flex items-center justify-center min-h-[300px]">
+                <div className="w-full overflow-y-auto" style={{ maxHeight: 420, height: Math.min(420, Math.max(340, Object.keys(activeProcesses).length * 48)) }}>
+                  <div style={{ height: Math.max(340, Object.keys(activeProcesses).length * 48), minWidth: '100%' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={Object.entries(activeProcesses).map(([name, count]) => ({ name, procesos: count }))}
+                      layout="vertical"
+                      margin={{ top: 5, right: 15, left: 5, bottom: 5 }}
+                      barCategoryGap="8%"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} domain={[0, 'auto']} />
+                      <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 14 }} axisLine={false} tickLine={false} />
+                      <Tooltip />
+                      <Bar dataKey="procesos" fill="#00BCD4" barSize={28} radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  </div>
+                </div>
+                </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
+            <Card className="min-w-0 gap-2 py-4">
+              <CardHeader className="pb-2">
                 <CardTitle>Tipo de Servicio Total (En Progreso, Cerrados, Congelados, Cancelados)</CardTitle>
                 <CardDescription>Distribución de procesos por categoría</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="min-h-[360px] pt-0">
                 {loadingServiceType ? (
                   <div className="flex items-center justify-center h-[300px]">
                     <div className="text-center">
@@ -1626,45 +1730,59 @@ export default function ReportesPage() {
                     <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={400}>
-                  <PieChart>
+                  <>
+                  <ResponsiveContainer width="100%" height={280}>
+                  <PieChart margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
                     <Pie
                       data={serviceTypeData}
                       cx="50%"
                       cy="50%"
-                        startAngle={300}
-                        endAngle={-130}
-                        labelLine={true}
-                      label={({ service, percentage }) => `${service}: ${percentage}%`}
-                        outerRadius={100}
+                      startAngle={300}
+                      endAngle={-130}
+                      labelLine={false}
+                      label={({ percent }) => (percent != null && percent >= 0.05 ? `${Math.round(percent * 100)}%` : "")}
+                      outerRadius={85}
                       fill="#8884d8"
                       dataKey="count"
+                      nameKey="service"
                     >
                       {serviceTypeData.map((entry, index) => (
                         <Cell key={`cell-service-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                      <Tooltip 
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0].payload as { service: string; count: number; percentage: number };
-                            return (
-                              <div className="bg-background border border-border rounded-lg shadow-lg p-3">
-                                <p className="font-semibold text-sm">{data.service}</p>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  <span className="font-medium">{data.count}</span> {data.count === 1 ? 'proceso' : 'procesos'}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {data.percentage}% del total
-                                </p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload as { service: string; count: number; percentage: number };
+                          return (
+                            <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                              <p className="font-semibold text-sm">{data.service}</p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                <span className="font-medium">{data.count}</span> {data.count === 1 ? 'proceso' : 'procesos'}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {data.percentage}% del total
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
+                <ul className="mt-0 pt-1 flex flex-col gap-0.5 text-sm text-left mx-auto w-fit">
+                  {serviceTypeData.map((entry, index) => (
+                    <li key={index} className="flex items-center gap-2 justify-start">
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-sm"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="text-foreground">{entry.service}: {entry.percentage}%</span>
+                    </li>
+                  ))}
+                </ul>
+                  </>
                 )}
               </CardContent>
             </Card>

@@ -536,9 +536,11 @@ export class SolicitudController {
     static async getAverageProcessTimeByService(req: Request, res: Response): Promise<Response> {
         try {
             const year = parseInt(req.query.year as string) || new Date().getFullYear();
-            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const monthQuery = req.query.month as string | undefined;
+            const parsedMonth = monthQuery !== undefined ? parseInt(monthQuery) : NaN;
+            const month = Number.isFinite(parsedMonth) ? parsedMonth : new Date().getMonth();
             const week = req.query.week ? parseInt(req.query.week as string) : undefined;
-            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter' | 'year') || 'month';
 
             const resultado = await SolicitudService.getAverageProcessTimeByService(year, month, week, periodType);
 
@@ -557,9 +559,11 @@ export class SolicitudController {
     static async getProcessOverview(req: Request, res: Response): Promise<Response> {
         try {
             const year = parseInt(req.query.year as string) || new Date().getFullYear();
-            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const monthQuery = req.query.month as string | undefined;
+            const parsedMonth = monthQuery !== undefined ? parseInt(monthQuery) : NaN;
+            const month = Number.isFinite(parsedMonth) ? parsedMonth : new Date().getMonth();
             const week = req.query.week ? parseInt(req.query.week as string) : undefined;
-            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter' | 'year') || 'month';
 
             const resultado = await SolicitudService.getProcessesOverview(year, month, week, periodType);
 
@@ -578,9 +582,11 @@ export class SolicitudController {
     static async getClosedSuccessfulProcesses(req: Request, res: Response): Promise<Response> {
         try {
             const year = parseInt(req.query.year as string) || new Date().getFullYear();
-            const month = parseInt(req.query.month as string) || new Date().getMonth();
+            const monthQuery = req.query.month as string | undefined;
+            const parsedMonth = monthQuery !== undefined ? parseInt(monthQuery) : NaN;
+            const month = Number.isFinite(parsedMonth) ? parsedMonth : new Date().getMonth();
             const week = req.query.week ? parseInt(req.query.week as string) : undefined;
-            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter') || 'month';
+            const periodType = (req.query.periodType as 'week' | 'month' | 'quarter' | 'year') || 'month';
 
             const resultado = await SolicitudService.getClosedSuccessfulProcesses(year, month, week, periodType);
 

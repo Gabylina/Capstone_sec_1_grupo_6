@@ -8,16 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate, getStatusColor } from "@/lib/utils"
-import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2, Globe } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2, Globe, X, ArrowLeft } from "lucide-react"
 import { ProcessTimeline } from "@/components/consultor/process-timeline"
 import { ProcessModule1 } from "@/components/consultor/process-module-1"
 import { ProcessModule2 } from "@/components/consultor/process-module-2"
 import { ProcessModule3 } from "@/components/consultor/process-module-3"
 import { ProcessModule4 } from "@/components/consultor/process-module-4"
 import { ProcessModule5 } from "@/components/consultor/process-module-5"
-import { notFound, useSearchParams } from "next/navigation"
+import { notFound, useSearchParams, useRouter } from "next/navigation"
 import { toast } from "sonner"
 import type { Hito } from "@/lib/types"
+import { Button } from "@/components/ui/button"
 
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
@@ -30,6 +31,7 @@ interface ProcessPageProps {
 export default function ProcessPage({ params }: ProcessPageProps) {
   const { id } = params
   const searchParams = useSearchParams()
+  const router = useRouter()
   const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
@@ -422,9 +424,20 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   return (
     <div className="space-y-6">
       {viewOnly && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
-          <span className="font-medium">Vista solo lectura (Administrador)</span>
-          <span className="text-amber-600 dark:text-amber-400">— Puedes ver detalles, botones y estados pero no modificar.</span>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">Vista solo lectura (Administrador)</span>
+            <span className="text-amber-600 dark:text-amber-400">— Puedes ver detalles, botones y estados pero no modificar.</span>
+          </div>
+          <Button
+            onClick={() => router.back()}
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-2 text-amber-800 hover:text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:text-amber-100 dark:hover:bg-amber-900/50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Volver
+          </Button>
         </div>
       )}
       {/* Process Header */}
