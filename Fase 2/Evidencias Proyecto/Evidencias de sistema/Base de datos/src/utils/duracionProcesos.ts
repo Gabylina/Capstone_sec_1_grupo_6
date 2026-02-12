@@ -14,7 +14,8 @@ const DURACION_PROCESOS: Record<string, number> = {
     'LL': 11,  // Long List: 11 días hábiles
     'FI': 11,  // Filtro Inteligente: 11 días hábiles (igual que Long List)
     'TR': 11,  // Target Recruitment: 11 días hábiles
-    'PP': 6    // Publicación en Portales: 6 días hábiles
+    'PP': 6,   // Publicación en Portales: 6 días hábiles
+    'SC': 35   // San Cristobal Completo: 35 días hábiles (incl. Entrevista Técnica y Exámenes Médicos)
 };
 
 /**

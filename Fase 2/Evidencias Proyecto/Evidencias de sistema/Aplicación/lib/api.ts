@@ -1512,6 +1512,84 @@ export const evaluacionPsicolaboralService = {
   }
 };
 
+// ===========================================
+// ENTREVISTA TÉCNICA SERVICE (módulo SC)
+// ===========================================
+
+export const entrevistaTecnicaService = {
+  getBySolicitud(idSolicitud: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/entrevistas-tecnicas/solicitud/${idSolicitud}`, { method: 'GET' });
+  },
+  getByPostulacion(idPostulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/entrevistas-tecnicas/postulacion/${idPostulacion}`, { method: 'GET' });
+  },
+  upsert(data: {
+    id_postulacion: number;
+    id_solicitud: number;
+    fecha_hora_entrevista?: string | null;
+    estado_entrevista?: string;
+    resultado?: string | null;
+    detalle?: string | null;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/entrevistas-tecnicas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  update(id: number, data: Partial<{
+    fecha_hora_entrevista: string | null;
+    estado_entrevista: string;
+    resultado: string | null;
+    detalle: string | null;
+  }>): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/entrevistas-tecnicas/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// ===========================================
+// EXAMEN MÉDICO SERVICE (módulo SC)
+// ===========================================
+
+export const examenMedicoService = {
+  getBySolicitud(idSolicitud: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/examenes-medicos/solicitud/${idSolicitud}`, { method: 'GET' });
+  },
+  getByPostulacion(idPostulacion: number): Promise<ApiResponse<any[]>> {
+    return apiRequest(`/api/examenes-medicos/postulacion/${idPostulacion}`, { method: 'GET' });
+  },
+  getById(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/examenes-medicos/${id}`, { method: 'GET' });
+  },
+  create(data: {
+    id_postulacion: number;
+    id_solicitud: number;
+    nombre_documento?: string | null;
+    documento_archivo_base64?: string | null;
+    estado_aprobacion?: string;
+  }): Promise<ApiResponse<any>> {
+    return apiRequest('/api/examenes-medicos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  update(id: number, data: Partial<{
+    nombre_documento: string | null;
+    documento_archivo_base64: string | null;
+    estado_aprobacion: string;
+  }>): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/examenes-medicos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  delete(id: number): Promise<ApiResponse<null>> {
+    return apiRequest(`/api/examenes-medicos/${id}`, { method: 'DELETE' });
+  },
+};
+
 // Servicio para Tests Psicolaborales
 export const testPsicolaboralService = {
   // Obtener todos los tests disponibles

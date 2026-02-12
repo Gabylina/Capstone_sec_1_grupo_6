@@ -14,7 +14,9 @@ export type TipoAncla =
   | 'contratacion'
   | 'filtro_inteligente'
   | 'publicacion_portales'
-  | 'evaluacion_potencial';
+  | 'evaluacion_potencial'
+  | 'entrevista_tecnica'
+  | 'examenes_medicos';
 
 export interface PlantillaHito {
     nombre_hito: string;
@@ -235,6 +237,66 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             avisar_antes_dias: 0,
             descripcion: "Entregar resultado del test (1 día hábil desde la aplicación)",
             codigo_servicio: "TS"
+        }
+    ],
+
+    // SAN CRISTOBAL COMPLETO (SC) - Flujo: M1, M2, M3, Entrevista Técnica, Exámenes Médicos, M4, M5
+    SC: [
+        {
+            nombre_hito: "Inicio del proceso",
+            tipo_ancla: 'inicio_proceso',
+            duracion_dias: 1,
+            avisar_antes_dias: 0,
+            descripcion: "Inicio del proceso San Cristobal Completo",
+            codigo_servicio: "SC"
+        },
+        {
+            nombre_hito: "Gestión de candidatos",
+            tipo_ancla: 'publicacion',
+            duracion_dias: 5,
+            avisar_antes_dias: 2,
+            descripcion: "Publicación y registro de candidatos",
+            codigo_servicio: "SC"
+        },
+        {
+            nombre_hito: "Presentación de candidatos",
+            tipo_ancla: 'primera_presentacion',
+            duracion_dias: 5,
+            avisar_antes_dias: 2,
+            descripcion: "Presentación de candidatos al cliente",
+            codigo_servicio: "SC"
+        },
+        {
+            nombre_hito: "Entrevista Técnica",
+            tipo_ancla: 'entrevista_tecnica',
+            duracion_dias: 5,
+            avisar_antes_dias: 2,
+            descripcion: "Agendamiento, realización y resultado de entrevistas técnicas",
+            codigo_servicio: "SC"
+        },
+        {
+            nombre_hito: "Exámenes Médicos",
+            tipo_ancla: 'examenes_medicos',
+            duracion_dias: 5,
+            avisar_antes_dias: 2,
+            descripcion: "Carga de documentos y aprobación/rechazo de exámenes médicos",
+            codigo_servicio: "SC"
+        },
+        {
+            nombre_hito: "Evaluaciones psicolaborales",
+            tipo_ancla: 'evaluacion_psicolaboral',
+            duracion_dias: 7,
+            avisar_antes_dias: 3,
+            descripcion: "Evaluación psicolaboral de candidatos",
+            codigo_servicio: "SC"
+        },
+        {
+            nombre_hito: "Cierre del proceso",
+            tipo_ancla: 'contratacion',
+            duracion_dias: 5,
+            avisar_antes_dias: 2,
+            descripcion: "Cierre y contratación",
+            codigo_servicio: "SC"
         }
     ]
 };

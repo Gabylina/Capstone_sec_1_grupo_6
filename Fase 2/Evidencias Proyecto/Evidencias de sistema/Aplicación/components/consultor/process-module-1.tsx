@@ -977,12 +977,12 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
 
       {/* Card para avanzar al siguiente módulo */}
       {(process.service_type === 'ES' || process.service_type === 'EP' || process.service_type === 'TS') ? (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-blue-800">Listo para continuar</h3>
-                <p className="text-sm text-blue-600">
+                <h3 className="font-semibold text-blue-800 dark:text-blue-200">Avanzar al siguiente módulo</h3>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
                   Puedes avanzar al Módulo 4 para evaluación psicolaboral.
                 </p>
               </div>
@@ -998,12 +998,12 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-blue-800">Listo para continuar</h3>
-                <p className="text-sm text-blue-600">
+                <h3 className="font-semibold text-blue-800 dark:text-blue-200">Avanzar al siguiente módulo</h3>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
                   Puedes avanzar al Módulo 2 para búsqueda y registro de candidatos.
                 </p>
               </div>

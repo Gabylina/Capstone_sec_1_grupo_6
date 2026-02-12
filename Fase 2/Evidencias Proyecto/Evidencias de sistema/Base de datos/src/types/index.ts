@@ -43,7 +43,9 @@ export type HitoStatus =
   | 'contratacion'
   | 'filtro_inteligente'
   | 'publicacion_portales'
-  | 'evaluacion_potencial';
+  | 'evaluacion_potencial'
+  | 'entrevista_tecnica'
+  | 'examenes_medicos';
 
 // ===========================================
 // INTERFACES DE RESPUESTA API

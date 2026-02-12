@@ -182,6 +182,7 @@ export const serviceTypeLabels: Record<string, string> = {
   AP: "Evaluación de Potencial",
   EP: "Evaluación de Potencial",
   PP: "Publicación Portales",
+  SC: "San Cristobal Completo",
   // Nombres completos (para compatibilidad)
   proceso_completo: "Proceso Completo",
   long_list: "Long List",

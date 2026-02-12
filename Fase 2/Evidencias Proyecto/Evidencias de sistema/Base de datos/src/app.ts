@@ -40,6 +40,8 @@ import estadoContratacionRoutes from '@/routes/estadosContratacion';
 import contratacionRoutes from '@/routes/contrataciones';
 import testPsicolaboralRoutes from '@/routes/testsPsicolaborales';
 import evaluacionPsicolaboralRoutes from '@/routes/evaluacionesPsicolaborales';
+import entrevistaTecnicaRoutes from '@/routes/entrevistasTecnicas';
+import examenMedicoRoutes from '@/routes/examenesMedicos';
 import logRoutes from '@/routes/logs';
 
 const app = express();
@@ -314,6 +316,8 @@ app.use('/api/estados-contratacion', estadoContratacionRoutes);
 app.use('/api/contrataciones', contratacionRoutes);
 app.use('/api/tests-psicolaborales', testPsicolaboralRoutes);
 app.use('/api/evaluaciones-psicolaborales', evaluacionPsicolaboralRoutes);
+app.use('/api/entrevistas-tecnicas', entrevistaTecnicaRoutes);
+app.use('/api/examenes-medicos', examenMedicoRoutes);
 app.use('/api/logs', logRoutes);
 // Rutas de la API (se descomentarán cuando se creen)
 app.use('/api/auth', authRoutes);

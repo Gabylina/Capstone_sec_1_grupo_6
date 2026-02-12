@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCandidatesByProcess } from "@/lib/api"
-import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService } from "@/lib/api"
+import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService, examenMedicoService } from "@/lib/api"
 import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
@@ -203,12 +203,27 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
         const response = await postulacionService.getBySolicitudOptimized(Number(process.id))
         const allCandidates = response.data || []
         
-        // Filtrar candidatos según el tipo de proceso
-        let candidatesToShow: Candidate[]
-        if (process.service_type === "ES" || process.service_type === "EP" || process.service_type === "TS") {
-          candidatesToShow = allCandidates
-        } else {
-          candidatesToShow = allCandidates.filter((c: Candidate) => c.client_response === "aprobado")
+        // Solo candidatos aprobados por el cliente (igual que Entrevista Técnica y Exámenes Médicos)
+        let candidatesToShow = allCandidates.filter(
+          (c: Candidate) => (c as any).client_response === "aprobado" || (c as any).estado_candidato === "aprobado"
+        )
+        // San Cristóbal: no mostrar en Módulo 4 candidatos con examen médico rechazado o pendiente
+        const isSC = process.service_type === "SC" || (process as any).tipo_servicio === "SC"
+        if (isSC) {
+          const examenesRes = await examenMedicoService.getBySolicitud(Number(process.id))
+          if (examenesRes.success && examenesRes.data && Array.isArray(examenesRes.data)) {
+            const examenes = examenesRes.data as any[]
+            const idPostulacionesConExamenRechazadoOPendiente = new Set<number>()
+            examenes.forEach((ex: any) => {
+              const estado = (ex.estado_aprobacion || "").toLowerCase()
+              if (estado === "rechazado" || estado === "pendiente") {
+                idPostulacionesConExamenRechazadoOPendiente.add(ex.id_postulacion)
+              }
+            })
+            candidatesToShow = candidatesToShow.filter(
+              (c: Candidate) => !idPostulacionesConExamenRechazadoOPendiente.has((c as any).id_postulacion)
+            )
+          }
         }
         setCandidates(candidatesToShow)
 

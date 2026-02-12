@@ -105,6 +105,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
   const [selectedEstado, setSelectedEstado] = useState<string>("")
   const [statusChangeReason, setStatusChangeReason] = useState("")
   const [isAdvancingToModule4, setIsAdvancingToModule4] = useState(false)
+  const [isAdvancingToEntrevistaTecnica, setIsAdvancingToEntrevistaTecnica] = useState(false)
   
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
@@ -538,6 +539,53 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
     }
   }
 
+  // San Cristobal: avanzar a Módulo Entrevista Técnica (cuando hay candidato aprobado con feedback)
+  const handleAdvanceToEntrevistaTecnica = async () => {
+    if (isBlocked) {
+      showToast({
+        type: "error",
+        title: "Acción Bloqueada",
+        description: "No se puede avanzar un proceso finalizado",
+      })
+      return
+    }
+    setIsAdvancingToEntrevistaTecnica(true)
+    try {
+      const etapasRes = await solicitudService.getEtapas()
+      if (!etapasRes.success || !etapasRes.data) {
+        showToast({ type: "error", title: "Error", description: "No se pudieron cargar las etapas" })
+        setIsAdvancingToEntrevistaTecnica(false)
+        return
+      }
+      const etapa = (etapasRes.data as { id: number; nombre: string }[]).find((e) => e.nombre === "Módulo Entrevista Técnica")
+      if (!etapa) {
+        showToast({ type: "error", title: "Error", description: "Etapa 'Módulo Entrevista Técnica' no encontrada" })
+        setIsAdvancingToEntrevistaTecnica(false)
+        return
+      }
+      const res = await solicitudService.cambiarEtapa(Number(process.id), etapa.id)
+      if (res.success) {
+        showToast({
+          type: "success",
+          title: "¡Éxito!",
+          description: "Proceso avanzado a Entrevista Técnica",
+        })
+        const currentUrl = new URL(window.location.href)
+        currentUrl.searchParams.set("tab", "modulo-entrevista-tecnica")
+        window.location.href = currentUrl.toString()
+      } else {
+        const errorMsg = processApiErrorMessage(res.message || "", "No se pudo avanzar a Entrevista Técnica.")
+        showToast({ type: "error", title: "Error", description: errorMsg })
+        setIsAdvancingToEntrevistaTecnica(false)
+      }
+    } catch (error: any) {
+      console.error("Error al avanzar a Entrevista Técnica:", error)
+      const errorMsg = processApiErrorMessage(error.message, "No se pudo avanzar a Entrevista Técnica.")
+      showToast({ type: "error", title: "Error", description: errorMsg })
+      setIsAdvancingToEntrevistaTecnica(false)
+    }
+  }
+
   // Función para obtener el label dinámico según el estado seleccionado
   const getReasonLabel = (): string => {
     if (!selectedEstado) {
@@ -655,13 +703,24 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
 
   // Verificar tipo de servicio (código o nombre)
   const serviceType = (process.service_type as string)?.toLowerCase() || ""
+  const tipoServicio = (processAny.tipo_servicio || process.service_type || "").toString().toUpperCase()
+  const isSC = tipoServicio === "SC" || serviceType === "sc"
   
   // Para procesos PC, HS, TR: verificar que candidatos aprobados tengan client_feedback_date
   const approvedCandidates = candidates.filter((c) => c.client_response === "aprobado")
   const hasApprovedWithoutFeedback = approvedCandidates.some((c) => !c.client_feedback_date)
   
-  // Solo Proceso Completo (PC) y Targeted Recruitment (TR) pueden avanzar al módulo 4
-  const canAdvanceToModule4 = (serviceType === "proceso_completo" || serviceType === "pc" || 
+  // San Cristobal (SC): avanzar a Entrevista Técnica cuando hay candidato aprobado (igual que PC a M4)
+  const canAdvanceToEntrevistaTecnica = isSC && hasApproved && !hasApprovedWithoutFeedback
+  const isInEntrevistaTecnicaOrLater = processAny.etapa && (
+    processAny.etapa.includes("Entrevista Técnica") ||
+    processAny.etapa.includes("Exámenes Médicos") ||
+    processAny.etapa.includes("Módulo 4") ||
+    processAny.etapa.includes("Módulo 5")
+  )
+  
+  // Solo Proceso Completo (PC) y Targeted Recruitment (TR) pueden avanzar al módulo 4 (no SC; SC va a Entrevista Técnica)
+  const canAdvanceToModule4 = !isSC && (serviceType === "proceso_completo" || serviceType === "pc" || 
                               serviceType === "talent_retention" || serviceType === "tr") && 
                               hasApproved && !hasApprovedWithoutFeedback
   
@@ -712,6 +771,58 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
         moduleName="Módulo 3" 
       />
 
+      {/* Cuadro azul "Avanzar al siguiente módulo" siempre primero (igual que Módulo 2) */}
+      <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-blue-800 dark:text-blue-200">Avanzar al siguiente módulo</h3>
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                {processEndsHere
+                  ? "Este es el último módulo para este tipo de proceso. Puedes finalizar la solicitud más abajo."
+                  : isSC && !isInEntrevistaTecnicaOrLater
+                    ? canAdvanceToEntrevistaTecnica
+                      ? "Estados sincronizados. Puedes avanzar al Módulo Entrevista Técnica."
+                      : "Pasa al Módulo Entrevista Técnica en cualquier momento."
+                    : canAdvanceToModule4
+                      ? "Estados sincronizados. Puedes avanzar al Módulo 4 para evaluación psicolaboral."
+                      : (hasApproved && hasApprovedWithoutFeedback) && (isSC || serviceType === "proceso_completo" || serviceType === "pc" || serviceType === "talent_retention" || serviceType === "tr")
+                        ? "Hay candidatos aprobados sin fecha de feedback del cliente. Completa esta información antes de avanzar."
+                        : "Completa la información de los candidatos para habilitar el avance al siguiente módulo."}
+              </p>
+            </div>
+            {!processEndsHere && (
+              isSC && !isInEntrevistaTecnicaOrLater ? (
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={handleAdvanceToEntrevistaTecnica}
+                  disabled={readOnly || isBlocked || isAdvancingToEntrevistaTecnica}
+                >
+                  {isAdvancingToEntrevistaTecnica && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Avanzar a Entrevista Técnica
+                </Button>
+              ) : canAdvanceToModule4 ? (
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={handleAdvanceToModule4}
+                  disabled={readOnly || isBlocked || isAdvancingToModule4 || isInAdvancedModule}
+                >
+                  {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Avanzar a Módulo 4
+                </Button>
+              ) : (
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700"
+                  disabled
+                >
+                  Avanzar al siguiente módulo
+                </Button>
+              )
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Navigation Actions */}
       {allRejected && (
         <Card className="border-red-200 bg-red-50">
@@ -740,30 +851,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
         </Card>
       )}
 
-      {canAdvanceToModule4 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-blue-800">Candidatos aprobados</h3>
-                <p className="text-sm text-blue-600">
-                  Estados sincronizados. Puedes avanzar al Módulo 4 para evaluación psicolaboral.
-                </p>
-              </div>
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={handleAdvanceToModule4}
-                disabled={readOnly || isBlocked || isAdvancingToModule4 || isInAdvancedModule}
-              >
-                {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Avanzar a Módulo 4
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {hasApproved && hasApprovedWithoutFeedback && (serviceType === "proceso_completo" || serviceType === "pc" || 
+      {hasApproved && hasApprovedWithoutFeedback && (isSC || serviceType === "proceso_completo" || serviceType === "pc" || 
        serviceType === "talent_retention" || serviceType === "tr") && (
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="pt-6">
@@ -772,7 +860,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
                 <h3 className="font-semibold text-orange-800">Falta información de feedback</h3>
                 <p className="text-sm text-orange-600">
                   Hay candidatos aprobados sin fecha de feedback del cliente. 
-                  Completa esta información antes de avanzar al Módulo 4.
+                  Completa esta información antes de avanzar{isSC ? " a Entrevista Técnica" : " al Módulo 4"}.
                 </p>
               </div>
               <div className="text-orange-600">

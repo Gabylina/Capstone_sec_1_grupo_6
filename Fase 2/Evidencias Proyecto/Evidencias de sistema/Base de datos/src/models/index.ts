@@ -50,6 +50,10 @@ import TestPsicolaboral from './TestPsicolaboral';
 import EvaluacionPsicolaboral from './EvaluacionPsicolaboral';
 import EvaluacionTest from './EvaluacionTest';
 
+// Entrevista técnica y exámenes médicos (San Cristóbal Completo)
+import EntrevistaTecnica from './EntrevistaTecnica';
+import ExamenMedico from './ExamenMedico';
+
 // Modelos de auditoría
 import LogCambios from './LogCambios';
 
@@ -430,5 +434,7 @@ export {
     TestPsicolaboral,
     EvaluacionPsicolaboral,
     EvaluacionTest,
+    EntrevistaTecnica,
+    ExamenMedico,
     LogCambios
 };

@@ -1605,6 +1605,7 @@ export class SolicitudService {
                     'EP': 'Evaluación Potencial',
                     'TS': 'Test Psicolaboral',
                     'PP': 'Publicación Portales',
+                    'SC': 'San Cristobal Completo',
                 };
 
                 const serviceLabel = serviceMapping[codigoServicio] || nombreServicio;
@@ -1941,6 +1942,7 @@ export class SolicitudService {
                 'EP': 'Evaluación Potencial',
                 'TS': 'Test Psicolaboral',
                 'PP': 'Publicación Portales',
+                'SC': 'San Cristobal Completo',
             };
 
             const aggregated: Record<string, { avgDays: number; total: number }> = {};

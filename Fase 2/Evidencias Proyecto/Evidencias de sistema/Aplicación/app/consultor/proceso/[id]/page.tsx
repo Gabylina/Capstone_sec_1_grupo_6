@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService, getCandidatesByProcess, copiarPlantillasASolicitud } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate, getStatusColor } from "@/lib/utils"
@@ -15,6 +15,8 @@ import { ProcessModule2 } from "@/components/consultor/process-module-2"
 import { ProcessModule3 } from "@/components/consultor/process-module-3"
 import { ProcessModule4 } from "@/components/consultor/process-module-4"
 import { ProcessModule5 } from "@/components/consultor/process-module-5"
+import { ProcessModuleEntrevistaTecnica } from "@/components/consultor/process-module-entrevista-tecnica"
+import { ProcessModuleExamenesMedicos } from "@/components/consultor/process-module-examenes-medicos"
 import { notFound, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import type { Hito } from "@/lib/types"
@@ -46,10 +48,18 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       return 'modulo-1'
     }
 
+    // San Cristobal Completo (SC): etapas propias entre M3 y M4
+    if (etapa === 'Módulo Entrevista Técnica' && serviceType === 'SC') {
+      return 'modulo-entrevista-tecnica'
+    }
+    if (etapa === 'Módulo Exámenes Médicos' && serviceType === 'SC') {
+      return 'modulo-examenes-medicos'
+    }
+
     // Mapeo de etapas a módulos según el tipo de servicio
     if (etapa === 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral') {
-      // Solo PC tiene módulo 5
-      if (serviceType === 'PC') {
+      // PC y SC tienen módulo 5 (cierre)
+      if (serviceType === 'PC' || serviceType === 'SC') {
         return 'modulo-5'
       }
       // Si no es PC, no debería estar en módulo 5, pero por seguridad:
@@ -64,8 +74,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
 
     if (etapa === 'Módulo 4: Evaluación Psicolaboral') {
-      // Solo PC, TS y ES tienen módulo 4
-      if (serviceType === 'PC' || serviceType === 'TS' || serviceType === 'ES') {
+      // PC, SC, TS y ES tienen módulo 4
+      if (serviceType === 'PC' || serviceType === 'SC' || serviceType === 'TS' || serviceType === 'ES') {
         return 'modulo-4'
       }
       // LL y HH no tienen módulo 4, mostrar módulo 3 como máximo
@@ -76,8 +86,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
 
     if (etapa === 'Módulo 3: Presentación de Candidatos') {
-      // Solo PC, LL y HH tienen módulo 3
-      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH') {
+      // PC, SC, LL y HH tienen módulo 3
+      if (serviceType === 'PC' || serviceType === 'SC' || serviceType === 'LL' || serviceType === 'HH') {
         return 'modulo-3'
       }
       // TS y ES no tienen módulo 3 (esto sería un error de datos)
@@ -89,8 +99,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
 
     if (etapa === 'Módulo 2: Publicación y Registro de Candidatos') {
-      // PC, LL, HH y PP tienen módulo 2
-      if (serviceType === 'PC' || serviceType === 'LL' || serviceType === 'HH' || serviceType === 'PP') {
+      // PC, SC, LL, HH y PP tienen módulo 2
+      if (serviceType === 'PC' || serviceType === 'SC' || serviceType === 'LL' || serviceType === 'HH' || serviceType === 'PP') {
         return 'modulo-2'
       }
       // TS y ES no tienen módulo 2 (esto sería un error de datos)
@@ -118,7 +128,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       const tabFromUrl = urlParams.get('tab')
       
       // Si hay parámetro tab en la URL, usarlo (tiene prioridad)
-      if (tabFromUrl && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5', 'timeline'].includes(tabFromUrl)) {
+      if (tabFromUrl && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5', 'modulo-entrevista-tecnica', 'modulo-examenes-medicos', 'timeline'].includes(tabFromUrl)) {
         setActiveTab(tabFromUrl)
       } else {
         // Si no hay parámetro tab, determinar el módulo basado en la etapa
@@ -342,6 +352,18 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         enabled: module2Enabled,
         isActive: activeTab === "modulo-2"
       })
+    } else if (serviceType === "SC") {
+      // San Cristobal Completo: M2, M3, Entrevista Técnica, Exámenes Médicos, M4, M5
+      const scStagesAfterM2 = ["Módulo 3: Presentación de Candidatos", "Módulo Entrevista Técnica", "Módulo Exámenes Médicos", "Módulo 4: Evaluación Psicolaboral", "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"]
+      const scStagesAfterM3 = ["Módulo Entrevista Técnica", "Módulo Exámenes Médicos", "Módulo 4: Evaluación Psicolaboral", "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"]
+      const scStagesAfterEntrevista = ["Módulo Exámenes Médicos", "Módulo 4: Evaluación Psicolaboral", "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"]
+      const scStagesAfterExamenes = ["Módulo 4: Evaluación Psicolaboral", "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"]
+      modules.push({ id: "modulo-2", label: "Gestión de Candidatos", icon: Users, enabled: module2Enabled || scStagesAfterM2.includes(currentStage), isActive: activeTab === "modulo-2" })
+      modules.push({ id: "modulo-3", label: "Presentación de Candidatos", icon: Target, enabled: scStagesAfterM3.includes(currentStage), isActive: activeTab === "modulo-3" })
+      // Habilitar tab Entrevista Técnica cuando estamos en esa etapa o en etapas posteriores (evita bloqueo al volver de M3)
+      modules.push({ id: "modulo-entrevista-tecnica", label: "Entrevista Técnica", icon: Calendar, enabled: currentStage === "Módulo Entrevista Técnica" || scStagesAfterEntrevista.includes(currentStage), isActive: activeTab === "modulo-entrevista-tecnica" })
+      // Habilitar tab Exámenes Médicos cuando estamos en esa etapa o en M4/M5
+      modules.push({ id: "modulo-examenes-medicos", label: "Exámenes Médicos", icon: FileText, enabled: currentStage === "Módulo Exámenes Médicos" || scStagesAfterExamenes.includes(currentStage), isActive: activeTab === "modulo-examenes-medicos" })
     } else if (serviceType === "PC" || serviceType === "LL" || serviceType === "FI" || serviceType === "HH") {
       modules.push({ 
         id: "modulo-2", 
@@ -361,7 +383,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       })
     }
 
-    if (serviceType === "PC" || serviceType === "TS" || serviceType === "ES" || serviceType === "EP") {
+    if (serviceType === "PC" || serviceType === "SC" || serviceType === "TS" || serviceType === "ES" || serviceType === "EP") {
       modules.push({ 
         id: "modulo-4", 
         label: "Evaluación Psicolaboral", 
@@ -371,8 +393,8 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       })
     }
 
-    if (serviceType === "PC") {
-      // El módulo 5 solo está habilitado si:
+    if (serviceType === "PC" || serviceType === "SC") {
+      // El módulo 5 (cierre) solo está habilitado si:
       // 1. Ya estás en el módulo 5, O
       // 2. Estás en el módulo 4 Y hay candidatos con estado de informe definido
       const module5Enabled = currentStage === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral" || 
@@ -535,25 +557,36 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                 <ProcessModule1 process={process} descripcionCargo={descripcionCargo} readOnly={viewOnly} />
               </TabsContent>
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
                 <TabsContent value="modulo-2" className="mt-0">
                   <ProcessModule2 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-3" className="mt-0">
                   <ProcessModule3 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES" || process.tipo_servicio === "EP") && (
+              {process.tipo_servicio === "SC" && (
+                <>
+                  <TabsContent value="modulo-entrevista-tecnica" className="mt-0">
+                    <ProcessModuleEntrevistaTecnica process={process} readOnly={viewOnly} onAdvance={loadProcessData} />
+                  </TabsContent>
+                  <TabsContent value="modulo-examenes-medicos" className="mt-0">
+                    <ProcessModuleExamenesMedicos process={process} readOnly={viewOnly} onAdvance={loadProcessData} />
+                  </TabsContent>
+                </>
+              )}
+
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES" || process.tipo_servicio === "EP") && (
                 <TabsContent value="modulo-4" className="mt-0">
                   <ProcessModule4 process={process} readOnly={viewOnly} />
                 </TabsContent>
               )}
 
-              {process.tipo_servicio === "PC" && (
+              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC") && (
                 <TabsContent value="modulo-5" className="mt-0">
                   <ProcessModule5 process={process} readOnly={viewOnly} />
                 </TabsContent>

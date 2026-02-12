@@ -331,9 +331,10 @@ export default function ConsultorPage() {
                   <TableHead className="w-16">Días</TableHead>
                   <TableHead className="w-14">Vac.</TableHead>
                   <TableHead>Candidato</TableHead>
+                  <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Servicio</TableHead>
-                  <TableHead className="w-24">F. creación</TableHead>
+                  <TableHead className="w-24">Fecha</TableHead>
                   <TableHead className="w-20">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -508,6 +509,7 @@ export default function ConsultorPage() {
                   <TableHead className="w-16">Días</TableHead>
                   <TableHead className="w-14">Vac.</TableHead>
                   <TableHead>Candidato</TableHead>
+                  <TableHead>Cargo</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Servicio</TableHead>
                   <TableHead>Estado</TableHead>

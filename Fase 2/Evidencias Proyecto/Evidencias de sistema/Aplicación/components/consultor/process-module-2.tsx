@@ -59,7 +59,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
 
-import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService, solicitudService } from "@/lib/api"
+import { regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, publicacionService, postulacionService, institucionService, solicitudService, portalService } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
@@ -228,11 +228,15 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
   // Verificar si el proceso está bloqueado (estado final)
   const isBlocked = isProcessBlocked(processStatus)
 
-  // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  // Verificar si ya está en un módulo avanzado (módulo 3 o posterior)
+  // Para SC: si está en M3, Entrevista Técnica, Exámenes Médicos, M4 o M5, no mostrar "Avanzar a M3" como habilitado
   const processAny = process as any
   const isInAdvancedModule = processAny.etapa && (
+    processAny.etapa.includes("Módulo 3") ||
     processAny.etapa.includes("Módulo 4") || 
-    processAny.etapa.includes("Módulo 5")
+    processAny.etapa.includes("Módulo 5") ||
+    processAny.etapa.includes("Entrevista Técnica") ||
+    processAny.etapa.includes("Exámenes Médicos")
   )
 
   // Verificar si hay al menos un candidato presentado
@@ -280,7 +284,23 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
 
         setInstituciones(institucionesRes.data || [])
 
-        setPortalesDB(portalesRes.data || [])
+        let portales = portalesRes.data || []
+        // Asegurar que el portal "Interno" exista en BD (para poder usarlo sin publicación)
+        const tieneInterno = portales.some((p: any) => (p.nombre || p.nombre_portal_postulacion || '').toLowerCase() === 'interno')
+        if (!tieneInterno) {
+          try {
+            const createRes = await portalService.create({ nombre_portal_postulacion: 'Interno' })
+            if (createRes.success) {
+              const allRes = await portalService.getAll()
+              if (allRes.success && allRes.data) {
+                portales = allRes.data
+              }
+            }
+          } catch (e) {
+            console.warn('No se pudo crear portal Interno:', e)
+          }
+        }
+        setPortalesDB(portales)
       } catch (error) {
 
         console.error('Error al cargar listas:', error)
@@ -534,7 +554,7 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
 
   // Filtrar portales para mostrar solo los que tienen publicaciones activas
   // Si estamos editando un candidato, también incluimos su portal actual aunque no esté activo
-  // Si estamos agregando desde historial, incluimos el portal "Interno"
+  // El portal "Interno" siempre se incluye (no requiere publicación creada)
   const portalesConPublicacionesActivas = useMemo(() => {
     // Si portalesDB aún no está cargado, retornar array vacío
     if (!portalesDB || portalesDB.length === 0) {
@@ -561,20 +581,18 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
       }
     }
     
-    // Buscar el portal "Interno" para candidatos del historial
+    // Portal "Interno" siempre disponible (no requiere publicación)
     const portalInterno = portalesDB.find((p: any) => 
       p.nombre?.toLowerCase() === 'interno'
     )
     
-    // Filtrar portalesDB para incluir solo los que tienen publicaciones activas
-    // o el portal actual del candidato que se está editando
-    // o el portal "Interno" si estamos agregando desde historial
+    // Incluir: portales con publicaciones activas, portal actual del candidato editado, o "Interno"
     return portalesDB.filter((portal: any) => 
       portalesActivosIds.has(portal.id) || 
       (portalActualId !== null && portal.id === portalActualId) ||
-      (initialDataFromHistorial && portalInterno && portal.id === portalInterno.id)
+      (portalInterno && portal.id === portalInterno.id)
     )
-  }, [publications, portalesDB, editingCandidate, initialDataFromHistorial])
+  }, [publications, portalesDB, editingCandidate])
 
 
 
@@ -2852,39 +2870,27 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
       />
 
       {/* Card para avanzar al siguiente módulo - NO mostrar para PP */}
-      {!isPublicacionPortales && hasPresentedCandidates && (
-        <Card className="border-blue-200 bg-blue-50">
+      {/* Cuadro azul "Avanzar al siguiente módulo" siempre visible (mismo estilo que el resto) */}
+      {!isPublicacionPortales && (
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-blue-800">Candidatos presentados</h3>
-                <p className="text-sm text-blue-600">
-                  Tienes candidatos con estado "Presentado". Puedes avanzar al Módulo 3 para presentación al cliente.
+                <h3 className="font-semibold text-blue-800 dark:text-blue-200">Avanzar al siguiente módulo</h3>
+                <p className="text-sm text-blue-600 dark:text-blue-300">
+                  {hasPresentedCandidates
+                    ? "Tienes candidatos con estado \"Presentado\". Puedes avanzar al Módulo 3 para presentación al cliente."
+                    : "Debe tener al menos un candidato con estado \"Presentado\" para avanzar al Módulo 3."}
                 </p>
               </div>
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule3}
-                disabled={readOnly || isBlocked || isAdvancingToModule3 || isInAdvancedModule}
+                disabled={readOnly || isBlocked || isAdvancingToModule3 || isInAdvancedModule || !hasPresentedCandidates}
               >
                 {isAdvancingToModule3 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Avanzar a Módulo 3
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!isPublicacionPortales && !hasPresentedCandidates && !isBlocked && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-orange-800">Acción requerida</h3>
-                <p className="text-sm text-orange-600">
-                  Debe tener al menos un candidato con estado "Presentado" para avanzar al Módulo 3.
-                </p>
-              </div>
             </div>
           </CardContent>
         </Card>
