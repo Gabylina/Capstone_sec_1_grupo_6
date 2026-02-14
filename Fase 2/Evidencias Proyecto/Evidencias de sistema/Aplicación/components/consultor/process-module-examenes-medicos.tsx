@@ -332,23 +332,19 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
       toast.error("No se pudo identificar la postulación")
       return
     }
-    const nombre = addFormNombre.trim() || (addFormFile?.name ?? "Documento")
-    if (!addFormFile) {
-      toast.error("Seleccione un archivo (PDF o imagen)")
-      return
-    }
-    if (addFormFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    const nombre = addFormNombre.trim() || (addFormFile?.name ?? "Examen médico")
+    if (addFormFile && addFormFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       toast.error(`El archivo no puede superar ${MAX_FILE_SIZE_MB} MB.`)
       return
     }
     setIsSavingAdd(true)
     try {
-      const base64 = await fileToBase64(addFormFile)
+      const base64 = addFormFile ? await fileToBase64(addFormFile) : undefined
       const res = await examenMedicoService.create({
         id_postulacion: idPostulacion,
         id_solicitud: idSolicitud,
         nombre_documento: nombre,
-        documento_archivo_base64: base64,
+        documento_archivo_base64: base64 ?? null,
         estado_aprobacion: addFormEstado,
         detalle: addFormDetalle.trim() || null,
       })
@@ -427,6 +423,8 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     closeAjustesDialog()
   }
 
+  const isSCAcotado = (process as any).service_type === "CA" || (process as any).tipo_servicio === "CA"
+
   const handleAdvanceToModulo4 = async () => {
     try {
       setIsAdvancing(true)
@@ -460,7 +458,41 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     }
   }
 
+  const handleAdvanceToModulo5 = async () => {
+    try {
+      setIsAdvancing(true)
+      const etapasRes = await solicitudService.getEtapas()
+      if (!etapasRes.success || !etapasRes.data) {
+        toast.error("No se pudieron cargar las etapas")
+        return
+      }
+      const etapa = (etapasRes.data as { id: number; nombre: string }[]).find(
+        (e) => e.nombre === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
+      )
+      if (!etapa) {
+        toast.error("Etapa 'Módulo 5' no encontrada")
+        return
+      }
+      const res = await solicitudService.cambiarEtapa(Number(process.id), etapa.id)
+      if (res.success) {
+        toast.success("Proceso avanzado a Cierre (Módulo 5)")
+        onAdvance?.()
+        const url = new URL(window.location.href)
+        url.searchParams.set("tab", "modulo-5")
+        window.location.href = url.toString()
+      } else {
+        toast.error(res.message || "No se pudo avanzar")
+      }
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e?.message || "Error al avanzar")
+    } finally {
+      setIsAdvancing(false)
+    }
+  }
+
   const isInModulo4OrLater = (process as any).etapa && ["Módulo 4: Evaluación Psicolaboral", "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"].includes((process as any).etapa)
+  const isInModulo5OrLater = (process as any).etapa === "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
 
   // Si algún candidato tiene al menos un examen con estado "rechazado", no se puede avanzar a Módulo 4
   const hasAlgunExamenRechazado = candidates.some((c) => {
@@ -468,6 +500,11 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     const examenes = examenesPorCandidato[id] || []
     return examenes.some((ex) => ex.estado === "rechazado")
   })
+
+  // CA: al menos un examen debe estar aprobado (y guardado) para poder avanzar a Módulo 5
+  const hasAlMenosUnExamenAprobado = isSCAcotado && Object.values(examenesPorCandidato).some((list) =>
+    list.some((ex) => ex.estado === "aprobado")
+  )
 
   const estadoColor = (estado: string) => {
     if (estado === "aprobado") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
@@ -509,16 +546,20 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
               <p className="text-sm text-blue-600 dark:text-blue-300">
                 {hasAlgunExamenRechazado
                   ? "No se puede avanzar: hay candidatos con al menos un examen en estado rechazado. Todos los exámenes deben estar aprobados o pendientes."
-                  : "Pasa el proceso a Evaluación Psicolaboral (Módulo 4)."}
+                  : isSCAcotado && !hasAlMenosUnExamenAprobado
+                    ? "Para avanzar a Módulo 5, aprueba al menos un examen por candidato y guarda los cambios (botón Guardar en cada examen)."
+                    : isSCAcotado
+                      ? "Pasa el proceso a Cierre (Módulo 5)."
+                      : "Pasa el proceso a Evaluación Psicolaboral (Módulo 4)."}
               </p>
             </div>
             <Button
-              onClick={handleAdvanceToModulo4}
-              disabled={readOnly || isAdvancing || isInModulo4OrLater || hasAlgunExamenRechazado}
+              onClick={isSCAcotado ? handleAdvanceToModulo5 : handleAdvanceToModulo4}
+              disabled={readOnly || isAdvancing || (isSCAcotado ? isInModulo5OrLater : isInModulo4OrLater) || hasAlgunExamenRechazado || (isSCAcotado && !hasAlMenosUnExamenAprobado)}
               className="bg-blue-600 hover:bg-blue-700"
             >
               {isAdvancing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Avanzar a Módulo 4
+              {isSCAcotado ? "Avanzar a Módulo 5" : "Avanzar a Módulo 4"}
             </Button>
           </div>
         </CardContent>
@@ -704,7 +745,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="add-archivo">Archivo (PDF o imagen)</Label>
+              <Label htmlFor="add-archivo">Archivo (PDF o imagen, opcional)</Label>
               <Input
                 id="add-archivo"
                 type="file"

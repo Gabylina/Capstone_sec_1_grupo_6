@@ -18,7 +18,8 @@ import {
     PortalPostulacion,
     EstadoCliente,
     Contratacion,
-    EstadoContratacion
+    EstadoContratacion,
+    ExamenMedico
 } from '@/models';
 import { HitoSolicitudService } from './hitoSolicitudService';
 import { HitoHelperService } from './hitoHelperService';
@@ -32,6 +33,24 @@ import { FechasLaborales } from '@/utils/fechasLaborales';
 
 export class SolicitudService {
     private static readonly DUE_SOON_THRESHOLD_DAYS = 7;
+
+    /**
+     * Obtener el estado actual (más reciente) por solicitud en una sola query.
+     * Reemplaza las múltiples cargas de EstadoSolicitudHist con una consulta eficiente DISTINCT ON.
+     */
+    static async getEstadoActualPorSolicitud(): Promise<Map<number, string>> {
+        const rows = await sequelize.query<{ id_solicitud: number; nombre_estado_solicitud: string }>(`
+            SELECT DISTINCT ON (esh.id_solicitud)
+                esh.id_solicitud,
+                es.nombre_estado_solicitud
+            FROM estado_solicitud_hist esh
+            INNER JOIN estado es ON es.id_estado_solicitud = esh.id_estado_solicitud
+            ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+        `, { type: QueryTypes.SELECT });
+        const map = new Map<number, string>();
+        (Array.isArray(rows) ? rows : []).forEach((r: any) => map.set(r.id_solicitud, r.nombre_estado_solicitud));
+        return map;
+    }
 
     /**
      * Obtener solicitudes paginadas con filtros opcionales y orden
@@ -64,121 +83,42 @@ export class SolicitudService {
             });
         }
 
-        // Filtro por estado
-        if (status) {
-            // Mapear el parámetro de estado a los nombres exactos en la base de datos
-            const estadoMapping: { [key: string]: string } = {
-                'creado': 'Creado',
-                'en_progreso': 'En Progreso', 
-                'cerrado': 'Cerrado',
-                'congelado': 'Congelado',
-                'cancelado': 'Cancelado',
-                'cierre_extraordinario': 'Cierre Extraordinario'
-            };
+        // Filtro por estado y/o exclusión de estado: una sola query para estado actual por solicitud
+        const estadoMapping: { [key: string]: string } = {
+            'creado': 'Creado',
+            'en_progreso': 'En Progreso',
+            'cerrado': 'Cerrado',
+            'congelado': 'Congelado',
+            'cancelado': 'Cancelado',
+            'cierre_extraordinario': 'Cierre Extraordinario'
+        };
+        if (status || exclude_status) {
+            const estadoPorSolicitud = await this.getEstadoActualPorSolicitud();
+            let idsAIncluir: number[] = [];
 
-            const nombreEstadoExacto = estadoMapping[status];
-            
-            if (nombreEstadoExacto) {
-                // Obtener todas las solicitudes con su historial de estados
-                const todasLasSolicitudes = await EstadoSolicitudHist.findAll({
-                    include: [
-                        {
-                            model: EstadoSolicitud,
-                            as: 'estado',
-                            attributes: ['nombre_estado_solicitud']
-                        }
-                    ],
-                    attributes: ['id_solicitud', 'fecha_cambio_estado_solicitud'],
-                    order: [['id_solicitud', 'ASC'], ['fecha_cambio_estado_solicitud', 'DESC']]
-                });
+            if (status) {
+                const nombreEstadoExacto = estadoMapping[status];
+                if (nombreEstadoExacto) {
+                    estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
+                        if (estadoActual === nombreEstadoExacto) idsAIncluir.push(idSolicitud);
+                    });
+                }
+            } else {
+                // Sin filtro por status: partir de todas las solicitudes con estado
+                idsAIncluir = Array.from(estadoPorSolicitud.keys());
+            }
 
-                // Agrupar por solicitud y obtener el estado más reciente
-                const estadoPorSolicitud = new Map<number, string>();
-                todasLasSolicitudes.forEach((item: any) => {
-                    if (!estadoPorSolicitud.has(item.id_solicitud)) {
-                        estadoPorSolicitud.set(item.id_solicitud, item.estado.nombre_estado_solicitud);
-                    }
-                });
-
-                // Filtrar solo las solicitudes que tienen el estado deseado como estado actual
-                const idsConEstadoDeseado: number[] = [];
-                estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
-                    if (estadoActual === nombreEstadoExacto) {
-                        idsConEstadoDeseado.push(idSolicitud);
-                    }
-                });
-
-                // Debug log para verificar el filtro
-                console.log(`🔍 Filtro por estado "${nombreEstadoExacto}":`, {
-                    totalSolicitudes: estadoPorSolicitud.size,
-                    idsConEstadoDeseado: idsConEstadoDeseado,
-                    estadosEncontrados: Array.from(estadoPorSolicitud.entries()).slice(0, 5) // Solo los primeros 5 para debug
-                });
-
-                if (idsConEstadoDeseado.length > 0) {
-                    andConditions.push({ id_solicitud: { [Op.in]: idsConEstadoDeseado } });
-                } else {
-                    // Si no hay solicitudes con ese estado, devolver array vacío
-                    andConditions.push({ id_solicitud: { [Op.in]: [] } });
+            if (exclude_status) {
+                const nombreEstadoAExcluir = estadoMapping[exclude_status];
+                if (nombreEstadoAExcluir) {
+                    idsAIncluir = idsAIncluir.filter(id => estadoPorSolicitud.get(id) !== nombreEstadoAExcluir);
                 }
             }
-        }
 
-        // Filtro para EXCLUIR un estado específico
-        if (exclude_status) {
-            // Mapear el parámetro de estado a los nombres exactos en la base de datos
-            const estadoMapping: { [key: string]: string } = {
-                'creado': 'Creado',
-                'en_progreso': 'En Progreso', 
-                'cerrado': 'Cerrado',
-                'congelado': 'Congelado',
-                'cancelado': 'Cancelado',
-                'cierre_extraordinario': 'Cierre Extraordinario'
-            };
-
-            const nombreEstadoAExcluir = estadoMapping[exclude_status];
-            
-            if (nombreEstadoAExcluir) {
-                // Obtener todas las solicitudes con su historial de estados
-                const todasLasSolicitudes = await EstadoSolicitudHist.findAll({
-                    include: [
-                        {
-                            model: EstadoSolicitud,
-                            as: 'estado',
-                            attributes: ['nombre_estado_solicitud']
-                        }
-                    ],
-                    attributes: ['id_solicitud', 'fecha_cambio_estado_solicitud'],
-                    order: [['id_solicitud', 'ASC'], ['fecha_cambio_estado_solicitud', 'DESC']]
-                });
-
-                // Agrupar por solicitud y obtener el estado más reciente
-                const estadoPorSolicitud = new Map<number, string>();
-                todasLasSolicitudes.forEach((item: any) => {
-                    if (!estadoPorSolicitud.has(item.id_solicitud)) {
-                        estadoPorSolicitud.set(item.id_solicitud, item.estado.nombre_estado_solicitud);
-                    }
-                });
-
-                // Filtrar EXCLUYENDO las solicitudes que tienen el estado a excluir
-                const idsParaIncluir: number[] = [];
-                estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
-                    if (estadoActual !== nombreEstadoAExcluir) {
-                        idsParaIncluir.push(idSolicitud);
-                    }
-                });
-
-                console.log(`🔍 Filtro EXCLUYENDO estado "${nombreEstadoAExcluir}":`, {
-                    totalSolicitudes: estadoPorSolicitud.size,
-                    idsParaIncluir: idsParaIncluir.length,
-                });
-
-                if (idsParaIncluir.length > 0) {
-                    andConditions.push({ id_solicitud: { [Op.in]: idsParaIncluir } });
-                } else {
-                    // Si no hay solicitudes para incluir, devolver array vacío
-                    andConditions.push({ id_solicitud: { [Op.in]: [] } });
-                }
+            if (idsAIncluir.length > 0) {
+                andConditions.push({ id_solicitud: { [Op.in]: idsAIncluir } });
+            } else {
+                andConditions.push({ id_solicitud: { [Op.in]: [] } });
             }
         }
 
@@ -684,8 +624,7 @@ export class SolicitudService {
 
             await transaction.commit();
 
-            // Crear hitos (línea de tiempo) para la nueva solicitud
-            await HitoSolicitudService.crearHitosParaSolicitudNueva(nuevaSolicitud.id_solicitud, usuarioRut);
+            // Los hitos se crean en segundo plano desde el controller para no retrasar la respuesta del POST
 
             return { 
                 id: nuevaSolicitud.id_solicitud,
@@ -890,20 +829,21 @@ export class SolicitudService {
 
             await transaction.commit();
 
-            // San Cristóbal (SC): activar el siguiente hito (fecha_base/fecha_limite) según la nueva etapa
-            if (tipoServicio?.codigo_servicio === 'SC' && etapa?.nombre_etapa) {
+            // San Cristóbal (SC) y San Cristóbal Acotado (CA): activar el siguiente hito según la nueva etapa
+            if ((tipoServicio?.codigo_servicio === 'SC' || tipoServicio?.codigo_servicio === 'CA') && etapa?.nombre_etapa) {
                 const nombreEtapa = (etapa.nombre_etapa as string).trim();
                 let tipoAncla: string | null = null;
                 if (nombreEtapa.includes('Módulo 2') || nombreEtapa.includes('Publicación y Registro')) tipoAncla = 'publicacion';
                 else if (nombreEtapa.includes('Módulo 3') || nombreEtapa.includes('Presentación de Candidatos')) tipoAncla = 'primera_presentacion';
                 else if (nombreEtapa.includes('Entrevista Técnica')) tipoAncla = 'entrevista_tecnica';
                 else if (nombreEtapa.includes('Exámenes Médicos')) tipoAncla = 'examenes_medicos';
-                else if (nombreEtapa.includes('Módulo 4') || nombreEtapa.includes('Evaluación Psicolaboral')) tipoAncla = 'evaluacion_psicolaboral';
+                else if (nombreEtapa.includes('Módulo 4') || nombreEtapa.includes('Evaluación Psicolaboral')) tipoAncla = 'evaluacion_psicolaboral'; // solo SC
+                else if (nombreEtapa.includes('Módulo 5')) tipoAncla = 'contratacion';
                 if (tipoAncla) {
                     try {
                         await HitoSolicitudService.activarHitosPorEvento(id, tipoAncla, new Date(), usuarioRut);
                     } catch (e) {
-                        console.warn('No se pudo activar hito por evento para SC:', e);
+                        console.warn('No se pudo activar hito por evento para SC/CA:', e);
                     }
                 }
             }
@@ -1220,7 +1160,7 @@ export class SolicitudService {
                 id_etapa_solicitud: etapaModulo5.id_etapa_solicitud 
             }, { transaction });
 
-            // Marcar cumplimiento de hitos según el cambio de etapa (Módulo 4 → 5)
+            // Marcar cumplimiento de hitos según el cambio de etapa (Módulo 4 → 5 o Exámenes Médicos → 5 para CA)
             const tipoServicio = (solicitud as any).get('tipoServicio') as any;
             if (tipoServicio && idEtapaAnterior) {
                 await HitoHelperService.marcarHitoPorCambioEtapa(
@@ -1231,6 +1171,38 @@ export class SolicitudService {
                     transaction
                 );
                 console.log(`✅ Hito de terna final marcado para solicitud ${id}`);
+            }
+
+            // San Cristóbal Acotado (CA): al avanzar desde Exámenes Médicos a M5, crear estado M5 para candidatos con examen médico aprobado
+            if (tipoServicio && tipoServicio.codigo_servicio === 'CA') {
+                const rowsAprobados = await sequelize.query<{ id_postulacion: number }>(
+                    `SELECT DISTINCT id_postulacion FROM examen_medico 
+                     WHERE id_solicitud = :id_solicitud AND LOWER(TRIM(estado_aprobacion)) = 'aprobado'`,
+                    { replacements: { id_solicitud: id }, type: QueryTypes.SELECT, transaction }
+                );
+                const idsPostulacionAprobados = [...new Set((rowsAprobados || []).map((r) => r.id_postulacion))];
+                if (idsPostulacionAprobados.length > 0) {
+                    const existentesM5 = await EstadoClientePostulacionM5.findAll({
+                        where: { id_postulacion: idsPostulacionAprobados },
+                        attributes: ['id_postulacion'],
+                        raw: true,
+                        transaction
+                    });
+                    const idsYaEnM5 = new Set(existentesM5.map((r: any) => r.id_postulacion));
+                    const estadoEnEsperaFeedback = 1; // ID en estado_cliente_m5 para "En espera de feedback"
+                    const now = new Date();
+                    for (const idPost of idsPostulacionAprobados) {
+                        if (idsYaEnM5.has(idPost)) continue;
+                        await EstadoClientePostulacionM5.create({
+                            id_postulacion: idPost,
+                            id_estado_cliente_postulacion_m5: estadoEnEsperaFeedback,
+                            fecha_feedback_cliente_m5: undefined,
+                            comentario_modulo5_cliente: undefined,
+                            updated_at: now
+                        }, { transaction });
+                    }
+                    console.log(`✅ CA: ${idsPostulacionAprobados.filter((idPost: number) => !idsYaEnM5.has(idPost)).length} candidatos con examen aprobado agregados a Módulo 5`);
+                }
             }
 
             await transaction.commit();

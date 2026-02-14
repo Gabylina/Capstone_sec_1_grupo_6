@@ -1184,22 +1184,19 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
                 <p className="text-sm font-medium text-muted-foreground">Región</p>
                 <p className="text-lg font-semibold">
                   {(() => {
-                    const comunaNombre = process.client.contacts[0]?.city
+                    // Usar ubicación del cargo (descripción de cargo), no la del contacto
+                    const comunaNombre = process.ciudad
                     if (!comunaNombre) return 'No especificada'
-                    
-                    // Buscar la comuna en la lista de comunas
                     const comuna = todasLasComunas.find(c => c.nombre_comuna === comunaNombre)
-                    if (!comuna) return process.client.contacts[0]?.region || 'No especificada'
-                    
-                    // Buscar la región correspondiente
+                    if (!comuna) return 'No especificada'
                     const region = regiones.find(r => r.id_region === comuna.id_region)
-                    return region?.nombre_region || process.client.contacts[0]?.region || 'No especificada'
+                    return region?.nombre_region || 'No especificada'
                   })()}
                 </p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Comuna</p>
-                <p className="text-lg font-semibold">{process.client.contacts[0]?.city || 'No especificada'}</p>
+                <p className="text-lg font-semibold">{process.ciudad || 'No especificada'}</p>
               </div>
             </div>
           </div>

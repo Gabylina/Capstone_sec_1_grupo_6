@@ -101,26 +101,28 @@ export function DocumentViewerDialog({ file, title, isOpen, onClose }: DocumentV
             <Eye className="h-5 w-5" />
             {title}
           </DialogTitle>
-          <DialogDescription className="flex items-center justify-between gap-2 flex-wrap">
-            <span>{file ? `Documento: ${file.name}` : "Sin archivo"}</span>
-            {file && (
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {isPdf ? "PDF" : isImage ? "Imagen" : "Archivo"}
-                </Badge>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownload}
-                  disabled={!dataUrl || isLoading}
-                  className="gap-1"
-                >
-                  <Download className="h-4 w-4" />
-                  Descargar
-                </Button>
-              </div>
-            )}
+          <DialogDescription asChild>
+            <div className="text-muted-foreground text-sm flex items-center justify-between gap-2 flex-wrap">
+              <span>{file ? `Documento: ${file.name}` : "Sin archivo"}</span>
+              {file && (
+                <span className="flex items-center gap-2">
+                  <Badge variant="outline">
+                    {isPdf ? "PDF" : isImage ? "Imagen" : "Archivo"}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownload}
+                    disabled={!dataUrl || isLoading}
+                    className="gap-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar
+                  </Button>
+                </span>
+              )}
+            </div>
           </DialogDescription>
         </DialogHeader>
 

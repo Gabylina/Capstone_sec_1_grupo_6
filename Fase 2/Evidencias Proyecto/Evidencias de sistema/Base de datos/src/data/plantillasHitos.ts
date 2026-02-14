@@ -298,6 +298,16 @@ export const PLANTILLAS_HITOS: Record<string, PlantillaHito[]> = {
             descripcion: "Cierre y contratación",
             codigo_servicio: "SC"
         }
+    ],
+
+    // SAN CRISTOBAL ACOTADO (CA) - Flujo: M1, M2, M3, Entrevista Técnica, Exámenes Médicos, M5 (sin M4)
+    CA: [
+        { nombre_hito: "Inicio del proceso", tipo_ancla: 'inicio_proceso', duracion_dias: 1, avisar_antes_dias: 0, descripcion: "Inicio del proceso San Cristóbal Acotado", codigo_servicio: "CA" },
+        { nombre_hito: "Gestión de candidatos", tipo_ancla: 'publicacion', duracion_dias: 5, avisar_antes_dias: 2, descripcion: "Publicación y registro de candidatos", codigo_servicio: "CA" },
+        { nombre_hito: "Presentación de candidatos", tipo_ancla: 'primera_presentacion', duracion_dias: 5, avisar_antes_dias: 2, descripcion: "Presentación de candidatos al cliente", codigo_servicio: "CA" },
+        { nombre_hito: "Entrevista Técnica", tipo_ancla: 'entrevista_tecnica', duracion_dias: 5, avisar_antes_dias: 2, descripcion: "Agendamiento, realización y resultado de entrevistas técnicas", codigo_servicio: "CA" },
+        { nombre_hito: "Exámenes Médicos", tipo_ancla: 'examenes_medicos', duracion_dias: 5, avisar_antes_dias: 2, descripcion: "Carga de documentos y aprobación/rechazo de exámenes médicos", codigo_servicio: "CA" },
+        { nombre_hito: "Cierre del proceso", tipo_ancla: 'contratacion', duracion_dias: 5, avisar_antes_dias: 2, descripcion: "Cierre y contratación", codigo_servicio: "CA" }
     ]
 };
 

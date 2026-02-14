@@ -101,7 +101,7 @@ export class HitoHelperService {
         transaction?: Transaction
     ): Promise<void> {
         try {
-            // San Cristóbal (SC): marcar el hito que corresponde a la etapa que se DEJA (avanzar = completar el hito anterior)
+            // San Cristóbal (SC): marcar el hito que corresponde a la etapa que se DEJA
             if (codigoServicio === 'SC') {
                 const etapaAnterior = await EtapaSolicitud.findByPk(idEtapaAnterior, { transaction });
                 if (!etapaAnterior) return;
@@ -119,6 +119,32 @@ export class HitoHelperService {
                     nombreHito = 'Exámenes Médicos';
                 } else if (nombreEtapa.includes('Módulo 4') || nombreEtapa.includes('Evaluación Psicolaboral')) {
                     nombreHito = 'Evaluaciones psicolaborales';
+                } else if (nombreEtapa.includes('Módulo 5')) {
+                    nombreHito = 'Cierre del proceso';
+                }
+                if (nombreHito) {
+                    await this.marcarCumplimientoHito(idSolicitud, nombreHito, new Date(), transaction);
+                }
+                return;
+            }
+            // San Cristóbal Acotado (CA): mismo flujo pero sin Módulo 4 (Exámenes → M5)
+            if (codigoServicio === 'CA') {
+                const etapaAnterior = await EtapaSolicitud.findByPk(idEtapaAnterior, { transaction });
+                if (!etapaAnterior) return;
+                const nombreEtapa = (etapaAnterior.nombre_etapa || '').trim();
+                let nombreHito: string | null = null;
+                if (idEtapaAnterior === 1 || nombreEtapa.toLowerCase().includes('módulo 1')) {
+                    nombreHito = 'Inicio del proceso';
+                } else if (nombreEtapa.includes('Módulo 2') || nombreEtapa.includes('Publicación y Registro')) {
+                    nombreHito = 'Gestión de candidatos';
+                } else if (nombreEtapa.includes('Módulo 3') || nombreEtapa.includes('Presentación de Candidatos')) {
+                    nombreHito = 'Presentación de candidatos';
+                } else if (nombreEtapa.includes('Entrevista Técnica')) {
+                    nombreHito = 'Entrevista Técnica';
+                } else if (nombreEtapa.includes('Exámenes Médicos')) {
+                    nombreHito = 'Exámenes Médicos';
+                } else if (nombreEtapa.includes('Módulo 5')) {
+                    nombreHito = 'Cierre del proceso';
                 }
                 if (nombreHito) {
                     await this.marcarCumplimientoHito(idSolicitud, nombreHito, new Date(), transaction);
@@ -233,7 +259,8 @@ export class HitoHelperService {
                 // Long List, Filtro Inteligente, Target Recruitment y Head Hunting
                 // completan su hito al finalizar la solicitud
                 nombreHito = 'Presentación de candidatos';
-            } else if (codigoServicio === 'SC') {
+            } else if (codigoServicio === 'SC' || codigoServicio === 'CA') {
+                // San Cristóbal Completo y San Cristóbal Acotado: marcar hito "Cierre del proceso"
                 nombreHito = 'Cierre del proceso';
             }
 

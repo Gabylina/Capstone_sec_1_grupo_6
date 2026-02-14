@@ -3,6 +3,7 @@ import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { parseLocalDate } from '@/utils/validators';
 import { SolicitudService } from '@/services/solicitudService';
+import { HitoSolicitudService } from '@/services/hitoSolicitudService';
 
 /**
  * Controlador para gestión de Solicitudes (Process en frontend)
@@ -157,6 +158,10 @@ export class SolicitudController {
             }, req.user?.id);
 
             Logger.info(`Solicitud creada: ${nuevaSolicitud.id}`);
+            // Crear hitos en segundo plano para no retrasar la respuesta del POST
+            HitoSolicitudService.crearHitosParaSolicitudNueva(nuevaSolicitud.id, req.user?.id).catch(err => {
+                Logger.error('Error creando hitos en background para solicitud ' + nuevaSolicitud.id, err);
+            });
             return sendSuccess(res, nuevaSolicitud, 'Solicitud creada exitosamente', 201);
         } catch (error: any) {
             Logger.error('Error al crear solicitud:', error);

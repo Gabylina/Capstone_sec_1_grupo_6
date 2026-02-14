@@ -13,7 +13,7 @@ interface ProcessTimelineProps {
 }
 
 export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelineProps) {
-  const isSanCristobal = (process?.tipo_servicio || process?.service_type) === "SC"
+  const isSanCristobal = (process?.tipo_servicio || process?.service_type) === "SC" || (process?.tipo_servicio || process?.service_type) === "CA"
 
   const getStatusIcon = (status: string) => {
     switch (status) {

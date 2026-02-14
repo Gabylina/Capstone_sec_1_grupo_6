@@ -719,11 +719,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             description: "Actualizando solicitud con candidatos nuevos...",
           })
           
+          const idComunaVal = formData.id_comuna ? parseInt(formData.id_comuna, 10) : NaN
+          const id_comuna = !Number.isNaN(idComunaVal) ? idComunaVal : undefined
           response = await solicitudService.actualizarConCandidatos(parseInt(solicitudToEdit.id), {
             contact_id: parseInt(formData.contact_id),
             service_type: formData.service_type,
             position_title: formData.position_title,
-            id_comuna: parseInt(formData.id_comuna),
+            ...(id_comuna !== undefined && { id_comuna }),
             description: formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
             requirements: formData.requirements || undefined,
             consultant_id: formData.consultant_id,
@@ -764,11 +766,17 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             description: "Creando solicitud con candidatos...",
           })
           
+          const idComunaCreate = formData.id_comuna ? parseInt(formData.id_comuna, 10) : NaN
+          const id_comunaCrear = !Number.isNaN(idComunaCreate) ? idComunaCreate : undefined
+          if (id_comunaCrear === undefined) {
+            showToast({ type: "error", title: "Error", description: "Debe seleccionar región y comuna del cargo." })
+            return
+          }
           response = await solicitudService.crearConCandidatos({
             contact_id: parseInt(formData.contact_id),
             service_type: formData.service_type,
             position_title: formData.position_title,
-            id_comuna: parseInt(formData.id_comuna),
+            id_comuna: id_comunaCrear,
             description: formData.position_title === "Sin cargo" ? "Sin cargo especificado" : (formData.description || undefined),
             requirements: formData.requirements || undefined,
             consultant_id: formData.consultant_id,

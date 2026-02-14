@@ -324,7 +324,7 @@ export default function ConsultorPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-            <Table className="table-fixed">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">Sol.</TableHead>
@@ -333,8 +333,8 @@ export default function ConsultorPage() {
                   <TableHead className="min-w-[100px] max-w-[140px]">Candidato</TableHead>
                   <TableHead className="min-w-[80px] max-w-[180px]">Cargo</TableHead>
                   <TableHead className="min-w-[80px] max-w-[140px]">Cliente</TableHead>
-                  <TableHead className="w-28">Servicio</TableHead>
-                  <TableHead className="w-24">Fecha</TableHead>
+                  <TableHead className="min-w-[140px] w-[140px]">Servicio</TableHead>
+                  <TableHead className="min-w-[100px] w-[100px] whitespace-nowrap">Fecha</TableHead>
                   <TableHead className="w-28 shrink-0">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -367,12 +367,14 @@ export default function ConsultorPage() {
                         <span className="truncate">{process.cliente}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
-                      </Badge>
+                    <TableCell className="min-w-[140px] max-w-[180px] overflow-hidden">
+                      <span className="block truncate" title={serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}>
+                        <Badge variant="outline" className="text-xs max-w-full truncate inline-block">
+                          {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
+                        </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell>{new Date(process.created_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
+                    <TableCell className="whitespace-nowrap min-w-[100px]">{new Date(process.created_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
                     <TableCell className="shrink-0">
                       <Button
                         size="sm"

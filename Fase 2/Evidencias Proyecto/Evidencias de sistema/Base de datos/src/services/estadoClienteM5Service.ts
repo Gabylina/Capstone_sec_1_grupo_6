@@ -5,6 +5,8 @@ import EstadoClientePostulacionM5 from '@/models/EstadoClientePostulacionM5';
 import Postulacion from '@/models/Postulacion';
 import Contratacion from '@/models/Contratacion';
 import EvaluacionPsicolaboral from '@/models/EvaluacionPsicolaboral';
+import Solicitud from '@/models/Solicitud';
+import TipoServicio from '@/models/TipoServicio';
 import { Logger } from '@/utils/logger';
 import { setDatabaseUser } from '@/utils/databaseUser';
 
@@ -186,11 +188,55 @@ export default class EstadoClienteM5Service {
     }
 
     /**
-     * Obtener candidatos que están en el módulo 5 (tienen al menos un estado en estado_cliente_postulacion_m5)
+     * Obtener candidatos que están en el módulo 5 (tienen al menos un estado en estado_cliente_postulacion_m5).
+     * Para San Cristóbal Acotado (CA): además se consideran candidatos con al menos un examen médico aprobado;
+     * se crean registros en estado_cliente_postulacion_m5 si faltan (sincronización al cargar M5).
      */
     static async getCandidatosEnModulo5(id_proceso: number) {
         Logger.info(`[DEBUG] Buscando candidatos del módulo 5 para proceso: ${id_proceso}`);
-        
+
+        // Saber si el proceso es CA (San Cristóbal Acotado) para incluir candidatos con examen médico aprobado
+        const solicitud = await Solicitud.findByPk(id_proceso, {
+            include: [{ model: TipoServicio, as: 'tipoServicio', attributes: ['codigo_servicio'] }]
+        });
+        const codigoServicio = (solicitud as any)?.tipoServicio?.codigo_servicio;
+        const esCA = codigoServicio === 'CA';
+
+        if (esCA) {
+            // CA: asegurar que existan registros M5 para cada postulación con al menos un examen médico aprobado
+            const rowsAprobados = await sequelize.query<{ id_postulacion: number }>(
+                `SELECT DISTINCT id_postulacion FROM examen_medico 
+                 WHERE id_solicitud = :id_solicitud AND LOWER(TRIM(estado_aprobacion)) = 'aprobado'`,
+                { replacements: { id_solicitud: id_proceso }, type: QueryTypes.SELECT }
+            );
+            const idsConExamenAprobado = [...new Set((rowsAprobados || []).map((r) => r.id_postulacion))];
+            if (idsConExamenAprobado.length > 0) {
+                const existentes = await EstadoClientePostulacionM5.findAll({
+                    where: { id_postulacion: idsConExamenAprobado },
+                    attributes: ['id_postulacion'],
+                    raw: true
+                });
+                const idsYaEnM5 = new Set(existentes.map((r: any) => r.id_postulacion));
+                const estadoEnEsperaFeedback = 1;
+                const now = new Date();
+                for (const idPost of idsConExamenAprobado) {
+                    if (idsYaEnM5.has(idPost)) continue;
+                    try {
+                        await EstadoClientePostulacionM5.create({
+                            id_postulacion: idPost,
+                            id_estado_cliente_postulacion_m5: estadoEnEsperaFeedback,
+                            fecha_feedback_cliente_m5: undefined,
+                            comentario_modulo5_cliente: undefined,
+                            updated_at: now
+                        });
+                        Logger.info(`[DEBUG] CA: creado estado M5 para postulación ${idPost} (examen aprobado)`);
+                    } catch (err) {
+                        Logger.warn(`[DEBUG] CA: no se pudo crear estado M5 para postulación ${idPost}:`, err);
+                    }
+                }
+            }
+        }
+
         // Primero obtener las postulaciones del proceso
         const postulaciones = await Postulacion.findAll({
             where: { id_solicitud: id_proceso },

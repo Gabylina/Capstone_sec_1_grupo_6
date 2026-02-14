@@ -62,6 +62,8 @@ export interface Process {
   contact_id?: string // Added contact_id to specify which contact is for this process
   service_type: ServiceType
   position_title: string
+  /** Ubicación del cargo (comuna) desde descripción de cargo */
+  ciudad?: string
   description: string
   requirements: string
   vacancies: number

@@ -999,7 +999,9 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
               <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No hay candidatos aprobados</h3>
               <p className="text-muted-foreground">
-                Los candidatos aparecerán aquí cuando sean aprobados por el consultor en el Módulo 4.
+                {process.service_type === 'CA'
+                  ? 'Los candidatos aparecerán aquí cuando tengan al menos un examen médico aprobado en Exámenes Médicos y se avance a Módulo 5.'
+                  : 'Los candidatos aparecerán aquí cuando sean aprobados por el consultor en el Módulo 4.'}
               </p>
             </div>
           )}

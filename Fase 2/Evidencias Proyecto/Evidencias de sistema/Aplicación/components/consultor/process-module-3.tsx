@@ -704,7 +704,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
   // Verificar tipo de servicio (código o nombre)
   const serviceType = (process.service_type as string)?.toLowerCase() || ""
   const tipoServicio = (processAny.tipo_servicio || process.service_type || "").toString().toUpperCase()
-  const isSC = tipoServicio === "SC" || serviceType === "sc"
+  const isSC = tipoServicio === "SC" || tipoServicio === "CA" || serviceType === "sc" || serviceType === "ca"
   
   // Para procesos PC, HS, TR: verificar que candidatos aprobados tengan client_feedback_date
   const approvedCandidates = candidates.filter((c) => c.client_response === "aprobado")
@@ -719,7 +719,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
     processAny.etapa.includes("Módulo 5")
   )
   
-  // Solo Proceso Completo (PC) y Targeted Recruitment (TR) pueden avanzar al módulo 4 (no SC; SC va a Entrevista Técnica)
+  // Solo PC y TR pueden avanzar al módulo 4 (SC y CA van a Entrevista Técnica)
   const canAdvanceToModule4 = !isSC && (serviceType === "proceso_completo" || serviceType === "pc" || 
                               serviceType === "talent_retention" || serviceType === "tr") && 
                               hasApproved && !hasApprovedWithoutFeedback
