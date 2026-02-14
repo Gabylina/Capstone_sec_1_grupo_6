@@ -640,6 +640,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
 
   // Determinar si es proceso de evaluación
   const isEvaluationProcess = process.service_type === "ES" || process.service_type === "EP" || process.service_type === "TS"
+  const isSCProcess = process.service_type === "SC" || (process as any).tipo_servicio === "SC"
 
   // Detectar candidatos con estado de informe definido (no pendiente) para habilitar botón de módulo 5
   useEffect(() => {
@@ -2989,12 +2990,18 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
             <div className="text-center py-12">
               <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">
-                {isEvaluationProcess ? "No hay candidatos para evaluar" : "No hay candidatos aprobados"}
+                {isSCProcess
+                  ? "No hay candidatos listos para evaluación"
+                  : isEvaluationProcess
+                    ? "No hay candidatos para evaluar"
+                    : "No hay candidatos aprobados"}
               </h3>
-              <p className="text-muted-foreground">
-                {isEvaluationProcess
-                  ? "Los candidatos aparecerán aquí cuando se complete el Módulo 1"
-                  : "Primero deben ser aprobados por el cliente en el Módulo 3"}
+              <p className="text-muted-foreground max-w-md mx-auto">
+                {isSCProcess
+                  ? "En procesos San Cristóbal, los candidatos solo aparecen aquí cuando tienen todos sus exámenes médicos aprobados. Revisa el Módulo Exámenes Médicos y asegúrate de que cada candidato tenga todos los exámenes en estado Aprobado."
+                  : isEvaluationProcess
+                    ? "Los candidatos aparecerán aquí cuando se complete el Módulo 1"
+                    : "Primero deben ser aprobados por el cliente en el Módulo 3"}
               </p>
             </div>
           )}

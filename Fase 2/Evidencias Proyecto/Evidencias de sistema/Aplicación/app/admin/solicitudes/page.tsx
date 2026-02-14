@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, Edit } from "lucide-react"
 import Link from "next/link"
-import { formatDate, getStatusColor } from "@/lib/utils"
+import { formatDateShort, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
 import { solicitudService, getCandidatesByProcess, clientService } from "@/lib/api"
@@ -452,50 +452,44 @@ export default function SolicitudesPage() {
             </div>
           ) : (
           <div className="w-full overflow-x-auto lg:overflow-x-visible">
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                   <TableHead className="w-16">ID</TableHead>
-                <TableHead className="min-w-[100px]">Cargo</TableHead>
-                <TableHead className="min-w-[100px]">Cliente</TableHead>
-                <TableHead className="min-w-[120px]">Tipo de Servicio</TableHead>
-                <TableHead className="min-w-[90px]">Consultor</TableHead>
-                <TableHead className="min-w-[150px]">Candidato</TableHead>
+                <TableHead className="min-w-[80px] max-w-[180px]">Cargo</TableHead>
+                <TableHead className="min-w-[80px] max-w-[140px]">Cliente</TableHead>
+                <TableHead className="w-36">Tipo de Servicio</TableHead>
+                <TableHead className="min-w-[80px] max-w-[120px] pl-5">Consultor</TableHead>
+                <TableHead className="min-w-[80px] max-w-[140px]">Candidato</TableHead>
                 <TableHead className="w-28">Estado</TableHead>
-                <TableHead className="w-24">Etapa</TableHead>
+                <TableHead className="min-w-[80px] max-w-[200px]">Etapa</TableHead>
                 <TableHead className="w-32">Fecha Creación</TableHead>
-                <TableHead className="w-20 text-center">Acciones</TableHead>
+                <TableHead className="w-24 shrink-0 text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
                 {solicitudes.map((solicitud) => (
                   <TableRow key={solicitud.id}>
                     <TableCell className="font-mono text-sm">{solicitud.id}</TableCell>
-                    <TableCell className="font-medium">
-                      <div className="whitespace-normal break-words">
-                        {solicitud.cargo}
-                      </div>
+                    <TableCell className="font-medium max-w-[180px]" title={solicitud.cargo}>
+                      <div className="truncate">{solicitud.cargo}</div>
                     </TableCell>
-                    <TableCell>
-                      <div className="whitespace-normal break-words">
-                        {solicitud.cliente}
-                      </div>
+                    <TableCell className="max-w-[140px]" title={solicitud.cliente}>
+                      <div className="truncate">{solicitud.cliente}</div>
                     </TableCell>
                   <TableCell>
                       <Badge variant="outline">
                         {formatServiceName(solicitud.tipo_servicio_nombre || '')}
                       </Badge>
                   </TableCell>
-                    <TableCell>
-                      <div className="whitespace-normal break-words">
-                        {solicitud.consultor}
-                      </div>
+                    <TableCell className="max-w-[120px] pl-5" title={solicitud.consultor}>
+                      <div className="truncate">{solicitud.consultor}</div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[140px]" title={candidatesBySolicitud[solicitud.id.toString()] ? `${candidatesBySolicitud[solicitud.id.toString()]?.nombre} ${candidatesBySolicitud[solicitud.id.toString()]?.apellido}` : undefined}>
                       {loadingCandidates[solicitud.id.toString()] ? (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       ) : candidatesBySolicitud[solicitud.id.toString()] ? (
-                        <div className="whitespace-normal break-words">
+                        <div className="truncate">
                           {candidatesBySolicitud[solicitud.id.toString()]?.nombre} {candidatesBySolicitud[solicitud.id.toString()]?.apellido}
                         </div>
                       ) : (
@@ -507,21 +501,21 @@ export default function SolicitudesPage() {
                           {solicitud.estado_solicitud}
                         </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="max-w-[200px]" title={solicitud.etapa || undefined}>
                     {solicitud.estado_solicitud === 'Creado' ? (
                       <span className="text-sm text-muted-foreground italic">No iniciado</span>
                     ) : solicitud.etapa ? (
                       <span 
-                        className="text-sm text-muted-foreground cursor-help" 
+                        className="text-sm text-muted-foreground cursor-help block truncate" 
                         title={solicitud.etapa}
                       >
-                        {solicitud.etapa.includes('Módulo 5') ? 'Módulo 5: Seguimiento Posterior' : solicitud.etapa}
+                        {solicitud.etapa.includes('Módulo 5') ? 'Módulo 5: Seguimiento...' : solicitud.etapa}
                       </span>
                     ) : (
                       <span className="text-sm text-muted-foreground">Sin etapa</span>
                     )}
                   </TableCell>
-                    <TableCell>{formatDate(solicitud.fecha_creacion || '')}</TableCell>
+                    <TableCell className="whitespace-nowrap">{formatDateShort(solicitud.fecha_creacion || '')}</TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
                         <Button

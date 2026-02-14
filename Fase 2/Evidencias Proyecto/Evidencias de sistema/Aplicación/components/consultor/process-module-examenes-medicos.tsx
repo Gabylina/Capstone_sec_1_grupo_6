@@ -109,6 +109,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
               id: `db-${ex.id_examen_medico}`,
               id_examen_medico: ex.id_examen_medico,
               nombre: ex.nombre_documento || "",
+              detalle: ex.detalle ?? "",
               file: null,
               estado: (ex.estado_aprobacion || "pendiente") as ExamenItem["estado"],
             })
@@ -282,11 +283,12 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
         return
       }
       const data = res.data as any
-      const b64 = data.documento_archivo_base64
+      let b64 = data.documento_archivo_base64
       if (!b64) {
         toast.error("No hay documento guardado")
         return
       }
+      if (typeof b64 === "string" && b64.includes("base64,")) b64 = b64.replace(/^data:[^;]+;base64,/, "")
       const binary = atob(b64)
       const bytes = new Uint8Array(binary.length)
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
@@ -348,6 +350,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
         nombre_documento: nombre,
         documento_archivo_base64: base64,
         estado_aprobacion: addFormEstado,
+        detalle: addFormDetalle.trim() || null,
       })
       if (!res.success) {
         toast.error(res.message || "Error al guardar")
@@ -358,6 +361,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
         id: `db-${created.id_examen_medico}`,
         id_examen_medico: created.id_examen_medico,
         nombre,
+        detalle: addFormDetalle.trim() || undefined,
         estado: addFormEstado,
         file: null,
       }

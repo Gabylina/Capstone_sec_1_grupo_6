@@ -18,11 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { getCandidatesByProcess, solicitudService, entrevistaTecnicaService } from "@/lib/api"
-import { Calendar, Loader2, User, Settings, ChevronDown, ChevronRight } from "lucide-react"
+import { Calendar, Clock, Loader2, User, Settings, ChevronDown, ChevronRight } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 
 interface EntrevistaRow {
   candidatoId: string
@@ -55,6 +57,30 @@ export function ProcessModuleEntrevistaTecnica({ process, readOnly = false, onAd
     detalle: "",
   })
   const [expandedCandidatoId, setExpandedCandidatoId] = useState<string | null>(null)
+
+  // Mismo manejo de fecha/hora que en Módulo 4 (calendario + hora)
+  const parseLocalDateTime = (dateTimeString: string): Date => {
+    if (!dateTimeString) return new Date()
+    const d = new Date(dateTimeString)
+    if (!isNaN(d.getTime())) return d
+    const [datePart, timePart] = dateTimeString.split("T")
+    if (datePart) {
+      const [y, m, day] = datePart.split("-").map(Number)
+      const [h, min] = (timePart || "08:00").split(":").map(Number)
+      return new Date(y, (m || 1) - 1, day || 1, h || 8, min || 0)
+    }
+    return new Date()
+  }
+  const formatDateForInput = (date: Date | string | null | undefined): string => {
+    if (!date) return ""
+    const dateObj = typeof date === "string" ? new Date(date) : date
+    const year = dateObj.getFullYear()
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0")
+    const day = String(dateObj.getDate()).padStart(2, "0")
+    const hour = String(dateObj.getHours()).padStart(2, "0")
+    const minute = String(dateObj.getMinutes()).padStart(2, "0")
+    return `${year}-${month}-${day}T${hour}:${minute}`
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -391,23 +417,128 @@ export function ProcessModuleEntrevistaTecnica({ process, readOnly = false, onAd
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label>Fecha y hora de entrevista</Label>
-              <Input
-                type="datetime-local"
-                value={gestionarForm.fechaHoraEntrevista ? (() => {
-                  try {
-                    const d = new Date(gestionarForm.fechaHoraEntrevista)
-                    const y = d.getFullYear()
-                    const m = String(d.getMonth() + 1).padStart(2, "0")
-                    const day = String(d.getDate()).padStart(2, "0")
-                    const h = String(d.getHours()).padStart(2, "0")
-                    const min = String(d.getMinutes()).padStart(2, "0")
-                    return `${y}-${m}-${day}T${h}:${min}`
-                  } catch {
-                    return gestionarForm.fechaHoraEntrevista
-                  }
-                })() : ""}
-                onChange={(e) => setGestionarForm((f) => ({ ...f, fechaHoraEntrevista: e.target.value ? new Date(e.target.value).toISOString() : "" }))}
-              />
+              <div className="grid grid-cols-2 gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${!gestionarForm.fechaHoraEntrevista ? "text-muted-foreground" : ""}`}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {gestionarForm.fechaHoraEntrevista
+                        ? format(parseLocalDateTime(gestionarForm.fechaHoraEntrevista), "dd/MM/yyyy", { locale: es })
+                        : "Seleccionar fecha"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      captionLayout="dropdown"
+                      fromYear={1900}
+                      toYear={new Date().getFullYear() + 2}
+                      selected={gestionarForm.fechaHoraEntrevista ? parseLocalDateTime(gestionarForm.fechaHoraEntrevista) : undefined}
+                      defaultMonth={gestionarForm.fechaHoraEntrevista ? parseLocalDateTime(gestionarForm.fechaHoraEntrevista) : new Date()}
+                      onSelect={(date) => {
+                        if (date) {
+                          const current = gestionarForm.fechaHoraEntrevista
+                            ? parseLocalDateTime(gestionarForm.fechaHoraEntrevista)
+                            : new Date()
+                          const newDate = new Date(date)
+                          newDate.setHours(current.getHours(), current.getMinutes())
+                          setGestionarForm((f) => ({ ...f, fechaHoraEntrevista: newDate.toISOString() }))
+                        }
+                      }}
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${!gestionarForm.fechaHoraEntrevista ? "text-muted-foreground" : ""}`}
+                    >
+                      <Clock className="mr-2 h-4 w-4" />
+                      {gestionarForm.fechaHoraEntrevista
+                        ? format(parseLocalDateTime(gestionarForm.fechaHoraEntrevista), "HH:mm", { locale: es })
+                        : "Seleccionar hora"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-3" align="start">
+                    <div className="flex items-center gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Hora</Label>
+                        <Select
+                          value={
+                            gestionarForm.fechaHoraEntrevista
+                              ? (() => {
+                                  const hour = parseLocalDateTime(gestionarForm.fechaHoraEntrevista).getHours()
+                                  if (hour < 8 || hour > 20) return "08"
+                                  return String(hour).padStart(2, "0")
+                                })()
+                              : "08"
+                          }
+                          onValueChange={(value) => {
+                            const current = gestionarForm.fechaHoraEntrevista
+                              ? parseLocalDateTime(gestionarForm.fechaHoraEntrevista)
+                              : new Date()
+                            const newDate = new Date(current)
+                            const h = parseInt(value, 10)
+                            if (h >= 8 && h <= 20) {
+                              newDate.setHours(h)
+                              setGestionarForm((f) => ({ ...f, fechaHoraEntrevista: newDate.toISOString() }))
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {Array.from({ length: 13 }, (_, i) => {
+                              const hour = i + 8
+                              return (
+                                <SelectItem key={hour} value={String(hour).padStart(2, "0")}>
+                                  {String(hour).padStart(2, "0")}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <span className="text-lg font-semibold mt-6">:</span>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Minutos</Label>
+                        <Select
+                          value={
+                            gestionarForm.fechaHoraEntrevista
+                              ? String(parseLocalDateTime(gestionarForm.fechaHoraEntrevista).getMinutes()).padStart(2, "0")
+                              : "00"
+                          }
+                          onValueChange={(value) => {
+                            const current = gestionarForm.fechaHoraEntrevista
+                              ? parseLocalDateTime(gestionarForm.fechaHoraEntrevista)
+                              : new Date()
+                            const newDate = new Date(current)
+                            newDate.setMinutes(parseInt(value, 10))
+                            setGestionarForm((f) => ({ ...f, fechaHoraEntrevista: newDate.toISOString() }))
+                          }}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[200px]">
+                            {Array.from({ length: 60 }, (_, i) => (
+                              <SelectItem key={i} value={String(i).padStart(2, "0")}>
+                                {String(i).padStart(2, "0")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             <div className="grid gap-2">
               <Label>Estado</Label>

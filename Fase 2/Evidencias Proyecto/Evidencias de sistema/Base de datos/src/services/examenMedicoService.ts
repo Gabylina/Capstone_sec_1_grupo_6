@@ -20,7 +20,7 @@ export class ExamenMedicoService {
     static async getBySolicitud(idSolicitud: number, includeFile = false) {
         return ExamenMedico.findAll({
             where: { id_solicitud: idSolicitud },
-            attributes: includeFile ? undefined : ['id_examen_medico', 'id_postulacion', 'id_solicitud', 'nombre_documento', 'estado_aprobacion'],
+            attributes: includeFile ? undefined : ['id_examen_medico', 'id_postulacion', 'id_solicitud', 'nombre_documento', 'estado_aprobacion', 'detalle'],
             order: [['id_examen_medico', 'ASC']]
         });
     }
@@ -31,7 +31,7 @@ export class ExamenMedicoService {
     static async getByPostulacion(idPostulacion: number, includeFile = false) {
         return ExamenMedico.findAll({
             where: { id_postulacion: idPostulacion },
-            attributes: includeFile ? undefined : ['id_examen_medico', 'id_postulacion', 'id_solicitud', 'nombre_documento', 'estado_aprobacion'],
+            attributes: includeFile ? undefined : ['id_examen_medico', 'id_postulacion', 'id_solicitud', 'nombre_documento', 'estado_aprobacion', 'detalle'],
             order: [['id_examen_medico', 'ASC']]
         });
     }

@@ -75,6 +75,18 @@ export function formatDateOnly(date: string | Date): string {
   })
 }
 
+/** Formato corto numérico para tablas (DD/MM/YYYY), evita solapamientos */
+export function formatDateShort(date: string | Date): string {
+  if (!date) return ""
+  const d = typeof date === "string" ? new Date(date) : date
+  if (isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("es-CL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",

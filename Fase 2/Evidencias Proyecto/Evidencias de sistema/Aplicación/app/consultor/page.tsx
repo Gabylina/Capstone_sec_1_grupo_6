@@ -37,7 +37,7 @@ const getStatusColor = (status: string) => {
   return colors[status] || "bg-gray-100 text-gray-800"
 }
 
-import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
+import { serviceTypeLabels, processStatusLabels, formatDateShort } from "@/lib/utils"
 
 export default function ConsultorPage() {
   const { user } = useAuth()
@@ -324,18 +324,18 @@ export default function ConsultorPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">Sol.</TableHead>
                   <TableHead className="w-16">Días</TableHead>
                   <TableHead className="w-14">Vac.</TableHead>
-                  <TableHead>Candidato</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Servicio</TableHead>
+                  <TableHead className="min-w-[100px] max-w-[140px]">Candidato</TableHead>
+                  <TableHead className="min-w-[80px] max-w-[180px]">Cargo</TableHead>
+                  <TableHead className="min-w-[80px] max-w-[140px]">Cliente</TableHead>
+                  <TableHead className="w-28">Servicio</TableHead>
                   <TableHead className="w-24">Fecha</TableHead>
-                  <TableHead className="w-20">Acciones</TableHead>
+                  <TableHead className="w-28 shrink-0">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -349,22 +349,22 @@ export default function ConsultorPage() {
                     <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell>{getDiasTranscurridos(process)}</TableCell>
                     <TableCell>{vacantesStr}</TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[140px]" title={candidato ? `${candidato.nombre} ${candidato.apellido}`.trim() : undefined}>
                       {loadingCandidates[process.id] ? (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       ) : candidato ? (
-                        `${candidato.nombre} ${candidato.apellido}`.trim()
+                        <span className="block truncate">{`${candidato.nombre} ${candidato.apellido}`.trim()}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">
-                      {process.cargo || process.position_title || <span className="text-muted-foreground">—</span>}
+                    <TableCell className="font-medium max-w-[180px]" title={process.cargo || process.position_title || undefined}>
+                      <span className="block truncate">{process.cargo || process.position_title || '—'}</span>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {process.cliente}
+                    <TableCell className="max-w-[140px]" title={process.cliente}>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Building2 className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{process.cliente}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -373,7 +373,7 @@ export default function ConsultorPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>{new Date(process.created_at || process.fecha_creacion).toLocaleDateString()}</TableCell>
-                    <TableCell>
+                    <TableCell className="shrink-0">
                       <Button
                         size="sm"
                         onClick={() => handleStartProcess(process.id)}
@@ -502,20 +502,20 @@ export default function ConsultorPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
+            <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">Sol.</TableHead>
                   <TableHead className="w-16">Días</TableHead>
                   <TableHead className="w-14">Vac.</TableHead>
-                  <TableHead>Candidato</TableHead>
-                  <TableHead>Cargo</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Servicio</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Etapa</TableHead>
+                  <TableHead className="min-w-[100px] max-w-[140px]">Candidato</TableHead>
+                  <TableHead className="min-w-[80px] max-w-[180px]">Cargo</TableHead>
+                  <TableHead className="min-w-[80px] max-w-[140px]">Cliente</TableHead>
+                  <TableHead className="min-w-[80px] max-w-[120px]">Servicio</TableHead>
+                  <TableHead className="w-28 pl-4">Estado</TableHead>
+                  <TableHead className="min-w-[80px] max-w-[200px]">Etapa</TableHead>
                   <TableHead className="w-24">Fecha</TableHead>
-                  <TableHead className="w-20">Acciones</TableHead>
+                  <TableHead className="w-28 shrink-0">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -529,41 +529,45 @@ export default function ConsultorPage() {
                     <TableCell className="font-semibold text-blue-600">{process.id}</TableCell>
                     <TableCell>{getDiasTranscurridos(process)}</TableCell>
                     <TableCell>{vacantesStr}</TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-[140px]" title={candidato ? `${candidato.nombre} ${candidato.apellido}`.trim() : undefined}>
                       {loadingCandidates[process.id] ? (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       ) : candidato ? (
-                        `${candidato.nombre} ${candidato.apellido}`.trim()
+                        <span className="block truncate">{`${candidato.nombre} ${candidato.apellido}`.trim()}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">
-                      {process.cargo || process.position_title || <span className="text-muted-foreground">—</span>}
+                    <TableCell className="font-medium max-w-[180px]" title={process.cargo || process.position_title || undefined}>
+                      <span className="block truncate">{process.cargo || process.position_title || '—'}</span>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {process.cliente}
+                    <TableCell className="max-w-[140px]" title={process.cliente}>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <Building2 className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{process.cliente}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
-                      </Badge>
+                    <TableCell className="max-w-[120px]" title={serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}>
+                      <div className="min-w-0 truncate">
+                        <Badge variant="outline" className="text-xs max-w-full truncate inline-block">
+                          {serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}
+                        </Badge>
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pl-4 shrink-0">
                       <Badge className={getStatusColor(process.status)}>
                         {process.estado_solicitud || processStatusLabels[process.status]}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">{process.etapa?.includes('Módulo 5') ? 'Módulo 5: Seguimiento Posterior' : (process.etapa || 'Sin etapa')}</div>
+                    <TableCell className="max-w-[200px]" title={process.etapa || undefined}>
+                      <div className="text-sm text-muted-foreground truncate" title={process.etapa || undefined}>
+                        {process.etapa?.includes('Módulo 5') ? 'Módulo 5: Seguimiento...' : (process.etapa || 'Sin etapa')}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      {new Date(process.started_at || process.completed_at || process.fecha_creacion).toLocaleDateString()}
+                    <TableCell className="whitespace-nowrap">
+                      {formatDateShort(process.started_at || process.completed_at || process.fecha_creacion)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="shrink-0">
                       <Button asChild size="sm" variant={process.estado_solicitud === "Cerrado" ? "outline" : "default"}>
                         <Link href={`/consultor/proceso/${process.id}`}>
                           <Eye className="mr-2 h-4 w-4" />
