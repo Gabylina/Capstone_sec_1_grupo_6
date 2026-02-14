@@ -12,9 +12,10 @@ export interface ExamenMedicoAttributes {
     nombre_documento: string | null;
     documento_archivo: Buffer | null;
     estado_aprobacion: string;
+    detalle: string | null;
 }
 
-export interface ExamenMedicoCreationAttributes extends Optional<ExamenMedicoAttributes, 'id_examen_medico' | 'nombre_documento' | 'documento_archivo'> { }
+export interface ExamenMedicoCreationAttributes extends Optional<ExamenMedicoAttributes, 'id_examen_medico' | 'nombre_documento' | 'documento_archivo' | 'detalle'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -27,6 +28,7 @@ class ExamenMedico extends Model<ExamenMedicoAttributes, ExamenMedicoCreationAtt
     public nombre_documento!: string | null;
     public documento_archivo!: Buffer | null;
     public estado_aprobacion!: string;
+    public detalle!: string | null;
 }
 
 // ===========================================
@@ -74,6 +76,10 @@ ExamenMedico.init({
                 msg: 'Estado debe ser pendiente, aprobado o rechazado'
             }
         }
+    },
+    detalle: {
+        type: DataTypes.TEXT,
+        allowNull: true
     }
 }, {
     sequelize,

@@ -1569,6 +1569,7 @@ export const examenMedicoService = {
     nombre_documento?: string | null;
     documento_archivo_base64?: string | null;
     estado_aprobacion?: string;
+    detalle?: string | null;
   }): Promise<ApiResponse<any>> {
     return apiRequest('/api/examenes-medicos', {
       method: 'POST',
@@ -1579,6 +1580,7 @@ export const examenMedicoService = {
     nombre_documento: string | null;
     documento_archivo_base64: string | null;
     estado_aprobacion: string;
+    detalle: string | null;
   }>): Promise<ApiResponse<any>> {
     return apiRequest(`/api/examenes-medicos/${id}`, {
       method: 'PUT',

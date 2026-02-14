@@ -7,6 +7,7 @@ export interface ExamenMedicoInput {
     /** Base64 string del archivo (PDF/imagen) para guardar en BD */
     documento_archivo_base64?: string | null;
     estado_aprobacion?: string;
+    detalle?: string | null;
 }
 
 /**
@@ -57,7 +58,8 @@ export class ExamenMedicoService {
             id_solicitud: data.id_solicitud,
             nombre_documento: data.nombre_documento ?? null,
             documento_archivo: buffer,
-            estado_aprobacion: data.estado_aprobacion ?? 'pendiente'
+            estado_aprobacion: data.estado_aprobacion ?? 'pendiente',
+            detalle: data.detalle ?? null
         });
     }
 
@@ -69,6 +71,7 @@ export class ExamenMedicoService {
         if (!examen) return null;
         if (data.nombre_documento !== undefined) examen.nombre_documento = data.nombre_documento;
         if (data.estado_aprobacion !== undefined) examen.estado_aprobacion = data.estado_aprobacion;
+        if (data.detalle !== undefined) examen.detalle = data.detalle;
         if (data.documento_archivo_base64 !== undefined) {
             if (data.documento_archivo_base64) {
                 const base64 = data.documento_archivo_base64.replace(/^data:[^;]+;base64,/, '');

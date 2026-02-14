@@ -65,14 +65,15 @@ export class ExamenMedicoController {
      */
     static async create(req: Request, res: Response): Promise<Response> {
         try {
-            const { id_postulacion, id_solicitud, nombre_documento, documento_archivo_base64, estado_aprobacion } = req.body;
+            const { id_postulacion, id_solicitud, nombre_documento, documento_archivo_base64, estado_aprobacion, detalle } = req.body;
             if (!id_postulacion || !id_solicitud) return sendError(res, 'id_postulacion e id_solicitud son requeridos', 400);
             const examen = await ExamenMedicoService.create({
                 id_postulacion: Number(id_postulacion),
                 id_solicitud: Number(id_solicitud),
                 nombre_documento: nombre_documento || null,
                 documento_archivo_base64: documento_archivo_base64 || null,
-                estado_aprobacion: estado_aprobacion || 'pendiente'
+                estado_aprobacion: estado_aprobacion || 'pendiente',
+                detalle: detalle ?? null
             });
             return sendSuccess(res, examen, 'Examen creado', 201);
         } catch (error) {
@@ -88,11 +89,12 @@ export class ExamenMedicoController {
         try {
             const id = parseInt(req.params.id);
             if (isNaN(id)) return sendError(res, 'ID inválido', 400);
-            const { nombre_documento, documento_archivo_base64, estado_aprobacion } = req.body;
+            const { nombre_documento, documento_archivo_base64, estado_aprobacion, detalle } = req.body;
             const examen = await ExamenMedicoService.update(id, {
                 nombre_documento,
                 documento_archivo_base64,
-                estado_aprobacion
+                estado_aprobacion,
+                detalle
             });
             if (!examen) return sendError(res, 'Examen no encontrado', 404);
             return sendSuccess(res, examen, 'Examen actualizado');

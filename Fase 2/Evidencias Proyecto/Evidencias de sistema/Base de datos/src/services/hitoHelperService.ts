@@ -1,5 +1,5 @@
 import { Transaction, Op } from 'sequelize';
-import { HitoSolicitud } from '@/models';
+import { HitoSolicitud, EtapaSolicitud } from '@/models';
 import { Logger } from '@/utils/logger';
 
 /**
@@ -101,9 +101,33 @@ export class HitoHelperService {
         transaction?: Transaction
     ): Promise<void> {
         try {
-            // Mapeo de transiciones de etapa a nombres de hitos
+            // San Cristóbal (SC): marcar el hito que corresponde a la etapa que se DEJA (avanzar = completar el hito anterior)
+            if (codigoServicio === 'SC') {
+                const etapaAnterior = await EtapaSolicitud.findByPk(idEtapaAnterior, { transaction });
+                if (!etapaAnterior) return;
+                const nombreEtapa = (etapaAnterior.nombre_etapa || '').trim();
+                let nombreHito: string | null = null;
+                if (idEtapaAnterior === 1 || nombreEtapa.toLowerCase().includes('módulo 1')) {
+                    nombreHito = 'Inicio del proceso';
+                } else if (nombreEtapa.includes('Módulo 2') || nombreEtapa.includes('Publicación y Registro')) {
+                    nombreHito = 'Gestión de candidatos';
+                } else if (nombreEtapa.includes('Módulo 3') || nombreEtapa.includes('Presentación de Candidatos')) {
+                    nombreHito = 'Presentación de candidatos';
+                } else if (nombreEtapa.includes('Entrevista Técnica')) {
+                    nombreHito = 'Entrevista Técnica';
+                } else if (nombreEtapa.includes('Exámenes Médicos')) {
+                    nombreHito = 'Exámenes Médicos';
+                } else if (nombreEtapa.includes('Módulo 4') || nombreEtapa.includes('Evaluación Psicolaboral')) {
+                    nombreHito = 'Evaluaciones psicolaborales';
+                }
+                if (nombreHito) {
+                    await this.marcarCumplimientoHito(idSolicitud, nombreHito, new Date(), transaction);
+                }
+                return;
+            }
+
+            // Mapeo de transiciones de etapa a nombres de hitos (PC, HH)
             const serviciosProcesosCompletos = ['PC', 'HH'];
-            const serviciosLongList = ['LL', 'TR', 'FI'];
 
             // Transición de Módulo 2 → Módulo 3 (Etapa 2 → 3)
             if (idEtapaAnterior === 2 && idEtapaNueva === 3) {
@@ -118,7 +142,6 @@ export class HitoHelperService {
             }
 
             // Transición de Módulo 3 → Módulo 4 (Etapa 3 → 4)
-            // Solo para PC y HH - LL, FI, TR marcan su hito al finalizar la solicitud
             if (idEtapaAnterior === 3 && idEtapaNueva === 4) {
                 if (serviciosProcesosCompletos.includes(codigoServicio)) {
                     await this.marcarCumplimientoHito(
@@ -210,6 +233,8 @@ export class HitoHelperService {
                 // Long List, Filtro Inteligente, Target Recruitment y Head Hunting
                 // completan su hito al finalizar la solicitud
                 nombreHito = 'Presentación de candidatos';
+            } else if (codigoServicio === 'SC') {
+                nombreHito = 'Cierre del proceso';
             }
 
             if (nombreHito) {

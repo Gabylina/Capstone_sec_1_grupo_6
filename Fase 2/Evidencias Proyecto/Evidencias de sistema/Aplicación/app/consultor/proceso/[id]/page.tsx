@@ -191,11 +191,15 @@ export default function ProcessPage({ params }: ProcessPageProps) {
             // Si falla (ej. sin plantillas para el servicio), se mantiene lista vacía
           }
         }
+        const serviceTypeForHitos = response.data.tipo_servicio || response.data.service_type
         const mapHitosToFrontend = (data: typeof hitosData): Hito[] =>
           data.map((hito: any) => {
             let status: Hito['status'] = 'pendiente'
             if (hito.fecha_cumplimiento) status = 'completado'
-            else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) status = 'vencido'
+            else if (serviceTypeForHitos === 'SC') {
+              // San Cristóbal: no usar vencido (plazos no son fijos), solo en progreso o pendiente
+              status = hito.fecha_base ? 'en_progreso' : 'pendiente'
+            } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) status = 'vencido'
             else if (hito.fecha_base && hito.fecha_limite) status = 'en_progreso'
             return {
               id: hito.id_hito_solicitud.toString(),

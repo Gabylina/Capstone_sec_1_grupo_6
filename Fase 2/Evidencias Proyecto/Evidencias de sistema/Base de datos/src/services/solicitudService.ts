@@ -890,6 +890,24 @@ export class SolicitudService {
 
             await transaction.commit();
 
+            // San Cristóbal (SC): activar el siguiente hito (fecha_base/fecha_limite) según la nueva etapa
+            if (tipoServicio?.codigo_servicio === 'SC' && etapa?.nombre_etapa) {
+                const nombreEtapa = (etapa.nombre_etapa as string).trim();
+                let tipoAncla: string | null = null;
+                if (nombreEtapa.includes('Módulo 2') || nombreEtapa.includes('Publicación y Registro')) tipoAncla = 'publicacion';
+                else if (nombreEtapa.includes('Módulo 3') || nombreEtapa.includes('Presentación de Candidatos')) tipoAncla = 'primera_presentacion';
+                else if (nombreEtapa.includes('Entrevista Técnica')) tipoAncla = 'entrevista_tecnica';
+                else if (nombreEtapa.includes('Exámenes Médicos')) tipoAncla = 'examenes_medicos';
+                else if (nombreEtapa.includes('Módulo 4') || nombreEtapa.includes('Evaluación Psicolaboral')) tipoAncla = 'evaluacion_psicolaboral';
+                if (tipoAncla) {
+                    try {
+                        await HitoSolicitudService.activarHitosPorEvento(id, tipoAncla, new Date(), usuarioRut);
+                    } catch (e) {
+                        console.warn('No se pudo activar hito por evento para SC:', e);
+                    }
+                }
+            }
+
             return { id, etapa: etapa.nombre_etapa };
         } catch (error) {
             await transaction.rollback();
@@ -909,10 +927,15 @@ export class SolicitudService {
                 await setDatabaseUser(usuarioRut, transaction);
             }
 
-            const solicitud = await Solicitud.findByPk(id);
+            const solicitud = await Solicitud.findByPk(id, {
+                include: [{ model: TipoServicio, as: 'tipoServicio' }],
+                transaction
+            });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
+
+            const idEtapaAnterior = solicitud.id_etapa_solicitud;
 
             // Buscar la etapa "Módulo 2: Publicación y Registro de Candidatos"
             console.log('🔍 Buscando etapa Módulo 2...');
@@ -940,6 +963,18 @@ export class SolicitudService {
                 id_estado_solicitud: 2, // En Progreso
                 fecha_cambio_estado_solicitud: new Date()
             }, { transaction });
+
+            // Marcar cumplimiento de hitos según el cambio de etapa (M1 → M2; para SC: "Inicio del proceso")
+            const tipoServicio = (solicitud as any).get('tipoServicio') as any;
+            if (tipoServicio && idEtapaAnterior) {
+                await HitoHelperService.marcarHitoPorCambioEtapa(
+                    id,
+                    idEtapaAnterior,
+                    etapaModulo2.id_etapa_solicitud,
+                    tipoServicio.codigo_servicio,
+                    transaction
+                );
+            }
 
             await transaction.commit();
 

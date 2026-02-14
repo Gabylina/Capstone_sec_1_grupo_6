@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { getCandidatesByProcess, solicitudService, examenMedicoService, entrevistaTecnicaService } from "@/lib/api"
 import { DocumentViewerDialog } from "./document-viewer-dialog"
@@ -26,6 +27,7 @@ export interface ExamenItem {
   id: string
   id_examen_medico?: number
   nombre: string
+  detalle?: string
   file: File | null
   estado: "pendiente" | "aprobado" | "rechazado"
 }
@@ -54,6 +56,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [addDialogCandidatoId, setAddDialogCandidatoId] = useState<string | null>(null)
   const [addFormNombre, setAddFormNombre] = useState("")
+  const [addFormDetalle, setAddFormDetalle] = useState("")
   const [addFormFile, setAddFormFile] = useState<File | null>(null)
   const [addFormEstado, setAddFormEstado] = useState<ExamenItem["estado"]>("pendiente")
   const [isSavingAdd, setIsSavingAdd] = useState(false)
@@ -62,6 +65,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
   const [ajustesExamen, setAjustesExamen] = useState<ExamenItem | null>(null)
   const [ajustesCandidatoId, setAjustesCandidatoId] = useState<string | null>(null)
   const [ajustesNombre, setAjustesNombre] = useState("")
+  const [ajustesDetalle, setAjustesDetalle] = useState("")
   const [ajustesFile, setAjustesFile] = useState<File | null>(null)
   const [ajustesEstado, setAjustesEstado] = useState<ExamenItem["estado"]>("pendiente")
   const [isSavingAjustes, setIsSavingAjustes] = useState(false)
@@ -132,7 +136,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
   const addExamen = (candidatoId: string) => {
     setExamenesPorCandidato((prev) => ({
       ...prev,
-      [candidatoId]: [...(prev[candidatoId] || []), { id: generateId(), nombre: "", file: null, estado: "pendiente" }],
+      [candidatoId]: [...(prev[candidatoId] || []), { id: generateId(), nombre: "", detalle: "", file: null, estado: "pendiente" }],
     }))
   }
 
@@ -187,9 +191,10 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     }
     try {
       if (ex.id_examen_medico != null) {
-        const payload: { nombre_documento?: string; documento_archivo_base64?: string; estado_aprobacion?: string } = {
+        const payload: { nombre_documento?: string; documento_archivo_base64?: string; estado_aprobacion?: string; detalle?: string | null } = {
           nombre_documento: ex.nombre || undefined,
           estado_aprobacion: ex.estado,
+          detalle: ex.detalle ?? null,
         }
         if (ex.file) payload.documento_archivo_base64 = await fileToBase64(ex.file)
         const res = await examenMedicoService.update(ex.id_examen_medico, payload)
@@ -197,7 +202,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
           toast.error(res.message || "Error al actualizar")
           return false
         }
-        // Actualizar solo el examen en memoria (estado, nombre, archivo) para refrescar el colapsable
+        // Actualizar solo el examen en memoria (estado, nombre, detalle, archivo) para refrescar el colapsable
         setExamenesPorCandidato((prev) => ({
           ...prev,
           [candidatoId]: (prev[candidatoId] || []).map((e) =>
@@ -205,6 +210,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
               ? {
                   ...e,
                   nombre: ex.nombre,
+                  detalle: ex.detalle,
                   estado: ex.estado,
                   file: ex.file || e.file,
                 }
@@ -222,6 +228,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
           nombre_documento: ex.nombre || null,
           documento_archivo_base64: base64,
           estado_aprobacion: ex.estado,
+          detalle: ex.detalle ?? null,
         })
         if (!res.success) {
           toast.error(res.message || "Error al guardar")
@@ -231,7 +238,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
         setExamenesPorCandidato((prev) => ({
           ...prev,
           [candidatoId]: (prev[candidatoId] || []).map((e) =>
-            e.id === ex.id ? { ...e, id: `db-${created.id_examen_medico}`, id_examen_medico: created.id_examen_medico, file: null } : e
+            e.id === ex.id ? { ...e, id: `db-${created.id_examen_medico}`, id_examen_medico: created.id_examen_medico, detalle: ex.detalle, file: null } : e
           ),
         }))
         toast.success("Examen guardado")
@@ -297,6 +304,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
   const openAddDialog = (candidatoId: string) => {
     setAddDialogCandidatoId(candidatoId)
     setAddFormNombre("")
+    setAddFormDetalle("")
     setAddFormFile(null)
     setAddFormEstado("pendiente")
     if (addFormFileInputRef.current) addFormFileInputRef.current.value = ""
@@ -307,6 +315,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     setShowAddDialog(false)
     setAddDialogCandidatoId(null)
     setAddFormNombre("")
+    setAddFormDetalle("")
     setAddFormFile(null)
     setAddFormEstado("pendiente")
     if (addFormFileInputRef.current) addFormFileInputRef.current.value = ""
@@ -372,6 +381,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     setAjustesCandidatoId(candidatoId)
     setAjustesExamen(ex)
     setAjustesNombre(ex.nombre || "")
+    setAjustesDetalle(ex.detalle ?? "")
     setAjustesFile(ex.file || null)
     setAjustesEstado(ex.estado)
     if (ajustesFileInputRef.current) ajustesFileInputRef.current.value = ""
@@ -383,6 +393,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
     setAjustesExamen(null)
     setAjustesCandidatoId(null)
     setAjustesNombre("")
+    setAjustesDetalle("")
     setAjustesFile(null)
     setAjustesEstado("pendiente")
     if (ajustesFileInputRef.current) ajustesFileInputRef.current.value = ""
@@ -395,6 +406,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
       const ex: ExamenItem = {
         ...ajustesExamen,
         nombre: ajustesNombre.trim() || ajustesExamen.nombre,
+        detalle: ajustesDetalle.trim() || undefined,
         estado: ajustesEstado,
         file: ajustesFile || ajustesExamen.file,
       }
@@ -577,6 +589,11 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
                                         <span className="font-medium text-sm min-w-[140px]">
                                           {ex.nombre || "Sin nombre"}
                                         </span>
+                                        {ex.detalle ? (
+                                          <span className="text-sm text-muted-foreground max-w-[280px] truncate" title={ex.detalle}>
+                                            {ex.detalle}
+                                          </span>
+                                        ) : null}
                                         <span className="text-sm text-muted-foreground">Ver estado:</span>
                                         <Badge className={estadoColor(ex.estado)}>
                                           {ex.estado === "aprobado" ? "Aprobado" : ex.estado === "rechazado" ? "Rechazado" : "Pendiente"}
@@ -672,6 +689,17 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="add-detalle">Detalle</Label>
+              <Textarea
+                id="add-detalle"
+                value={addFormDetalle}
+                onChange={(e) => setAddFormDetalle(e.target.value)}
+                placeholder="Descripción o detalle del documento (opcional)"
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+            <div className="grid gap-2">
               <Label htmlFor="add-archivo">Archivo (PDF o imagen)</Label>
               <Input
                 id="add-archivo"
@@ -727,6 +755,17 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
                 value={ajustesNombre}
                 onChange={(e) => setAjustesNombre(e.target.value)}
                 placeholder="Ej: Hemograma, Radiografía"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="ajustes-detalle">Detalle</Label>
+              <Textarea
+                id="ajustes-detalle"
+                value={ajustesDetalle}
+                onChange={(e) => setAjustesDetalle(e.target.value)}
+                placeholder="Descripción o detalle del documento (opcional)"
+                rows={3}
+                className="resize-none"
               />
             </div>
             <div className="grid gap-2">

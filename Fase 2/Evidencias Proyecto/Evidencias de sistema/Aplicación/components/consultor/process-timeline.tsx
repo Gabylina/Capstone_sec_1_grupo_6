@@ -13,6 +13,8 @@ interface ProcessTimelineProps {
 }
 
 export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelineProps) {
+  const isSanCristobal = (process?.tipo_servicio || process?.service_type) === "SC"
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completado":
@@ -67,7 +69,7 @@ export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelinePro
                       <p className="font-medium">{formatDate(hito.start_date)}</p>
                     </div>
                   )}
-                  {hito.due_date && (
+                  {!isSanCristobal && hito.due_date && (
                     <div>
                       <span className="text-muted-foreground">Fecha Límite:</span>
                       <p className="font-medium">{formatDate(hito.due_date)}</p>
@@ -79,20 +81,24 @@ export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelinePro
                       <p className="font-medium">{formatDate(hito.completed_date)}</p>
                     </div>
                   )}
-                  <div>
-                    <span className="text-muted-foreground">Duración:</span>
-                    <p className="font-medium">{hito.duration_days} días</p>
-                  </div>
-                </div>
-
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium">Disparador:</span> {hito.start_trigger}
-                  {hito.anticipation_days > 0 && (
-                    <span className="ml-4">
-                      <span className="font-medium">Anticipación:</span> {hito.anticipation_days} días
-                    </span>
+                  {!isSanCristobal && (
+                    <div>
+                      <span className="text-muted-foreground">Duración:</span>
+                      <p className="font-medium">{hito.duration_days} días</p>
+                    </div>
                   )}
                 </div>
+
+                {!isSanCristobal && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">Disparador:</span> {hito.start_trigger}
+                    {hito.anticipation_days > 0 && (
+                      <span className="ml-4">
+                        <span className="font-medium">Anticipación:</span> {hito.anticipation_days} días
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
