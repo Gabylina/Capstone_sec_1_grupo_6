@@ -71,7 +71,7 @@ export function TokenExpiredDialog({ open, onOpenChange }: TokenExpiredDialogPro
         // Mostrar mensaje de éxito
         toast({
           title: "Sesión renovada",
-          description: "Tu sesión ha sido renovada exitosamente. Tienes 2 horas más.",
+          description: "Tu sesión ha sido renovada exitosamente. Tienes 8 horas más.",
           variant: "default",
         })
         
@@ -119,10 +119,10 @@ export function TokenExpiredDialog({ open, onOpenChange }: TokenExpiredDialogPro
           </DialogDescription>
           <div className="mt-4 p-3 bg-muted rounded-md space-y-2">
             <p className="text-sm text-muted-foreground">
-              <strong>Nota:</strong> El token de sesión tiene una duración de <strong>2 horas</strong> por seguridad.
+              <strong>Nota:</strong> El token de sesión tiene una duración de <strong>8 horas</strong> por seguridad.
             </p>
             <p className="text-sm text-muted-foreground">
-              • <strong>Renovar Sesión:</strong> Obtén 2 horas más automáticamente 
+              • <strong>Renovar Sesión:</strong> Obtén 8 horas más automáticamente 
             </p>
             <p className="text-sm text-muted-foreground">
               • <strong>Ir a Iniciar Sesión:</strong> Ingresa con tu email y contraseña nuevamente
