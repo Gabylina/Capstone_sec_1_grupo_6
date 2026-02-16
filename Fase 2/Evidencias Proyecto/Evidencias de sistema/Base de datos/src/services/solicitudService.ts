@@ -1529,23 +1529,23 @@ export class SolicitudService {
      */
     static async getActiveProcessesByConsultant(): Promise<Record<string, number>> {
         try {
-            // Query SQL optimizada: solo trae lo necesario
-            // Usa CTE para obtener el estado más reciente de cada solicitud y filtra solo activos
+            // Misma definición que getProcessStats: id_estado_solicitud IN (1, 2) = Iniciado / En Progreso
             const [results] = await sequelize.query(`
-                WITH estado_actual AS (
-                    SELECT DISTINCT ON (esh.id_solicitud)
-                        esh.id_solicitud,
-                        es.nombre_estado_solicitud
-                    FROM estado_solicitud_hist esh
-                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
-                    WHERE es.nombre_estado_solicitud IN ('En Progreso', 'Iniciado', 'Abierto')
-                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                WITH ult AS (
+                    SELECT
+                        id_solicitud,
+                        id_estado_solicitud,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY id_solicitud
+                            ORDER BY fecha_cambio_estado_solicitud DESC
+                        ) AS rn
+                    FROM estado_solicitud_hist
                 )
                 SELECT 
                     COALESCE(u.nombre_usuario, 'Sin asignar') as consultor,
                     COUNT(*) as cantidad
                 FROM solicitud s
-                INNER JOIN estado_actual ea ON s.id_solicitud = ea.id_solicitud
+                INNER JOIN ult ON s.id_solicitud = ult.id_solicitud AND ult.rn = 1 AND ult.id_estado_solicitud IN (1, 2)
                 LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
                 WHERE s.rut_usuario IS NOT NULL
                 GROUP BY u.nombre_usuario
@@ -1739,7 +1739,7 @@ export class SolicitudService {
         return { startDate, endDate };
     }
 
-    static async getProcessStats(): Promise<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }> {
+    static async getProcessStats(): Promise<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount: number }> {
         try {
             // 1. Procesos activos: contar solicitudes con estado más reciente = 1 o 2 (Iniciado/En Progreso)
             const [activeResult] = await sequelize.query(`
@@ -1759,6 +1759,25 @@ export class SolicitudService {
                   AND id_estado_solicitud IN (1, 2)
             `, { skipUserContext: true } as any);
             const activeProcesses = parseInt((activeResult?.[0] as any)?.activos || '0');
+
+            // 1b. Procesos pausados: estado Congelado (id 4) o Pausado
+            const [pausedResult] = await sequelize.query(`
+                WITH ult AS (
+                    SELECT
+                        id_solicitud,
+                        id_estado_solicitud,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY id_solicitud
+                            ORDER BY fecha_cambio_estado_solicitud DESC
+                        ) AS rn
+                    FROM estado_solicitud_hist
+                )
+                SELECT COUNT(*) as pausados
+                FROM ult
+                WHERE rn = 1
+                  AND id_estado_solicitud = 4
+            `, { skipUserContext: true } as any);
+            const pausedCount = parseInt((pausedResult?.[0] as any)?.pausados || '0');
 
             // 2. Tiempo promedio de contratación: calcular desde fecha_ingreso_solicitud hasta fecha_ingreso_contratacion
             const [timeResult] = await sequelize.query(`
@@ -1787,7 +1806,8 @@ export class SolicitudService {
             return {
                 activeProcesses,
                 avgTimeToHire,
-                totalCandidates
+                totalCandidates,
+                pausedCount
             };
         } catch (error: any) {
             console.error('Error al obtener estadísticas de procesos:', error);
@@ -2016,6 +2036,60 @@ export class SolicitudService {
             overdueCount: number;
             dueSoonProcesses: Array<number>;
             overdueProcesses: Array<number>;
+            dueSoonProcessesDetails: Array<{
+                id: number;
+                client: string;
+                position: string;
+                serviceCode: string;
+                serviceName: string;
+                consultant: string;
+                status: string;
+                statusRaw: string;
+                startDate: string | null;
+                deadline: string | null;
+                closedAt: string | null;
+                daysOpen: number | null;
+                daysUntilDeadline: number | null;
+                urgency: string;
+            }>;
+            overdueProcessesDetails: Array<{
+                id: number;
+                client: string;
+                position: string;
+                serviceCode: string;
+                serviceName: string;
+                consultant: string;
+                status: string;
+                statusRaw: string;
+                startDate: string | null;
+                deadline: string | null;
+                closedAt: string | null;
+                daysOpen: number | null;
+                daysUntilDeadline: number | null;
+                urgency: string;
+            }>;
+        };
+        currentActiveProcesses: Array<{
+            id: number;
+            client: string;
+            position: string;
+            serviceCode: string;
+            serviceName: string;
+            consultant: string;
+            status: string;
+            statusRaw: string;
+            startDate: string | null;
+            deadline: string | null;
+            closedAt: string | null;
+            daysOpen: number | null;
+            daysUntilDeadline: number | null;
+            urgency: string;
+        }>;
+        periodSummary: {
+            createdCount: number;
+            completedCount: number;
+            averageCloseDays: number;
+            cancelledCount: number;
         };
     }> {
         try {
@@ -2030,7 +2104,7 @@ export class SolicitudService {
                     s.codigo_servicio,
                     COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
                     c.nombre_cliente,
-                    dc.descripcion_cargo,
+                    car.nombre_cargo,
                     u.nombre_usuario AS consultor,
                     estado_actual.nombre_estado_solicitud AS estado_actual,
                     estado_actual.fecha_cambio AS fecha_estado,
@@ -2041,12 +2115,13 @@ export class SolicitudService {
                 LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
                 LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
                 LEFT JOIN LATERAL (
-                    SELECT dc.descripcion_cargo
+                    SELECT dc.id_cargo
                     FROM descripcioncargo dc
                     WHERE dc.id_solicitud = s.id_solicitud
                     ORDER BY dc.id_descripcioncargo DESC
                     LIMIT 1
                 ) dc ON true
+                LEFT JOIN cargo car ON dc.id_cargo = car.id_cargo
                 LEFT JOIN LATERAL (
                     SELECT 
                         es.nombre_estado_solicitud,
@@ -2095,7 +2170,7 @@ export class SolicitudService {
                     codigo_servicio: string | null;
                     nombre_servicio: string | null;
                     nombre_cliente: string | null;
-                    descripcion_cargo: string | null;
+                    nombre_cargo: string | null;
                     consultor: string | null;
                     estado_actual: string | null;
                     fecha_estado: Date | string | null;
@@ -2103,13 +2178,82 @@ export class SolicitudService {
                 }>;
             };
 
-            // Ejecutar query con filtro de fecha - NO hacer fallback si no hay resultados
+            // Ejecutar query con filtro de fecha para estadísticas del período
             let rows = await runOverviewQuery(true);
             
             // Asegurar que rows es siempre un array
             if (!Array.isArray(rows)) {
                 rows = [];
             }
+
+            // Ejecutar query SIN filtro para calcular urgencias de TODOS los procesos activos
+            let allActiveRows = await runOverviewQuery(false);
+            if (!Array.isArray(allActiveRows)) {
+                allActiveRows = [];
+            }
+
+            // Métricas del período (para cards): ingresadas, completadas, canceladas y tiempo promedio de cierre
+            const periodMetricsQueryResult = await sequelize.query(`
+                WITH cierre AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud = 'Cerrado'
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                cancelacion AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cancelacion
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud = 'Cancelado'
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                cerrados_periodo AS (
+                    SELECT
+                        s.id_solicitud,
+                        s.fecha_ingreso_solicitud,
+                        c.fecha_cierre
+                    FROM solicitud s
+                    INNER JOIN cierre c ON s.id_solicitud = c.id_solicitud
+                    WHERE DATE(c.fecha_cierre) >= DATE(:startDate)
+                      AND DATE(c.fecha_cierre) <= DATE(:endDate)
+                )
+                SELECT
+                    (SELECT COUNT(*)
+                     FROM solicitud s
+                     WHERE DATE(s.fecha_ingreso_solicitud) >= DATE(:startDate)
+                       AND DATE(s.fecha_ingreso_solicitud) <= DATE(:endDate)
+                    ) AS ingresadas,
+                    (SELECT COUNT(*) FROM cerrados_periodo) AS completados,
+                    (SELECT COUNT(DISTINCT ca.id_solicitud)
+                     FROM cancelacion ca
+                     WHERE DATE(ca.fecha_cancelacion) >= DATE(:startDate)
+                       AND DATE(ca.fecha_cancelacion) <= DATE(:endDate)
+                    ) AS cancelados,
+                    (SELECT COALESCE(ROUND(AVG(DATE(cp.fecha_cierre) - DATE(cp.fecha_ingreso_solicitud)))::int, 0)
+                     FROM cerrados_periodo cp
+                    ) AS tiempo_promedio_cierre
+            `, {
+                replacements: {
+                    startDate: startDate.toISOString().split('T')[0],
+                    endDate: endDate.toISOString().split('T')[0],
+                },
+                type: QueryTypes.SELECT,
+                skipUserContext: true,
+            } as any) as any;
+
+            const periodMetricsArray = Array.isArray(periodMetricsQueryResult) ? periodMetricsQueryResult : [];
+            const periodMetricsRow = (periodMetricsArray[0] ?? {}) as any;
+            const periodSummary = {
+                createdCount: Number(periodMetricsRow.ingresadas ?? 0),
+                completedCount: Number(periodMetricsRow.completados ?? 0),
+                averageCloseDays: Number(periodMetricsRow.tiempo_promedio_cierre ?? 0),
+                cancelledCount: Number(periodMetricsRow.cancelados ?? 0),
+            };
 
             const statusMapping: Record<string, { label: string; category: 'active' | 'completed' | 'paused' | 'cancelled' }> = {
                 'Creado': { label: 'Iniciado', category: 'active' },
@@ -2167,7 +2311,7 @@ export class SolicitudService {
                 return {
                     id: row.id_solicitud,
                     client: row.nombre_cliente || 'Sin cliente',
-                    position: row.descripcion_cargo || 'Sin cargo',
+                    position: row.nombre_cargo || 'Sin cargo',
                     serviceCode: row.codigo_servicio || 'sin_servicio',
                     serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
                     consultant: row.consultor || 'Sin asignar',
@@ -2191,11 +2335,8 @@ export class SolicitudService {
             };
 
             const statusCounts: Record<string, number> = {};
-            let dueSoonCount = 0;
-            let overdueCount = 0;
-            const dueSoonProcesses: number[] = [];
-            const overdueProcesses: number[] = [];
-
+            
+            // Calcular totales por estado del período filtrado
             processes.forEach(process => {
                 statusCounts[process.status] = (statusCounts[process.status] || 0) + 1;
 
@@ -2214,13 +2355,116 @@ export class SolicitudService {
                         totals.inProgress += 1;
                         break;
                 }
+            });
 
-                if (process.urgency === 'due_soon') {
-                    dueSoonCount += 1;
-                    dueSoonProcesses.push(process.id);
-                } else if (process.urgency === 'overdue' || process.urgency === 'closed_overdue') {
-                    overdueCount += 1;
-                    overdueProcesses.push(process.id);
+            // Calcular urgencias y procesos activos desde TODOS los procesos (sin filtro de período)
+            let dueSoonCount = 0;
+            let overdueCount = 0;
+            const dueSoonProcesses: number[] = [];
+            const overdueProcesses: number[] = [];
+            const dueSoonProcessesDetails: any[] = [];
+            const overdueProcessesDetails: any[] = [];
+            const currentActiveProcesses: any[] = [];
+
+            allActiveRows.forEach(row => {
+                const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
+                const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
+                const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                const statusRaw = row.estado_actual || 'Creado';
+                const statusInfo = statusMapping[statusRaw] || { label: statusRaw, category: 'active' as const };
+                const isClosed = statusInfo.category === 'completed' || statusInfo.category === 'cancelled';
+
+                // Solo procesar procesos ACTIVOS (no cerrados ni cancelados)
+                if (!isClosed && deadlineValue) {
+                    const diffMs = deadlineValue.getTime() - now.getTime();
+                    const daysUntilDeadline = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                    const referenceEnd = closedAtValue ?? now;
+                    const daysOpen = startDateValue
+                        ? Math.round((referenceEnd.getTime() - startDateValue.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+
+                    let urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue' = 'no_deadline';
+                    
+                    if (diffMs < 0) {
+                        urgency = 'overdue';
+                    } else if (diffMs <= SolicitudService.DUE_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) {
+                        urgency = 'due_soon';
+                    } else {
+                        urgency = 'on_track';
+                    }
+
+                    const processDetail = {
+                        id: row.id_solicitud,
+                        client: row.nombre_cliente || 'Sin cliente',
+                        position: row.nombre_cargo || 'Sin cargo',
+                        serviceCode: row.codigo_servicio || 'sin_servicio',
+                        serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
+                        consultant: row.consultor || 'Sin asignar',
+                        status: statusInfo.label,
+                        statusRaw,
+                        startDate: startDateValue ? startDateValue.toISOString() : null,
+                        deadline: deadlineValue ? deadlineValue.toISOString() : null,
+                        closedAt: closedAtValue ? closedAtValue.toISOString() : null,
+                        daysOpen,
+                        daysUntilDeadline,
+                        urgency
+                    };
+
+                    if (diffMs < 0) {
+                        // Proceso vencido
+                        overdueCount += 1;
+                        overdueProcesses.push(row.id_solicitud);
+                        overdueProcessesDetails.push(processDetail);
+                    } else if (diffMs <= SolicitudService.DUE_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) {
+                        // Proceso por vencer (próximos 7 días)
+                        dueSoonCount += 1;
+                        dueSoonProcesses.push(row.id_solicitud);
+                        dueSoonProcessesDetails.push(processDetail);
+                    }
+                }
+                
+                // Agregar a procesos activos actuales si está en curso
+                if (!isClosed && ['Iniciado', 'En Progreso', 'En Revisión'].includes(statusInfo.label)) {
+                    const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
+                    const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
+                    const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                    const referenceEnd = closedAtValue ?? now;
+                    const daysOpen = startDateValue
+                        ? Math.round((referenceEnd.getTime() - startDateValue.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+                    
+                    let daysUntilDeadline: number | null = null;
+                    let urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue' = 'no_deadline';
+                    
+                    if (deadlineValue) {
+                        const diffMs = deadlineValue.getTime() - now.getTime();
+                        daysUntilDeadline = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                        
+                        if (diffMs < 0) {
+                            urgency = 'overdue';
+                        } else if (diffMs <= SolicitudService.DUE_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) {
+                            urgency = 'due_soon';
+                        } else {
+                            urgency = 'on_track';
+                        }
+                    }
+                    
+                    currentActiveProcesses.push({
+                        id: row.id_solicitud,
+                        client: row.nombre_cliente || 'Sin cliente',
+                        position: row.nombre_cargo || 'Sin cargo',
+                        serviceCode: row.codigo_servicio || 'sin_servicio',
+                        serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
+                        consultant: row.consultor || 'Sin asignar',
+                        status: statusInfo.label,
+                        statusRaw,
+                        startDate: startDateValue ? startDateValue.toISOString() : null,
+                        deadline: deadlineValue ? deadlineValue.toISOString() : null,
+                        closedAt: null,
+                        daysOpen,
+                        daysUntilDeadline,
+                        urgency
+                    });
                 }
             });
 
@@ -2232,8 +2476,12 @@ export class SolicitudService {
                     dueSoonCount,
                     overdueCount,
                     dueSoonProcesses,
-                    overdueProcesses
-                }
+                    overdueProcesses,
+                    dueSoonProcessesDetails,
+                    overdueProcessesDetails
+                },
+                currentActiveProcesses,
+                periodSummary
             };
         } catch (error: any) {
             console.error('Error al obtener overview de procesos:', error);

@@ -493,7 +493,7 @@ export const solicitudService = {
   },
 
   // Obtener estadísticas generales de procesos
-  async getProcessStats(): Promise<ApiResponse<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number }>> {
+  async getProcessStats(): Promise<ApiResponse<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount: number }>> {
     return apiRequest('/api/solicitudes/reportes/estadisticas');
   },
 

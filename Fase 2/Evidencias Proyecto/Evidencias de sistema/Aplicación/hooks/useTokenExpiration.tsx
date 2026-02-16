@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "./auth"
 
-// Duración del token en segundos (2 horas = 7200 segundos)
-const TOKEN_DURATION_SECONDS = 7200
+// Duración del token en segundos (8 horas = 28800 segundos)
+const TOKEN_DURATION_SECONDS = 28800
 // Tiempo antes de la expiración para mostrar advertencia (30 minutos = 1800 segundos)
 const WARNING_TIME_SECONDS = 1800
 
