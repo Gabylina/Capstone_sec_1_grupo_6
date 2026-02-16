@@ -71,6 +71,12 @@ export interface Process {
   consultant: User
   status: ProcessStatus
   estado_solicitud?: string // Estado actual de la solicitud desde el historial
+  /** Etapa actual del proceso (ej. "Módulo 2: Publicación...", "Módulo 5: Seguimiento...") */
+  etapa?: string
+  /** Alias de etapa usado por la API */
+  stage?: string
+  /** Código del tipo de servicio (ej. "CA", "SC"); alias de service_type desde API */
+  tipo_servicio?: string
   created_at: string
   started_at?: string
   completed_at?: string
