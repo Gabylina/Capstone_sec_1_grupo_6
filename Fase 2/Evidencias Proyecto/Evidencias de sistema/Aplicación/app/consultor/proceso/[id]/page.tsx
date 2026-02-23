@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { use, useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
 import { solicitudService, descripcionCargoService, getCandidatesByProcess, copiarPlantillasASolicitud } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
@@ -25,13 +25,11 @@ import { Button } from "@/components/ui/button"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 interface ProcessPageProps {
-  params: {
-    id: string
-  }
+  params: Promise<{ id: string }>
 }
 
 export default function ProcessPage({ params }: ProcessPageProps) {
-  const { id } = params
+  const { id } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
   const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"
