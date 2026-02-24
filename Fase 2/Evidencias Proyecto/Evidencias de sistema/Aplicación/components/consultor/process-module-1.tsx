@@ -944,12 +944,9 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
   const isBlocked = isProcessBlocked(processStatus)
 
   // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
-  const isInAdvancedModule = !!(process.etapa && (
-    process.etapa.includes("Módulo 4") || 
   const isInAdvancedModule = Boolean(process.etapa && (
     process.etapa.includes("Módulo 4") ||
     process.etapa.includes("Módulo 5")
-  ))
   ))
 
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
@@ -992,7 +989,6 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
-                disabled={!!(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule)}
                 disabled={Boolean(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule)}
               >
                 {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1014,7 +1010,6 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule2}
-                disabled={!!(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule)}
                 disabled={Boolean(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule)}
               >
                 {isAdvancingToModule2 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
