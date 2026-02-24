@@ -2503,10 +2503,17 @@ export class SolicitudService {
         nombre_servicio: string;
         cliente: string;
         contacto: string | null;
-        comuna: string | null;
+        ubicacion_cargo: string | null;
         cargo: string | null;
+        fecha_solicitud: string | null;
+        fecha_cierre: string | null;
+        numero_vacantes: number | null;
+        consultor: string | null;
         total_candidatos: number;
-        candidatos_exitosos: Array<{ nombre: string; rut: string }>;
+        total_candidatos_seleccionados: number;
+        resultado_informe_psicolaboral: string | null;
+        mes_cierre: string | null;
+        candidatos_exitosos: Array<{ nombre: string; rut: string; estado_informe: string | null }>;
     }>> {
         try {
             const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
@@ -2529,16 +2536,34 @@ export class SolicitudService {
                         COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
                         c.nombre_cliente,
                         co.nombre_contacto,
-                        com.nombre_comuna,
+                        com.nombre_comuna AS ubicacion_cargo,
                         car.nombre_cargo,
-                        uc.fecha_cierre
+                        s.fecha_ingreso_solicitud,
+                        uc.fecha_cierre,
+                        dc.num_vacante,
+                        u.nombre_usuario AS consultor,
+                        CASE EXTRACT(MONTH FROM uc.fecha_cierre)
+                            WHEN 1 THEN 'Enero'
+                            WHEN 2 THEN 'Febrero'
+                            WHEN 3 THEN 'Marzo'
+                            WHEN 4 THEN 'Abril'
+                            WHEN 5 THEN 'Mayo'
+                            WHEN 6 THEN 'Junio'
+                            WHEN 7 THEN 'Julio'
+                            WHEN 8 THEN 'Agosto'
+                            WHEN 9 THEN 'Septiembre'
+                            WHEN 10 THEN 'Octubre'
+                            WHEN 11 THEN 'Noviembre'
+                            WHEN 12 THEN 'Diciembre'
+                        END AS mes_cierre
                     FROM solicitud s
                     INNER JOIN ultimo_cierre uc ON s.id_solicitud = uc.id_solicitud
                     LEFT JOIN contacto co ON s.id_contacto = co.id_contacto
                     LEFT JOIN cliente c ON co.id_cliente = c.id_cliente
+                    LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
                     LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
                     LEFT JOIN LATERAL (
-                        SELECT dc.id_comuna, dc.id_cargo
+                        SELECT dc.id_comuna, dc.id_cargo, dc.num_vacante
                         FROM descripcioncargo dc
                         WHERE dc.id_solicitud = s.id_solicitud
                         ORDER BY dc.id_descripcioncargo DESC
@@ -2561,18 +2586,21 @@ export class SolicitudService {
                     SELECT DISTINCT
                         p.id_solicitud,
                         cand.nombre_candidato || ' ' || cand.primer_apellido_candidato || COALESCE(' ' || cand.segundo_apellido_candidato, '') AS nombre,
-                        cand.rut_candidato AS rut
+                        cand.rut_candidato AS rut,
+                        ep.estado_informe
                     FROM estado_cliente_postulacion_m5 ecm5
                     INNER JOIN postulacion p ON ecm5.id_postulacion = p.id_postulacion
                     INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
                     INNER JOIN procesos_cerrados pc ON p.id_solicitud = pc.id_solicitud
+                    LEFT JOIN evaluacion_psicolaboral ep ON ep.id_postulacion = p.id_postulacion
                     WHERE pc.codigo_servicio IN ('PC', 'HH')
                 ),
                 candidatos_exitosos_ll AS (
                     SELECT DISTINCT
                         p.id_solicitud,
                         cand.nombre_candidato || ' ' || cand.primer_apellido_candidato || COALESCE(' ' || cand.segundo_apellido_candidato, '') AS nombre,
-                        cand.rut_candidato AS rut
+                        cand.rut_candidato AS rut,
+                        NULL::text AS estado_informe
                     FROM estado_cliente_postulacion ecp
                     INNER JOIN postulacion p ON ecp.id_postulacion = p.id_postulacion
                     INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
@@ -2584,7 +2612,8 @@ export class SolicitudService {
                     SELECT DISTINCT
                         p.id_solicitud,
                         cand.nombre_candidato || ' ' || cand.primer_apellido_candidato || COALESCE(' ' || cand.segundo_apellido_candidato, '') AS nombre,
-                        cand.rut_candidato AS rut
+                        cand.rut_candidato AS rut,
+                        ep.estado_informe
                     FROM evaluacion_psicolaboral ep
                     INNER JOIN postulacion p ON ep.id_postulacion = p.id_postulacion
                     INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
@@ -2598,6 +2627,21 @@ export class SolicitudService {
                     SELECT * FROM candidatos_exitosos_ll
                     UNION
                     SELECT * FROM candidatos_exitosos_es_ts
+                ),
+                resultados_informe AS (
+                    SELECT
+                        p.id_solicitud,
+                        string_agg(DISTINCT ep.estado_informe, ', ' ORDER BY ep.estado_informe) AS resultado_informe
+                    FROM evaluacion_psicolaboral ep
+                    INNER JOIN postulacion p ON ep.id_postulacion = p.id_postulacion
+                    INNER JOIN candidato cand ON p.id_candidato = cand.id_candidato
+                    WHERE ep.estado_informe IS NOT NULL
+                      AND ep.estado_informe != 'Pendiente'
+                      AND EXISTS (
+                          SELECT 1 FROM todos_candidatos_exitosos ce 
+                          WHERE ce.id_solicitud = p.id_solicitud AND ce.rut = cand.rut_candidato
+                      )
+                    GROUP BY p.id_solicitud
                 )
                 SELECT 
                     pc.id_solicitud,
@@ -2605,14 +2649,22 @@ export class SolicitudService {
                     pc.nombre_servicio,
                     pc.nombre_cliente AS cliente,
                     pc.nombre_contacto AS contacto,
-                    pc.nombre_comuna AS comuna,
+                    pc.ubicacion_cargo,
                     pc.nombre_cargo AS cargo,
+                    pc.fecha_ingreso_solicitud AS fecha_solicitud,
+                    pc.fecha_cierre,
+                    pc.num_vacante AS numero_vacantes,
+                    pc.consultor,
                     COALESCE(tc.total, 0) AS total_candidatos,
+                    COUNT(DISTINCT ce.rut) AS total_candidatos_seleccionados,
+                    ri.resultado_informe AS resultado_informe_psicolaboral,
+                    INITCAP(pc.mes_cierre) AS mes_cierre,
                     COALESCE(
                         json_agg(
                             json_build_object(
                                 'nombre', ce.nombre,
-                                'rut', ce.rut
+                                'rut', ce.rut,
+                                'estado_informe', ce.estado_informe
                             ) ORDER BY ce.nombre
                         ) FILTER (WHERE ce.nombre IS NOT NULL),
                         '[]'::json
@@ -2620,16 +2672,22 @@ export class SolicitudService {
                 FROM procesos_cerrados pc
                 LEFT JOIN total_candidatos tc ON pc.id_solicitud = tc.id_solicitud
                 LEFT JOIN todos_candidatos_exitosos ce ON pc.id_solicitud = ce.id_solicitud
+                LEFT JOIN resultados_informe ri ON pc.id_solicitud = ri.id_solicitud
                 GROUP BY 
                     pc.id_solicitud,
                     pc.codigo_servicio,
                     pc.nombre_servicio,
                     pc.nombre_cliente,
                     pc.nombre_contacto,
-                    pc.nombre_comuna,
+                    pc.ubicacion_cargo,
                     pc.nombre_cargo,
+                    pc.fecha_ingreso_solicitud,
                     pc.fecha_cierre,
-                    tc.total
+                    pc.num_vacante,
+                    pc.consultor,
+                    pc.mes_cierre,
+                    tc.total,
+                    ri.resultado_informe
                 ORDER BY pc.fecha_cierre DESC, pc.nombre_cliente
             `, {
                 replacements: {
@@ -2649,10 +2707,17 @@ export class SolicitudService {
                 nombre_servicio: string;
                 cliente: string;
                 contacto: string | null;
-                comuna: string | null;
+                ubicacion_cargo: string | null;
                 cargo: string | null;
+                fecha_solicitud: string | null;
+                fecha_cierre: string | null;
+                numero_vacantes: number | null;
+                consultor: string | null;
                 total_candidatos: number | string;
-                candidatos_exitosos: string | Array<{ nombre: string; rut: string }>;
+                total_candidatos_seleccionados: number | string;
+                resultado_informe_psicolaboral: string | null;
+                mes_cierre: string | null;
+                candidatos_exitosos: string | Array<{ nombre: string; rut: string; estado_informe: string | null }>;
             }>;
 
 
@@ -2663,11 +2728,20 @@ export class SolicitudService {
                 nombre_servicio: row.nombre_servicio,
                 cliente: row.cliente || 'Sin cliente',
                 contacto: row.contacto || null,
-                comuna: row.comuna || null,
+                ubicacion_cargo: row.ubicacion_cargo || null,
                 cargo: row.cargo || null,
+                fecha_solicitud: row.fecha_solicitud || null,
+                fecha_cierre: row.fecha_cierre || null,
+                numero_vacantes: row.numero_vacantes || null,
+                consultor: row.consultor || null,
                 total_candidatos: typeof row.total_candidatos === 'string' 
                     ? parseInt(row.total_candidatos) 
                     : (row.total_candidatos || 0),
+                total_candidatos_seleccionados: typeof row.total_candidatos_seleccionados === 'string'
+                    ? parseInt(row.total_candidatos_seleccionados)
+                    : (row.total_candidatos_seleccionados || 0),
+                resultado_informe_psicolaboral: row.resultado_informe_psicolaboral || null,
+                mes_cierre: row.mes_cierre || null,
                 candidatos_exitosos: typeof row.candidatos_exitosos === 'string'
                     ? JSON.parse(row.candidatos_exitosos)
                     : (Array.isArray(row.candidatos_exitosos) ? row.candidatos_exitosos : [])
@@ -2684,6 +2758,7 @@ export class SolicitudService {
     /**
      * Obtener rendimiento por consultor
      * Retorna procesos completados, tiempo promedio y eficiencia por consultor
+     * Eficiencia = (procesos cerrados / total procesos del consultor) * 100
      */
     static async getConsultantPerformance(): Promise<Array<{
         consultant: string;
@@ -2722,28 +2797,27 @@ export class SolicitudService {
                     FROM procesos_cerrados pc
                     GROUP BY pc.rut_usuario, pc.consultor
                 ),
-                procesos_a_tiempo AS (
+                total_procesos_consultor AS (
                     SELECT
-                        pc.rut_usuario,
-                        COUNT(*) AS procesos_a_tiempo
-                    FROM procesos_cerrados pc
-                    WHERE pc.plazo_maximo_solicitud IS NOT NULL
-                      AND pc.fecha_cierre <= pc.plazo_maximo_solicitud
-                    GROUP BY pc.rut_usuario
+                        s.rut_usuario,
+                        COUNT(*) AS total_procesos
+                    FROM solicitud s
+                    WHERE s.rut_usuario IS NOT NULL
+                    GROUP BY s.rut_usuario
                 )
                 SELECT
                     tc.consultor,
                     tc.procesos_completados::integer AS processes_completed,
                     ROUND(tc.tiempo_promedio::numeric, 1) AS avg_time_to_hire,
                     CASE
-                        WHEN tc.procesos_completados > 0 THEN
+                        WHEN COALESCE(tp.total_procesos, 0) > 0 THEN
                             ROUND(
-                                (COALESCE(pat.procesos_a_tiempo, 0)::numeric / tc.procesos_completados::numeric) * 100
+                                (tc.procesos_completados::numeric / tp.total_procesos::numeric) * 100
                             )
                         ELSE 0
                     END AS efficiency
                 FROM tiempos_contratacion tc
-                LEFT JOIN procesos_a_tiempo pat ON tc.rut_usuario = pat.rut_usuario
+                LEFT JOIN total_procesos_consultor tp ON tc.rut_usuario = tp.rut_usuario
                 ORDER BY tc.procesos_completados DESC, efficiency DESC
             `, {
                 type: QueryTypes.SELECT,

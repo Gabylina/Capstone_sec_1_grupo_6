@@ -43,14 +43,64 @@ export class CandidatoService {
 
         // Filtro de búsqueda general (nombre, email, rut)
         if (filters.search) {
-            const searchTerm = `%${filters.search.trim()}%`;
-            whereClause[Op.or] = [
-                { nombre_candidato: { [Op.iLike]: searchTerm } },
-                { primer_apellido_candidato: { [Op.iLike]: searchTerm } },
-                { segundo_apellido_candidato: { [Op.iLike]: searchTerm } },
-                { email_candidato: { [Op.iLike]: searchTerm } },
-                { rut_candidato: { [Op.iLike]: searchTerm } }
-            ];
+            const searchTerms = filters.search.trim().split(/\s+/);
+            
+            // Normalizar texto removiendo tildes
+            const normalizeText = (text: string) => {
+                return text
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase();
+            };
+            
+            // Crear condiciones para cada término de búsqueda
+            const searchConditions = searchTerms.map(term => {
+                const normalizedTerm = normalizeText(term);
+                const termPattern = `%${normalizedTerm}%`;
+                
+                return {
+                    [Op.or]: [
+                        sequelize.where(
+                            sequelize.fn('LOWER',
+                                sequelize.fn('TRANSLATE',
+                                    sequelize.col('nombre_candidato'),
+                                    'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜâêîôûÂÊÎÔÛ',
+                                    'aeiouAEIOUaeiouAEIOUaeiouAEIOUaeiouAEIOU'
+                                )
+                            ),
+                            Op.iLike,
+                            termPattern
+                        ),
+                        sequelize.where(
+                            sequelize.fn('LOWER',
+                                sequelize.fn('TRANSLATE',
+                                    sequelize.col('primer_apellido_candidato'),
+                                    'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜâêîôûÂÊÎÔÛ',
+                                    'aeiouAEIOUaeiouAEIOUaeiouAEIOUaeiouAEIOU'
+                                )
+                            ),
+                            Op.iLike,
+                            termPattern
+                        ),
+                        sequelize.where(
+                            sequelize.fn('LOWER',
+                                sequelize.fn('TRANSLATE',
+                                    sequelize.col('segundo_apellido_candidato'),
+                                    'áéíóúÁÉÍÓÚàèìòùÀÈÌÒÙäëïöüÄËÏÖÜâêîôûÂÊÎÔÛ',
+                                    'aeiouAEIOUaeiouAEIOUaeiouAEIOUaeiouAEIOU'
+                                )
+                            ),
+                            Op.iLike,
+                            termPattern
+                        ),
+                        { email_candidato: { [Op.iLike]: termPattern } },
+                        { rut_candidato: { [Op.iLike]: termPattern } }
+                    ]
+                };
+            });
+            
+            // Todos los términos deben coincidir (AND)
+            whereClause[Op.and] = searchConditions;
         }
 
         // Filtros específicos

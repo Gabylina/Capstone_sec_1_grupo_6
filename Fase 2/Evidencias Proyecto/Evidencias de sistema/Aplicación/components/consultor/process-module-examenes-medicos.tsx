@@ -625,57 +625,73 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
                                 {examenes.length === 0 ? (
                                   <p className="text-sm text-muted-foreground">Aún no hay exámenes. Agrega uno abajo.</p>
                                 ) : (
-                                  <ul className="space-y-2">
+                                  <div className="space-y-3">
                                     {examenes.map((ex) => (
-                                      <li
+                                      <div
                                         key={ex.id}
-                                        className="flex flex-wrap items-center gap-3 py-2 border-b border-border last:border-0"
+                                        className="border rounded-lg p-4 bg-background space-y-3"
                                       >
-                                        <span className="font-medium text-sm min-w-[140px]">
-                                          {ex.nombre || "Sin nombre"}
-                                        </span>
-                                        {ex.detalle ? (
-                                          <span className="text-sm text-muted-foreground max-w-[280px] truncate" title={ex.detalle}>
-                                            {ex.detalle}
-                                          </span>
-                                        ) : null}
-                                        <span className="text-sm text-muted-foreground">Ver estado:</span>
-                                        <Badge className={estadoColor(ex.estado)}>
-                                          {ex.estado === "aprobado" ? "Aprobado" : ex.estado === "rechazado" ? "Rechazado" : "Pendiente"}
-                                        </Badge>
-                                        {(ex.file || ex.id_examen_medico) && (
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleVerDocumento(ex, id)
-                                            }}
-                                            className="gap-1"
-                                          >
-                                            <Eye className="h-3 w-3" />
-                                            Ver documento
-                                          </Button>
-                                        )}
-                                        {!readOnly && (
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              openAjustes(id, ex)
-                                            }}
-                                            className="gap-1"
-                                          >
-                                            <Settings className="h-3 w-3" />
-                                            Ajustes
-                                          </Button>
-                                        )}
-                                      </li>
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="flex-1 space-y-2">
+                                            <div>
+                                              <p className="text-xs text-muted-foreground mb-1">Nombre del Examen</p>
+                                              <p className="font-medium text-sm">
+                                                {ex.nombre || "Sin nombre"}
+                                              </p>
+                                            </div>
+                                            {ex.detalle && (
+                                              <div>
+                                                <p className="text-xs text-muted-foreground mb-1">Detalle</p>
+                                                <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                                                  {ex.detalle}
+                                                </p>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-col items-end gap-2">
+                                            <div>
+                                              <p className="text-xs text-muted-foreground mb-1 text-right">Estado</p>
+                                              <Badge className={estadoColor(ex.estado)}>
+                                                {ex.estado === "aprobado" ? "Aprobado" : ex.estado === "rechazado" ? "Rechazado" : "Pendiente"}
+                                              </Badge>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 pt-2 border-t">
+                                          {(ex.file || ex.id_examen_medico) && (
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleVerDocumento(ex, id)
+                                              }}
+                                              className="gap-1"
+                                            >
+                                              <Eye className="h-3 w-3" />
+                                              Ver documento
+                                            </Button>
+                                          )}
+                                          {!readOnly && (
+                                            <Button
+                                              type="button"
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                openAjustes(id, ex)
+                                              }}
+                                              className="gap-1"
+                                            >
+                                              <Settings className="h-3 w-3" />
+                                              Editar
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
                                     ))}
-                                  </ul>
+                                  </div>
                                 )}
                                 {!readOnly && (
                                   <Button

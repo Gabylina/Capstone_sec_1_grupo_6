@@ -25,11 +25,13 @@ import { Button } from "@/components/ui/button"
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
 
 interface ProcessPageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }> | { id: string }
 }
 
 export default function ProcessPage({ params }: ProcessPageProps) {
-  const { id } = use(params)
+  const { id } = use(
+    params instanceof Promise ? params : Promise.resolve(params as { id: string })
+  )
   const searchParams = useSearchParams()
   const router = useRouter()
   const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"

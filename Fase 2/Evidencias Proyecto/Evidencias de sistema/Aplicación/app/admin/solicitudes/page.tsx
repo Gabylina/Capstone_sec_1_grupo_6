@@ -409,7 +409,7 @@ export default function SolicitudesPage() {
                 <SelectItem value="all">Todos los servicios</SelectItem>
                 {serviceTypes.map((type) => (
                   <SelectItem key={type.codigo} value={type.codigo}>
-                    {type.nombre}
+                    {formatServiceName(type.nombre)}
                   </SelectItem>
                 ))}
               </SelectContent>

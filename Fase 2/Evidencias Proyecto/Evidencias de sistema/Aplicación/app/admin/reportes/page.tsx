@@ -13,10 +13,40 @@ import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRi
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo, Fragment } from "react"
+import { formatDate } from "@/lib/utils"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import * as XLSX from "xlsx"
+
+// Función para formatear nombres de servicios (agregar espacios entre palabras)
+const formatServiceName = (nombre: string): string => {
+  // Mapeo de nombres específicos para casos conocidos
+  const nombresMapeados: Record<string, string> = {
+    'ProcesoCompleto': 'Proceso Completo',
+    'LongList': 'Long List',
+    'HeadHunting': 'Head Hunting',
+    'TestPsicolaboral': 'Test Psicolaboral',
+    'EvaluacionPsicolaboral': 'Evaluación Psicolaboral',
+    'Filtro Inteligente': 'Filtro Inteligente',
+    'Evaluación Potencial': 'Evaluación Potencial',
+    'Publicación Portales': 'Publicación Portales',
+  }
+
+  // Buscar coincidencia exacta (sin importar mayúsculas)
+  const nombreLower = nombre.toLowerCase().replace(/\s+/g, '')
+  for (const [key, value] of Object.entries(nombresMapeados)) {
+    if (key.toLowerCase().replace(/\s+/g, '') === nombreLower) {
+      return value
+    }
+  }
+
+  // Si no hay coincidencia, intentar agregar espacios antes de mayúsculas
+  return nombre
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // Agregar espacio antes de mayúsculas
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2') // Manejar secuencias de mayúsculas
+    .trim()
+}
 
 type WeekOption = {
   id: string
@@ -157,6 +187,15 @@ const COLORS = ["#00BCD4", "#1E3A8A", "#10b981", "#3b82f6", "#8b5cf6", "#f59e0b"
 export default function ReportesPage() {
   const { user } = useAuth()
   const { showToast } = useToastNotification()
+
+  // Función para formatear fecha como DD-MM-AA
+  const formatDateShort = (dateString: string) => {
+    const date = new Date(dateString)
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = String(date.getFullYear()).slice(-2)
+    return `${day}-${month}-${year}`
+  }
   
   // Función helper para procesar mensajes de error de la API
   const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -264,10 +303,17 @@ export default function ReportesPage() {
       nombre_servicio: string
       cliente: string
       contacto: string | null
-      comuna: string | null
+      ubicacion_cargo: string | null
       cargo: string | null
+      fecha_solicitud: string | null
+      fecha_cierre: string | null
+      numero_vacantes: number | null
+      consultor: string | null
       total_candidatos: number
-      candidatos_exitosos: Array<{ nombre: string; rut: string }>
+      total_candidatos_seleccionados: number
+      resultado_informe_psicolaboral: string | null
+      mes_cierre: string | null
+      candidatos_exitosos: Array<{ nombre: string; rut: string; estado_informe: string | null }>
     }>
   >([])
   const [loadingClosedProcesses, setLoadingClosedProcesses] = useState(true)
@@ -278,12 +324,47 @@ export default function ReportesPage() {
   const [closedProcessesYear, setClosedProcessesYear] = useState<number>(new Date().getFullYear())
   const [closedProcessesMonth, setClosedProcessesMonth] = useState<number>(new Date().getMonth())
   const [closedProcessesWeek, setClosedProcessesWeek] = useState<string>("")
+  const [closedProcessesServiceFilter, setClosedProcessesServiceFilter] = useState<string>("all")
+  const [closedProcessesPage, setClosedProcessesPage] = useState<number>(1)
+  const closedProcessesPerPage = 10
   
   const closedProcessesWeekOptions = useMemo(() => getWeekOptionsForYear(closedProcessesYear), [closedProcessesYear])
   const selectedClosedProcessesWeekOption = useMemo(
     () => closedProcessesWeekOptions.find((option) => option.id === closedProcessesWeek),
     [closedProcessesWeekOptions, closedProcessesWeek],
   )
+
+  // Filtrar procesos cerrados por tipo de servicio
+  const filteredClosedProcesses = useMemo(() => {
+    if (closedProcessesServiceFilter === "all") {
+      return closedSuccessfulProcesses
+    }
+    return closedSuccessfulProcesses.filter(process => process.tipo_servicio === closedProcessesServiceFilter)
+  }, [closedSuccessfulProcesses, closedProcessesServiceFilter])
+
+  // Obtener tipos de servicio únicos para el filtro con nombres completos formateados
+  const availableServiceTypes = useMemo(() => {
+    const typesMap = new Map<string, string>();
+    closedSuccessfulProcesses.forEach(p => {
+      if (p.tipo_servicio && p.nombre_servicio) {
+        typesMap.set(p.tipo_servicio, formatServiceName(p.nombre_servicio));
+      }
+    });
+    return Array.from(typesMap.entries())
+      .map(([codigo, nombre]) => ({ codigo, nombre }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [closedSuccessfulProcesses])
+
+  // Paginación de procesos cerrados
+  const paginatedClosedProcesses = useMemo(() => {
+    const startIndex = (closedProcessesPage - 1) * closedProcessesPerPage
+    const endIndex = startIndex + closedProcessesPerPage
+    return filteredClosedProcesses.slice(startIndex, endIndex)
+  }, [filteredClosedProcesses, closedProcessesPage])
+
+  const totalClosedProcessesPages = useMemo(() => {
+    return Math.ceil(filteredClosedProcesses.length / closedProcessesPerPage)
+  }, [filteredClosedProcesses])
 
   const weekOptions = useMemo(() => getWeekOptionsForYear(selectedYear), [selectedYear])
   const selectedWeekOption = useMemo(
@@ -555,7 +636,7 @@ export default function ReportesPage() {
         })
 
         if (response.success && response.data) {
-          setClosedSuccessfulProcesses(response.data)
+          setClosedSuccessfulProcesses(response.data as any)
         } else {
           setClosedSuccessfulProcesses([])
         }
@@ -574,6 +655,11 @@ export default function ReportesPage() {
 
     loadClosedSuccessfulProcesses()
   }, [closedProcessesYear, closedProcessesMonth, closedProcessesWeek, selectedClosedProcessesWeekOption, closedProcessesWeekOptions, closedProcessesTimePeriod])
+
+  // Resetear página cuando cambien los filtros
+  useEffect(() => {
+    setClosedProcessesPage(1)
+  }, [closedProcessesTimePeriod, closedProcessesYear, closedProcessesMonth, closedProcessesWeek, closedProcessesServiceFilter])
 
   // Cargar datos de rendimiento por consultor
   useEffect(() => {
@@ -891,10 +977,23 @@ export default function ReportesPage() {
   // Función para exportar procesos cerrados exitosos a Excel
   const exportToExcel = () => {
     try {
+      // Función auxiliar para formatear fecha como DD-MM-AA
+      const formatDateForExcel = (dateString: string) => {
+        const date = new Date(dateString)
+        const day = String(date.getDate()).padStart(2, '0')
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const year = String(date.getFullYear()).slice(-2)
+        return `${day}-${month}-${year}`
+      }
+
       // Preparar datos para el Excel
       const excelData: any[] = []
       
-      closedSuccessfulProcesses.forEach((process) => {
+      filteredClosedProcesses.forEach((process) => {
+        const diasProceso = process.fecha_solicitud && process.fecha_cierre
+          ? Math.round((new Date(process.fecha_cierre).getTime() - new Date(process.fecha_solicitud).getTime()) / (1000 * 60 * 60 * 24))
+          : null
+        
         if (process.candidatos_exitosos.length > 0) {
           // Si hay candidatos exitosos, crear una fila por cada candidato
           process.candidatos_exitosos.forEach((candidato, index) => {
@@ -904,12 +1003,19 @@ export default function ReportesPage() {
               'Nombre del Servicio': process.nombre_servicio,
               'Cliente': process.cliente,
               'Cargo': process.cargo || 'Sin cargo',
-              'Contacto': process.contacto || 'Sin contacto',
-              'Comuna': process.comuna || 'Sin comuna',
-              'Total Candidatos': process.total_candidatos,
-              'Candidatos Exitosos (Total)': process.candidatos_exitosos.length,
+              'Ubicación': process.ubicacion_cargo || 'Sin ubicación',
+              'Fecha Solicitud': process.fecha_solicitud ? formatDateForExcel(process.fecha_solicitud) : 'Sin fecha',
+              'Fecha Cierre': process.fecha_cierre ? formatDateForExcel(process.fecha_cierre) : 'Sin fecha',
+              'N° Vacantes': process.numero_vacantes || 0,
+              'Consultor': process.consultor || 'Sin asignar',
               'Candidato Exitoso - Nombre': candidato.nombre,
               'Candidato Exitoso - RUT': candidato.rut,
+              'Candidato Exitoso - Estado Informe': candidato.estado_informe || 'N/A',
+              'Total Candidatos': process.total_candidatos,
+              'Candidatos Seleccionados': process.total_candidatos_seleccionados,
+              'Resultado Informe': process.resultado_informe_psicolaboral || 'N/A',
+              'Días de Proceso': diasProceso !== null ? diasProceso : '-',
+              'Mes de Cierre': process.mes_cierre || 'Sin mes',
             })
           })
         } else {
@@ -920,12 +1026,19 @@ export default function ReportesPage() {
             'Nombre del Servicio': process.nombre_servicio,
             'Cliente': process.cliente,
             'Cargo': process.cargo || 'Sin cargo',
-            'Contacto': process.contacto || 'Sin contacto',
-            'Comuna': process.comuna || 'Sin comuna',
-            'Total Candidatos': process.total_candidatos,
-            'Candidatos Exitosos (Total)': 0,
+            'Ubicación': process.ubicacion_cargo || 'Sin ubicación',
+            'Fecha Solicitud': process.fecha_solicitud ? formatDateForExcel(process.fecha_solicitud) : 'Sin fecha',
+            'Fecha Cierre': process.fecha_cierre ? formatDateForExcel(process.fecha_cierre) : 'Sin fecha',
+            'N° Vacantes': process.numero_vacantes || 0,
+            'Consultor': process.consultor || 'Sin asignar',
             'Candidato Exitoso - Nombre': '',
             'Candidato Exitoso - RUT': '',
+            'Candidato Exitoso - Estado Informe': '',
+            'Total Candidatos': process.total_candidatos,
+            'Candidatos Seleccionados': process.total_candidatos_seleccionados,
+            'Resultado Informe': process.resultado_informe_psicolaboral || 'N/A',
+            'Días de Proceso': diasProceso !== null ? diasProceso : '-',
+            'Mes de Cierre': process.mes_cierre || 'Sin mes',
           })
         }
       })
@@ -940,14 +1053,42 @@ export default function ReportesPage() {
         { wch: 30 }, // Nombre del Servicio
         { wch: 30 }, // Cliente
         { wch: 25 }, // Cargo
-        { wch: 25 }, // Contacto
-        { wch: 20 }, // Comuna
-        { wch: 18 }, // Total Candidatos
-        { wch: 22 }, // Candidatos Exitosos (Total)
+        { wch: 20 }, // Ubicación
+        { wch: 15 }, // Fecha Solicitud
+        { wch: 15 }, // Fecha Cierre
+        { wch: 12 }, // N° Vacantes
+        { wch: 20 }, // Consultor
         { wch: 35 }, // Candidato Exitoso - Nombre
         { wch: 15 }, // Candidato Exitoso - RUT
+        { wch: 30 }, // Candidato Exitoso - Estado Informe
+        { wch: 18 }, // Total Candidatos
+        { wch: 22 }, // Candidatos Seleccionados
+        { wch: 30 }, // Resultado Informe
+        { wch: 15 }, // Días de Proceso
+        { wch: 15 }, // Mes de Cierre
       ]
       worksheet['!cols'] = columnWidths
+
+      // Aplicar estilos a los encabezados (primera fila)
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+        if (!worksheet[cellAddress]) continue
+        
+        worksheet[cellAddress].s = {
+          fill: {
+            fgColor: { rgb: "4472C4" }
+          },
+          font: {
+            bold: true,
+            color: { rgb: "FFFFFF" }
+          },
+          alignment: {
+            horizontal: "center",
+            vertical: "center"
+          }
+        }
+      }
 
       // Crear libro de trabajo
       const workbook = XLSX.utils.book_new()
@@ -1740,7 +1881,10 @@ export default function ReportesPage() {
                       startAngle={300}
                       endAngle={-130}
                       labelLine={false}
-                      label={({ percent }) => (percent != null && percent >= 0.05 ? `${Math.round(percent * 100)}%` : "")}
+                      label={({ percent }) => {
+                        const p = typeof percent === "number" ? percent : 0;
+                        return p >= 0.05 ? `${Math.round(p * 100)}%` : "";
+                      }}
                       outerRadius={85}
                       fill="#8884d8"
                       dataKey="count"
@@ -1798,19 +1942,19 @@ export default function ReportesPage() {
                 <div>
                   <h4 className="text-sm font-medium mb-4">Volumen de Candidatos por Fuente</h4>
                   {loadingCandidateSource ? (
-                    <div className="flex items-center justify-center h-[250px]">
+                    <div className="flex items-center justify-center h-[400px]">
                       <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
                         <p className="text-sm text-muted-foreground">Cargando datos...</p>
                       </div>
                     </div>
                   ) : candidateSourceData.length === 0 ? (
-                    <div className="flex items-center justify-center h-[250px]">
+                    <div className="flex items-center justify-center h-[400px]">
                       <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
                     </div>
                   ) : (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={candidateSourceData}>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <BarChart data={candidateSourceData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="source" angle={-45} textAnchor="end" height={80} />
                       <YAxis />
@@ -1823,25 +1967,59 @@ export default function ReportesPage() {
                 </div>
                 <div>
                   <h4 className="text-sm font-medium mb-4">Distribución de Candidatos</h4>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
                       <Pie
                         data={candidateSourceData}
                         cx="50%"
                         cy="50%"
+                        startAngle={300}
+                        endAngle={-130}
                         labelLine={false}
-                        label={({ source, candidates }) => `${source}: ${candidates}`}
-                        outerRadius={80}
+                        label={({ percent, value, name }) => {
+                          const p = typeof percent === "number" ? percent : 0;
+                          return p >= 0.05 ? `${name}: ${value}` : "";
+                        }}
+                        outerRadius={85}
                         fill="#8884d8"
                         dataKey="candidates"
+                        nameKey="source"
                       >
                         {candidateSourceData.map((entry, index) => (
                           <Cell key={`cell-candidate-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload as { source: string; candidates: number; hired: number };
+                            const total = candidateSourceData.reduce((s, e) => s + e.candidates, 0);
+                            return (
+                              <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                                <p className="font-semibold text-sm">{data.source}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  <span className="font-medium">{data.candidates}</span> {data.candidates === 1 ? "candidato" : "candidatos"}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{data.candidates} de {total} total</p>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
+                  <ul className="mt-0 pt-1 flex flex-col gap-0.5 text-sm text-left mx-auto w-fit">
+                    {candidateSourceData.map((entry, index) => (
+                      <li key={index} className="flex items-center gap-2 justify-start">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-sm"
+                          style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                        />
+                        <span className="text-foreground">{entry.source}: {entry.candidates}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
               <div className="mt-6">
@@ -1904,8 +2082,17 @@ export default function ReportesPage() {
                       <TableCell>{consultant.avgTimeToHire} días</TableCell>
                       <TableCell>
                         <Badge
-                          variant={consultant.efficiency >= 85 ? "default" : "destructive"}
-                          className={consultant.efficiency >= 85 ? "bg-green-100 text-green-800" : ""}
+                          variant={
+                            consultant.efficiency >= 80 ? "default" : 
+                            consultant.efficiency >= 60 ? "secondary" : 
+                            "destructive"
+                          }
+                          className={
+                            consultant.efficiency >= 80 ? "bg-green-100 text-green-800" : 
+                            consultant.efficiency >= 60 ? "bg-yellow-100 text-yellow-800" : 
+                            consultant.efficiency >= 40 ? "bg-orange-100 text-orange-800" : 
+                            ""
+                          }
                         >
                           {consultant.efficiency}%
                         </Badge>
@@ -1993,124 +2180,6 @@ export default function ReportesPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Filtros de Período</CardTitle>
-              <CardDescription>Selecciona el período para la tabla de procesos cerrados exitosos</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Período</label>
-                  <ToggleGroup
-                    type="single"
-                    value={closedProcessesTimePeriod}
-                    onValueChange={(value) => {
-                      if (!value) return
-                      const next = value as "month" | "week" | "year"
-                      setClosedProcessesTimePeriod(next)
-                      if (next === "week") {
-                        const defaultInfo = getDefaultWeekInfo()
-                        setClosedProcessesYear(defaultInfo.year)
-                        setClosedProcessesWeek(defaultInfo.id)
-                      }
-                    }}
-                    className="grid grid-cols-3 w-full md:w-fit"
-                  >
-                    <ToggleGroupItem value="year" aria-label="Vista anual">
-                      Anual
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="month" aria-label="Vista mensual">
-                      Mensual
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="week" aria-label="Vista semanal">
-                      Semanal
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Año</label>
-                    <Select
-                      value={closedProcessesYear.toString()}
-                    onValueChange={(value) => {
-                      const yearNumber = Number.parseInt(value)
-                      setClosedProcessesYear(yearNumber)
-                      if (closedProcessesTimePeriod === "week") {
-                        const options = getWeekOptionsForYear(yearNumber)
-                        const defaultInfo = getDefaultWeekInfo()
-                        const fallback =
-                          options.find((option) => option.id === defaultInfo.id) ?? options[options.length - 1]
-                        if (fallback) {
-                          setClosedProcessesWeek(fallback.id)
-                        }
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
-                        <SelectItem key={year} value={year.toString()}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {closedProcessesTimePeriod === "month" ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Mes</label>
-                    <Select
-                      value={closedProcessesMonth.toString()}
-                      onValueChange={(value) => setClosedProcessesMonth(Number.parseInt(value))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => i).map((month) => (
-                          <SelectItem key={month} value={month.toString()}>
-                            {format(new Date(closedProcessesYear, month, 1), "MMMM", { locale: es })}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : closedProcessesTimePeriod === "week" ? (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Semana</label>
-                    <Select
-                      value={closedProcessesWeek}
-                      onValueChange={(value) => setClosedProcessesWeek(value)}
-                      disabled={closedProcessesWeekOptions.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona una semana" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {closedProcessesWeekOptions.map((week) => (
-                          <SelectItem key={week.id} value={week.id}>
-                            {week.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-muted-foreground">Período: Año completo</label>
-                    <div className="h-10 flex items-center text-sm text-muted-foreground">
-                      {closedProcessesYear}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>Procesos Cerrados Exitosos</CardTitle>
@@ -2133,6 +2202,139 @@ export default function ReportesPage() {
               </div>
             </CardHeader>
             <CardContent>
+              <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+                <h3 className="text-sm font-semibold mb-4">Filtros</h3>
+                <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Período</label>
+                    <ToggleGroup
+                      type="single"
+                      value={closedProcessesTimePeriod}
+                      onValueChange={(value) => {
+                        if (!value) return
+                        const next = value as "month" | "week" | "year"
+                        setClosedProcessesTimePeriod(next)
+                        if (next === "week") {
+                          const defaultInfo = getDefaultWeekInfo()
+                          setClosedProcessesYear(defaultInfo.year)
+                          setClosedProcessesWeek(defaultInfo.id)
+                        }
+                      }}
+                      className="grid grid-cols-3 w-full"
+                    >
+                      <ToggleGroupItem value="year" aria-label="Vista anual">
+                        Anual
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="month" aria-label="Vista mensual">
+                        Mensual
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="week" aria-label="Vista semanal">
+                        Semanal
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Año</label>
+                    <Select
+                      value={closedProcessesYear.toString()}
+                      onValueChange={(value) => {
+                        const yearNumber = Number.parseInt(value)
+                        setClosedProcessesYear(yearNumber)
+                        if (closedProcessesTimePeriod === "week") {
+                          const options = getWeekOptionsForYear(yearNumber)
+                          const defaultInfo = getDefaultWeekInfo()
+                          const fallback =
+                            options.find((option) => option.id === defaultInfo.id) ?? options[options.length - 1]
+                          if (fallback) {
+                            setClosedProcessesWeek(fallback.id)
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {closedProcessesTimePeriod === "month" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Mes</label>
+                      <Select
+                        value={closedProcessesMonth.toString()}
+                        onValueChange={(value) => setClosedProcessesMonth(Number.parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => i).map((month) => (
+                            <SelectItem key={month} value={month.toString()}>
+                              {format(new Date(closedProcessesYear, month, 1), "MMMM", { locale: es })}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : closedProcessesTimePeriod === "week" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Semana</label>
+                      <Select
+                        value={closedProcessesWeek}
+                        onValueChange={(value) => setClosedProcessesWeek(value)}
+                        disabled={closedProcessesWeekOptions.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona una semana" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {closedProcessesWeekOptions.map((week) => (
+                            <SelectItem key={week.id} value={week.id}>
+                              {week.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-muted-foreground">Período: Año completo</label>
+                      <div className="h-10 flex items-center text-sm text-muted-foreground">
+                        {closedProcessesYear}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Tipo de Servicio</label>
+                    <Select
+                      value={closedProcessesServiceFilter}
+                      onValueChange={(value) => setClosedProcessesServiceFilter(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Todos los servicios" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los servicios</SelectItem>
+                        {availableServiceTypes.map((type) => (
+                          <SelectItem key={type.codigo} value={type.codigo}>
+                            {type.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
               {loadingClosedProcesses ? (
                 <div className="flex items-center justify-center h-[300px]">
                   <div className="text-center">
@@ -2140,7 +2342,7 @@ export default function ReportesPage() {
                     <p className="text-sm text-muted-foreground">Cargando datos...</p>
                   </div>
                 </div>
-              ) : closedSuccessfulProcesses.length === 0 ? (
+              ) : filteredClosedProcesses.length === 0 ? (
                 <div className="flex items-center justify-center h-[300px]">
                   <p className="text-sm text-muted-foreground">No hay procesos cerrados exitosos en el período seleccionado</p>
                 </div>
@@ -2153,14 +2355,20 @@ export default function ReportesPage() {
                         <TableHead>Tipo de Servicio</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Cargo</TableHead>
-                        <TableHead>Contacto</TableHead>
-                        <TableHead>Comuna</TableHead>
+                        <TableHead>Ubicación</TableHead>
+                        <TableHead>Fecha Solicitud</TableHead>
+                        <TableHead>Fecha Cierre</TableHead>
+                        <TableHead className="text-center">N° Vacantes</TableHead>
+                        <TableHead>Consultor</TableHead>
                         <TableHead className="text-center">Total Candidatos</TableHead>
-                        <TableHead className="text-center">Candidatos Exitosos</TableHead>
+                        <TableHead className="text-center">Candidatos Seleccionados</TableHead>
+                        <TableHead>Resultado Informe</TableHead>
+                        <TableHead className="text-center">Días de Proceso</TableHead>
+                        <TableHead>Mes de Cierre</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {closedSuccessfulProcesses.map((process) => {
+                      {paginatedClosedProcesses.map((process) => {
                         const isExpanded = expandedRows.has(process.id_solicitud)
                         return (
                           <Fragment key={process.id_solicitud}>
@@ -2187,30 +2395,99 @@ export default function ReportesPage() {
                               </TableCell>
                               <TableCell className="font-medium">{process.nombre_servicio}</TableCell>
                               <TableCell>{process.cliente}</TableCell>
-                              <TableCell>{process.cargo || "Sin cargo"}</TableCell>
-                              <TableCell>{process.contacto || "Sin contacto"}</TableCell>
-                              <TableCell>{process.comuna || "Sin comuna"}</TableCell>
+                              <TableCell>
+                                <span 
+                                  className="block max-w-[250px] truncate" 
+                                  title={process.cargo || "Sin cargo"}
+                                >
+                                  {process.cargo && process.cargo.length > 40 
+                                    ? `${process.cargo.substring(0, 40)}...` 
+                                    : process.cargo || "Sin cargo"}
+                                </span>
+                              </TableCell>
+                              <TableCell>{process.ubicacion_cargo || "Sin ubicación"}</TableCell>
+                              <TableCell>{process.fecha_solicitud ? formatDateShort(process.fecha_solicitud) : "Sin fecha"}</TableCell>
+                              <TableCell>{process.fecha_cierre ? formatDateShort(process.fecha_cierre) : "Sin fecha"}</TableCell>
+                              <TableCell className="text-center">{process.numero_vacantes || 0}</TableCell>
+                              <TableCell>{process.consultor || "Sin asignar"}</TableCell>
                               <TableCell className="text-center">{process.total_candidatos}</TableCell>
                               <TableCell className="text-center">
-                                {process.candidatos_exitosos.length > 0 ? (
+                                {process.total_candidatos_seleccionados > 0 ? (
                                   <Badge variant="default" className="bg-green-100 text-green-800">
-                                    {process.candidatos_exitosos.length}
+                                    {process.total_candidatos_seleccionados}
                                   </Badge>
                                 ) : (
                                   <span className="text-muted-foreground">0</span>
                                 )}
                               </TableCell>
+                              <TableCell>
+                                {process.resultado_informe_psicolaboral ? (
+                                  <Badge
+                                    variant={
+                                      process.resultado_informe_psicolaboral.includes("Recomendable") && !process.resultado_informe_psicolaboral.includes("No")
+                                        ? "default"
+                                        : process.resultado_informe_psicolaboral.includes("observaciones")
+                                        ? "secondary"
+                                        : "destructive"
+                                    }
+                                    className={
+                                      process.resultado_informe_psicolaboral.includes("Recomendable") && !process.resultado_informe_psicolaboral.includes("No")
+                                        ? "bg-green-100 text-green-800"
+                                        : process.resultado_informe_psicolaboral.includes("observaciones")
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : ""
+                                    }
+                                  >
+                                    {process.resultado_informe_psicolaboral}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">N/A</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {process.fecha_solicitud && process.fecha_cierre ? (
+                                  Math.round(
+                                    (new Date(process.fecha_cierre).getTime() - new Date(process.fecha_solicitud).getTime()) / (1000 * 60 * 60 * 24)
+                                  )
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>{process.mes_cierre || "Sin mes"}</TableCell>
                             </TableRow>
                             {isExpanded && process.candidatos_exitosos.length > 0 && (
                               <TableRow>
-                                <TableCell colSpan={8} className="bg-muted/50">
+                                <TableCell colSpan={14} className="bg-muted/50">
                                   <div className="p-4 space-y-2">
                                     <h4 className="font-semibold text-sm mb-3">Candidatos Exitosos:</h4>
-                                    <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                                       {process.candidatos_exitosos.map((candidato, idx) => (
-                                        <div key={idx} className="border rounded-md p-2 text-sm">
+                                        <div key={idx} className="border rounded-md p-3 text-sm space-y-1.5">
                                           <p className="font-medium">{candidato.nombre}</p>
                                           <p className="text-muted-foreground">RUT: {candidato.rut}</p>
+                                          {candidato.estado_informe && (
+                                            <div className="flex items-center gap-2 pt-1">
+                                              <span className="text-xs text-muted-foreground">Estado Informe Psicolaboral:</span>
+                                              <Badge
+                                                variant={
+                                                  candidato.estado_informe.includes("Recomendable") && !candidato.estado_informe.includes("No")
+                                                    ? "default"
+                                                    : candidato.estado_informe.includes("observaciones")
+                                                    ? "secondary"
+                                                    : "destructive"
+                                                }
+                                                className={
+                                                  candidato.estado_informe.includes("Recomendable") && !candidato.estado_informe.includes("No")
+                                                    ? "bg-green-100 text-green-800 text-xs"
+                                                    : candidato.estado_informe.includes("observaciones")
+                                                    ? "bg-yellow-100 text-yellow-800 text-xs"
+                                                    : "text-xs"
+                                                }
+                                              >
+                                                {candidato.estado_informe}
+                                              </Badge>
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
@@ -2223,6 +2500,47 @@ export default function ReportesPage() {
                       })}
                     </TableBody>
                   </Table>
+
+                  {totalClosedProcessesPages > 1 && (
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Mostrando {((closedProcessesPage - 1) * closedProcessesPerPage) + 1} - {Math.min(closedProcessesPage * closedProcessesPerPage, filteredClosedProcesses.length)} de {filteredClosedProcesses.length} procesos
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setClosedProcessesPage(p => Math.max(1, p - 1))}
+                          disabled={closedProcessesPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Anterior
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: totalClosedProcessesPages }, (_, i) => i + 1).map((page) => (
+                            <Button
+                              key={page}
+                              variant={page === closedProcessesPage ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setClosedProcessesPage(page)}
+                              className="w-9"
+                            >
+                              {page}
+                            </Button>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setClosedProcessesPage(p => Math.min(totalClosedProcessesPages, p + 1))}
+                          disabled={closedProcessesPage === totalClosedProcessesPages}
+                        >
+                          Siguiente
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
