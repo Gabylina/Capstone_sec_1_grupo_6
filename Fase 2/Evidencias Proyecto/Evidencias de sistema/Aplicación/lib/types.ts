@@ -84,6 +84,9 @@ export interface Process {
   datos_excel?: any // Datos del Excel procesado
   id_descripcion_cargo?: number // ID de la descripción de cargo
   id_descripcioncargo?: number // ID alternativo de la descripción de cargo
+  etapa?: string // Etapa actual del proceso (ej: "Módulo 4: Evaluación Psicolaboral")
+  stage?: string // Alias alternativo de etapa
+  tipo_servicio?: string // Tipo de servicio alternativo
 }
 
 export interface Candidate {

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -944,9 +944,12 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
   const isBlocked = isProcessBlocked(processStatus)
 
   // Verificar si ya está en un módulo avanzado (módulo 4 o 5)
+  const isInAdvancedModule = !!(process.etapa && (
+    process.etapa.includes("Módulo 4") || 
   const isInAdvancedModule = Boolean(process.etapa && (
     process.etapa.includes("Módulo 4") ||
     process.etapa.includes("Módulo 5")
+  ))
   ))
 
   const canChangeStatus = (currentStatus: ProcessStatus, newStatus: ProcessStatus) => {
@@ -989,6 +992,7 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule4}
+                disabled={!!(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule)}
                 disabled={Boolean(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule4 || isInAdvancedModule)}
               >
                 {isAdvancingToModule4 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1010,6 +1014,7 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
               <Button 
                 className="bg-blue-600 hover:bg-blue-700"
                 onClick={handleAdvanceToModule2}
+                disabled={!!(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule)}
                 disabled={Boolean(readOnly || isProcessBlocked(processStatus) || isAdvancingToModule2 || isInAdvancedModule)}
               >
                 {isAdvancingToModule2 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1019,6 +1024,7 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
           </CardContent>
         </Card>
       )}
+
 
       {/* Botón de cambio de estado al inicio */}
       <Card>
@@ -2914,6 +2920,320 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
           </CardContent>
         </Card>
       )}
+
+      {/* Process Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Información del Proceso
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Cliente</p>
+                <p className="text-sm text-muted-foreground">{process.client.name}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Contacto</p>
+                <p className="text-sm text-muted-foreground">{process.client.contacts[0]?.name || 'Sin contacto'}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Tipo de Servicio</p>
+                <Badge variant="outline">{serviceTypeLabels[process.service_type]}</Badge>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Fecha Creación</p>
+                <p className="text-sm text-muted-foreground">{formatDate(process.created_at)}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Job Details */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detalles del Cargo</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h3 className="font-semibold text-lg mb-2">{process.position_title}</h3>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Vacantes</p>
+                <p className="text-2xl font-bold text-primary">{process.vacancies}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Región</p>
+                <p className="text-lg font-semibold">
+                  {(() => {
+                    const comunaNombre = process.client.contacts[0]?.city
+                    if (!comunaNombre) return 'No especificada'
+                    
+                    // Buscar la comuna en la lista de comunas
+                    const comuna = todasLasComunas.find(c => c.nombre_comuna === comunaNombre)
+                    if (!comuna) return process.client.contacts[0]?.region || 'No especificada'
+                    
+                    // Buscar la región correspondiente
+                    const region = regiones.find(r => r.id_region === comuna.id_region)
+                    return region?.nombre_region || process.client.contacts[0]?.region || 'No especificada'
+                  })()}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Comuna</p>
+                <p className="text-lg font-semibold">{process.client.contacts[0]?.city || 'No especificada'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-medium mb-2">Descripción del Cargo</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">{process.description}</p>
+          </div>
+
+          <div>
+            <h4 className="font-medium mb-2">Requisitos y Condiciones</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">{process.requirements}</p>
+          </div>
+
+          {process.excel_file && (
+            <div>
+              <h4 className="font-medium mb-2">Archivo Adjunto</h4>
+              <Button variant="outline" size="sm" disabled={readOnly}>
+                <Download className="mr-2 h-4 w-4" />
+                Descargar {process.excel_file}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Excel Data - Descripción de Cargo Detallada (solo para procesos no psicolaborales) */}
+      {!isEvaluationProcess && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Descripción de Cargo Detallada (Datos del Excel)
+            </CardTitle>
+            <CardDescription>Información completa extraída del archivo Excel</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingExcel ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-3 text-muted-foreground">Cargando datos del Excel...</span>
+              </div>
+            ) : excelData && Object.keys(excelData).length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[300px]">Campo</TableHead>
+                    <TableHead>Información</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Object.entries(excelData).map(([key, value]) => {
+                    // Omitir campos vacíos o null
+                    if (!value || value === '' || value === 'null') return null
+
+                    // Formatear el nombre del campo
+                    const fieldName = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+
+                    // Formatear el valor
+                    let displayValue: any = value
+                    if (typeof value === 'object' && value !== null) {
+                      if (Array.isArray(value)) {
+                        // Si es un array de objetos (como Competencias Psicolaborales)
+                        if (value.length > 0 && typeof value[0] === 'object') {
+                          displayValue = (
+                            <div className="space-y-2">
+                              {value.map((item, idx) => (
+                                <div key={idx} className="border-l-2 border-primary pl-3 py-1">
+                                  {Object.entries(item).map(([k, v]) => (
+                                    <div key={k}>
+                                      <span className="font-medium">{k}:</span> {String(v)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        } else {
+                          // Array simple
+                          displayValue = value.join(', ')
+                        }
+                      } else {
+                        // Objeto simple
+                        displayValue = JSON.stringify(value, null, 2)
+                      }
+                    }
+
+                    return (
+                      <TableRow key={key}>
+                        <TableCell className="font-medium align-top">{fieldName}</TableCell>
+                        <TableCell className="whitespace-pre-wrap">
+                          {typeof displayValue === 'string' ? displayValue : displayValue}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                <p className="font-medium">No hay datos del Excel disponibles</p>
+                <p className="text-sm mt-2">Los datos aparecerán aquí cuando se suba un archivo Excel</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+
+      {/* Client Contact Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Información de Contacto del Cliente</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium">Persona de Contacto</p>
+              <p className="text-sm text-muted-foreground">{process.client.contacts[0]?.name || 'Sin contacto'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Email</p>
+              <p className="text-sm text-muted-foreground">{process.client.contacts[0]?.email || 'Sin email'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Teléfono</p>
+              <p className="text-sm text-muted-foreground">{process.client.contacts[0]?.phone || 'Sin teléfono'}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+
+      {/* Cambiar Estado de la Solicitud */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Cambiar Estado de la Solicitud
+          </CardTitle>
+          <CardDescription>
+            Actualiza el estado actual del proceso de reclutamiento
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label htmlFor="estado-select">Estado Actual: </Label>
+              <Badge className={getStatusColor(processStatus)}>
+                {processStatusLabels[processStatus] || processStatus}
+              </Badge>
+            </div>
+            <Button
+              variant="outline"
+              disabled={readOnly || loadingEstados}
+              onClick={() => setShowStatusChange(!showStatusChange)}
+            >
+              {loadingEstados ? "Cargando..." : "Cambiar Estado"}
+            </Button>
+          </div>
+
+          {showStatusChange && (
+            <div className="mt-4 space-y-4 p-4 border rounded-lg bg-muted/50">
+              <div>
+                <Label htmlFor="new-estado">Nuevo Estado</Label>
+                <Select
+                  value={selectedEstado}
+                  onValueChange={setSelectedEstado}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecciona un estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estadosDisponibles.map((estado) => (
+                      <SelectItem key={estado.id} value={estado.id.toString()}>
+                        {estado.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="reason">Motivo del Cambio (Opcional)</Label>
+                <Textarea
+                  id="reason"
+                  placeholder="Explica el motivo del cambio de estado..."
+                  value={statusChangeReason}
+                  onChange={(e) => {
+                    const newValue = e.target.value
+                    // Limitar a 500 caracteres
+                    if (newValue.length <= 500) {
+                      setStatusChangeReason(newValue)
+                      setStatusChangeReasonError("")
+                    } else {
+                      setStatusChangeReasonError("El motivo del cambio no puede exceder 500 caracteres")
+                    }
+                  }}
+                  className={`mt-1 ${statusChangeReasonError ? "border-destructive" : ""}`}
+                  maxLength={500}
+                />
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-sm text-muted-foreground">
+                    {statusChangeReason.length}/500 caracteres
+                  </div>
+                  {statusChangeReasonError && (
+                    <p className="text-sm text-destructive">
+                      {statusChangeReasonError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleStatusChange(selectedEstado)}
+                  disabled={readOnly || !selectedEstado}
+                >
+                  Actualizar Estado
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowStatusChange(false)
+                    setSelectedEstado("")
+                    setStatusChangeReason("")
+                    setStatusChangeReasonError("")
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* CV Viewer Dialog */}
       {showCVViewer && currentCandidate && (
