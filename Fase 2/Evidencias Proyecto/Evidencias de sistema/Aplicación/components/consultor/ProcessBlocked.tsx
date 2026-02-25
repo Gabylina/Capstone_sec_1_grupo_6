@@ -11,8 +11,8 @@ interface ProcessBlockedProps {
 }
 
 export function ProcessBlocked({ processStatus, moduleName }: ProcessBlockedProps) {
-  // Estados finales que bloquean la edición
-  const finalStates = ['cerrado', 'congelado', 'cancelado', 'cierre extraordinario']
+  // Estados finales que bloquean la edición (Congelado no bloquea: se puede reactivar)
+  const finalStates = ['cerrado', 'cancelado', 'cierre extraordinario']
   const isBlocked = finalStates.some(state => 
     processStatus.toLowerCase().includes(state.toLowerCase())
   )

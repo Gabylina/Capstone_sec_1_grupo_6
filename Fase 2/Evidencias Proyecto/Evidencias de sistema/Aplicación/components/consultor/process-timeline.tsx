@@ -3,7 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDate, getStatusColor } from "@/lib/utils"
-import { CheckCircle, Clock, AlertTriangle, Circle } from "lucide-react"
+import { CheckCircle, Clock, AlertTriangle, Circle, Pause } from "lucide-react"
 import type { Process, Hito } from "@/lib/types"
 
 interface ProcessTimelineProps {
@@ -14,6 +14,8 @@ interface ProcessTimelineProps {
 
 export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelineProps) {
   const isSanCristobal = (process?.tipo_servicio || process?.service_type) === "SC" || (process?.tipo_servicio || process?.service_type) === "CA"
+  const processStatus = (process?.estado_solicitud || process?.status || "").toLowerCase()
+  const isCongelado = processStatus.includes("congelado")
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -39,10 +41,30 @@ export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelinePro
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">Línea de Tiempo del Proceso</h2>
-        <p className="text-muted-foreground">Seguimiento de hitos y progreso del proceso de reclutamiento</p>
+        <p className="text-muted-foreground">
+          {isCongelado
+            ? "Proceso en estado Congelado. Los hitos están en reposo y no corre el plazo de la solicitud."
+            : "Seguimiento de hitos y progreso del proceso de reclutamiento"}
+        </p>
       </div>
 
-      <div className="space-y-4">
+      {isCongelado && (
+        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+              <Pause className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="font-medium text-amber-800 dark:text-amber-200">Proceso congelado</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Los hitos se muestran a continuación en estado de reposo. El plazo de la solicitud no avanza hasta que reactives el proceso.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className={isCongelado ? "space-y-4 opacity-90" : "space-y-4"}>
         {sortedHitos.map((hito, index) => (
           <Card key={hito.id} className="relative">
             {index < sortedHitos.length - 1 && <div className="absolute left-8 top-16 w-0.5 h-16 bg-border" />}

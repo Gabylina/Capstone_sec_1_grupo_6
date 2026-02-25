@@ -142,10 +142,11 @@ export function isNearDue(dueDate: string, anticipationDays = 2): boolean {
 }
 
 /**
- * Determina si un proceso está en estado final y por tanto bloqueado para edición
+ * Determina si un proceso está en estado final y por tanto bloqueado para edición.
+ * Congelado no se considera final: el proceso puede reactivarse y no corre el plazo.
  */
 export function isProcessBlocked(processStatus: string): boolean {
-  const finalStates = ['cerrado', 'congelado', 'cancelado', 'cierre extraordinario']
+  const finalStates = ['cerrado', 'cancelado', 'cierre extraordinario']
   return finalStates.some(state => 
     processStatus.toLowerCase().includes(state.toLowerCase())
   )

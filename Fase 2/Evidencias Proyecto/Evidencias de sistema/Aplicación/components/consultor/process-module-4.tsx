@@ -512,7 +512,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
 
   // Verificar si el proceso está bloqueado (estado final)
   const isProcessBlocked = (status: string): boolean => {
-    const finalStates = ['cerrado', 'congelado', 'cancelado', 'cierre extraordinario']
+    const finalStates = ['cerrado', 'cancelado', 'cierre extraordinario']
     return finalStates.some(state => 
       status.toLowerCase().includes(state.toLowerCase())
     )
