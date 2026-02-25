@@ -202,14 +202,21 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
         const { postulacionService } = await import('@/lib/api')
         const response = await postulacionService.getBySolicitudOptimized(Number(process.id))
         const allCandidates = response.data || []
-        
-        // Solo candidatos aprobados por el cliente (igual que Entrevista Técnica y Exámenes Médicos)
-        let candidatesToShow = allCandidates.filter(
-          (c: Candidate) => (c as any).client_response === "aprobado" || (c as any).estado_candidato === "aprobado"
-        )
-        // San Cristóbal: no mostrar en Módulo 4 candidatos con examen médico rechazado o pendiente
-        const isSC = process.service_type === "SC" || (process as any).tipo_servicio === "SC"
-        if (isSC) {
+        const serviceType = process.service_type || (process as any).tipo_servicio
+        const isEvaluationProcess = serviceType === "ES" || serviceType === "EP" || serviceType === "TS"
+        const isSanCristobal = (serviceType as string) === "SC" || (serviceType as string) === "CA"
+
+        // Origen de candidatos en Módulo 4 según tipo de proceso:
+        // - Evaluación Psicolaboral (ES/EP/TS): desde Módulo 1 (todos los candidatos del proceso).
+        // - Headhunting y Proceso Completo (HH/PC): desde Módulo 3 (solo aprobados por el cliente).
+        // - San Cristóbal (SC/CA): desde Módulo Exámenes Médicos (aprobados por cliente + exámenes aprobados).
+        let candidatesToShow = isEvaluationProcess
+          ? allCandidates
+          : allCandidates.filter(
+              (c: Candidate) => (c as any).client_response === "aprobado" || (c as any).estado_candidato === "aprobado"
+            )
+        // San Cristóbal (SC y CA): solo candidatos con exámenes médicos aprobados (vienen del Módulo Exámenes Médicos).
+        if (isSanCristobal) {
           const examenesRes = await examenMedicoService.getBySolicitud(Number(process.id))
           if (examenesRes.success && examenesRes.data && Array.isArray(examenesRes.data)) {
             const examenes = examenesRes.data as any[]
@@ -1165,7 +1172,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
       // Si el tipo de test cambió, verificar que no esté siendo usado por otro test
       if (originalTestId !== newTestId) {
         // Verificar si el nuevo tipo de test ya existe en otro test (excluyendo el test actual)
-        const otherTestsWithSameType = existingTestIds.filter(testId => 
+        const otherTestsWithSameType = existingTestIds.filter((testId: string) => 
           testId === newTestId && testId !== originalTestId
         )
         
@@ -1824,7 +1831,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
       const response = await evaluacionPsicolaboralService.updateInformeCompleto(
         existingEvaluation.id_evaluacion_psicolaboral,
         estadoInforme,
-        conclusionToSend,
+        conclusionToSend ?? "",
         reportForm.report_sent_date
       )
 
@@ -2309,7 +2316,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
       }
 
       if (failed.length > 0) {
-        const failedErrors = failed.map(f => processApiErrorMessage(f.error, f.error)).join(', ')
+        const failedErrors = failed.map(f => processApiErrorMessage(f.error, f.error ?? 'Error desconocido')).join(', ')
         showToast({
           type: "error",
           title: "Algunos candidatos no pudieron avanzar",

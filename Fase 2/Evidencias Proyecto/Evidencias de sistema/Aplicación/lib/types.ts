@@ -9,6 +9,8 @@ export type ServiceType =
   | "EP" // evaluacion_potencial (igual que ES)
   | "TS" // test_psicolaboral
   | "PP" // publicacion_portales (solo módulo 1 y 2 sin candidatos)
+  | "SC" // San Cristóbal Completo
+  | "CA" // San Cristóbal Acotado
 
 export type ProcessStatus = "creado" | "iniciado" | "en_progreso" | "completado" | "cancelado" | "congelado" | "Creado" | "En Progreso" | "Cerrado" | "Congelado" | "Cancelado"
 
