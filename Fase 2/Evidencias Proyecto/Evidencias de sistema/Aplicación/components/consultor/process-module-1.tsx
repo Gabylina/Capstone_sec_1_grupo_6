@@ -21,7 +21,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet, Trash2, Plus, Pencil, Loader2 } from "lucide-react"
+import { Building2, User, Calendar, Target, FileText, Download, Settings, FileSpreadsheet, Trash2, Plus, Pencil, Loader2, File as FileIcon, Eye } from "lucide-react"
 import type { Process, ProcessStatus, Candidate, WorkExperience, Education } from "@/lib/types"
 import { useState, useEffect } from "react"
 import { descripcionCargoService, solicitudService, regionService, comunaService, profesionService, rubroService, nacionalidadService, candidatoService, institucionService } from "@/lib/api"
@@ -270,6 +270,10 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
     }
     loadExcelData()
   }, [process.id_descripcion_cargo, process.id_descripcioncargo, process.datos_excel])
+
+  const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
+  const hasPdf = !!(descripcionCargo && descripcionCargo.tiene_datos_pdf)
+  const pdfUrl = hasPdf && descripcionCargoId ? descripcionCargoService.getPdfUrl(descripcionCargoId) : null
 
   // For evaluation processes - track current candidate in accordion
   const [currentCandidateId, setCurrentCandidateId] = useState<string | null>(null)
@@ -2706,17 +2710,50 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
         </CardContent>
       </Card>
 
-      {/* Excel Data - Descripción de Cargo Detallada (solo para procesos no psicolaborales) */}
+      {/* Descripción de cargo (PDF + Excel) - solo visualización, PDF se sube al crear la solicitud */}
       {!isEvaluationProcess && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5" />
-              Descripción de Cargo Detallada (Datos del Excel)
+              <FileIcon className="h-5 w-5" />
+              Descripción de Cargo (PDF y Datos del Excel)
             </CardTitle>
-            <CardDescription>Información completa extraída del archivo Excel</CardDescription>
+            <CardDescription>
+              Visualiza el PDF de la descripción de cargo y la información detallada extraída del Excel.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
+            {/* Sección PDF solo visual (botón con ojo) */}
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-medium flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  PDF de Descripción de Cargo
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  El PDF se sube al crear la solicitud. Aquí solo puedes visualizarlo.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={!pdfUrl}
+                  onClick={() => {
+                    if (pdfUrl) {
+                      window.open(pdfUrl, "_blank", "noopener,noreferrer")
+                    }
+                  }}
+                >
+                  <Eye className="h-4 w-4" />
+                  Ver PDF
+                </Button>
+              </div>
+            </div>
+
+            {/* Sección Excel */}
             {loadingExcel ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

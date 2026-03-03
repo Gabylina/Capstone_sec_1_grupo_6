@@ -153,6 +153,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
     candidate_rut: "",
     cv_file: null as File | null,
     excel_file: null as File | null,
+    pdf_file: null as File | null,
     fecha_ingreso_solicitud: "", // Fecha de ingreso de la solicitud (formato YYYY-MM-DD)
   })
 
@@ -227,6 +228,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         candidate_rut: "",
         cv_file: null,
         excel_file: null,
+        pdf_file: null,
         fecha_ingreso_solicitud: "",
       })
       setShowCustomPosition(false)
@@ -902,6 +904,22 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           onOpenChange(false)
           onSuccess?.() // Recargar datos
         } else {
+          // Si hay descripción de cargo, subir primero el PDF (si existe)
+          const descripcionCargoId = response.data.id_descripcion_cargo
+          if (descripcionCargoId && formData.pdf_file) {
+            try {
+              await descripcionCargoService.uploadPdf(descripcionCargoId, formData.pdf_file)
+            } catch (pdfError: any) {
+              console.error('Error al subir PDF de descripción de cargo:', pdfError)
+              const errorMsg = processApiErrorMessage(pdfError.message, 'Error al subir el PDF de la descripción de cargo')
+              showToast({
+                type: "error",
+                title: "Error al subir PDF",
+                description: (isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un problema al subir el PDF: ' + errorMsg,
+              })
+            }
+          }
+
           // Si hay archivo Excel, procesarlo y enviarlo
           if (formData.excel_file) {
             try {
@@ -911,10 +929,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 description: "Procesando archivo Excel...",
               })
               const excelData = await processExcelFile(formData.excel_file)
-              
-              // Obtener el ID de la descripción de cargo creada
-              const descripcionCargoId = response.data.id_descripcion_cargo
-              
+
               if (descripcionCargoId) {
                 const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
                 
@@ -972,6 +987,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       candidate_rut: "",
       cv_file: null,
           excel_file: null,
+        pdf_file: null,
       fecha_ingreso_solicitud: "",
     })
     setShowCustomPosition(false)
@@ -1901,6 +1917,65 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
               <p className="text-xs text-muted-foreground">
                 Si tienes un archivo Excel con los detalles del cargo, puedes subirlo aquí. 
                 Los datos serán procesados automáticamente.
+              </p>
+            </div>
+            
+            {/* Sección para subir PDF de descripción de cargo */}
+            <div className="space-y-2">
+              <Label htmlFor="pdf_file">Descripción de Cargo en PDF (Opcional)</Label>
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer"
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const file = e.dataTransfer.files?.[0]
+                  if (file && file.type === "application/pdf") {
+                    setFormData({ ...formData, pdf_file: file })
+                  }
+                }}
+                onClick={() => document.getElementById('pdf_file')?.click()}
+              >
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-gray-700">
+                    {formData.pdf_file ? 'PDF seleccionado' : 'Arrastra tu archivo PDF aquí'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    o haz clic para seleccionar
+                  </p>
+                  {formData.pdf_file ? (
+                    <div className="flex items-center space-x-2 text-green-600">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm font-medium">{formData.pdf_file.name}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400">
+                      Solo se permite un archivo PDF.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Input
+                id="pdf_file"
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFormData({ ...formData, pdf_file: e.target.files?.[0] || null })}
+                className="hidden"
+              />
+
+              <p className="text-xs text-muted-foreground">
+                Este PDF se almacenará junto a la descripción de cargo y se podrá visualizar en el Módulo 1.
               </p>
             </div>
             </>

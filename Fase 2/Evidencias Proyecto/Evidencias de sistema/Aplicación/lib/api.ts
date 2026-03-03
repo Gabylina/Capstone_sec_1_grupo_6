@@ -333,6 +333,60 @@ export const descripcionCargoService = {
     return apiRequest(`/api/descripciones-cargo/${id}/excel`);
   },
 
+  // Subir PDF de descripción de cargo
+  async uploadPdf(id: number, file: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('pdf_file', file);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('llc_token') : null;
+
+    const response = await fetch(`${API_BASE_URL}/api/descripciones-cargo/${id}/pdf`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    return data;
+  },
+
+  // Subir / actualizar PDF de descripción de cargo
+  async uploadPdf(id: number, file: File): Promise<ApiResponse<any>> {
+    const formData = new FormData();
+    formData.append('pdf_file', file);
+
+    // Usar fetch directo para NO enviar Content-Type: application/json.
+    const token = typeof window !== 'undefined' ? localStorage.getItem('llc_token') : null;
+
+    const response = await fetch(`${API_BASE_URL}/api/descripciones-cargo/${id}/pdf`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
+    }
+
+    return data;
+  },
+
+  // Obtener URL para visualizar el PDF (se sirve directamente desde el backend)
+  getPdfUrl(id: number): string {
+    return `/api/descripciones-cargo/${id}/pdf`;
+  },
+
   // Eliminar descripción de cargo
   async delete(id: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/descripciones-cargo/${id}`, {

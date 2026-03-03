@@ -84,6 +84,8 @@ export interface Process {
   completed_at?: string
   excel_file?: string
   datos_excel?: any // Datos del Excel procesado
+  // PDF de descripción de cargo asociado (se expone solo como flag y URL en el frontend)
+  tiene_datos_pdf?: boolean
   id_descripcion_cargo?: number // ID de la descripción de cargo
   id_descripcioncargo?: number // ID alternativo de la descripción de cargo
   etapa?: string // Etapa actual del proceso (ej: "Módulo 4: Evaluación Psicolaboral")

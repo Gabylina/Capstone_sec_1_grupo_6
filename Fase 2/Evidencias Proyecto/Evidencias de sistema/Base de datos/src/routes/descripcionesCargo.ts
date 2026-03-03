@@ -27,6 +27,13 @@ router.get('/', DescripcionCargoController.getAll);
 router.get('/:id/excel', DescripcionCargoController.getDatosExcel);
 
 /**
+ * @route   GET /api/descripciones-cargo/:id/pdf
+ * @desc    Obtener PDF de descripción de cargo (solo lectura/visualización)
+ * @access  Public
+ */
+router.get('/:id/pdf', DescripcionCargoController.getPdf);
+
+/**
  * @route   GET /api/descripciones-cargo/:id
  * @desc    Obtener una descripción de cargo por ID
  * @access  Public
@@ -52,6 +59,14 @@ router.post('/', DescripcionCargoController.create);
  * @note    El Excel se procesa en el frontend con xlsx.js y se envía el JSON resultante
  */
 router.post('/:id/excel', DescripcionCargoController.agregarDatosExcel);
+
+/**
+ * @route   POST /api/descripciones-cargo/:id/pdf
+ * @desc    Subir o actualizar PDF asociado a una descripción de cargo
+ * @access  Private
+ */
+import { uploadCV } from '@/config/multer';
+router.post('/:id/pdf', uploadCV.single('pdf_file'), DescripcionCargoController.uploadPdf);
 
 /**
  * @route   PUT /api/descripciones-cargo/:id

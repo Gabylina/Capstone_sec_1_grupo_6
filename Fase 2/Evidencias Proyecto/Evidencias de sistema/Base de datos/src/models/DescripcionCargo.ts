@@ -13,12 +13,13 @@ interface DescripcionCargoAttributes {
     num_vacante: number;
     fecha_ingreso: Date;
     datos_excel?: object;
+    datos_pdf?: Buffer | null;
     id_cargo: number;
     id_comuna: number;
     id_solicitud: number; // <-- Nueva FK hacia Solicitud
 }
 
-interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel' | 'requisitos_y_condiciones'> { }
+interface DescripcionCargoCreationAttributes extends Optional<DescripcionCargoAttributes, 'id_descripcioncargo' | 'datos_excel' | 'datos_pdf' | 'requisitos_y_condiciones'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -31,6 +32,7 @@ class DescripcionCargo extends Model<DescripcionCargoAttributes, DescripcionCarg
     public num_vacante!: number;
     public fecha_ingreso!: Date;
     public datos_excel?: object;
+    public datos_pdf?: Buffer | null;
     public id_cargo!: number;
     public id_comuna!: number;
     public id_solicitud!: number;
@@ -63,6 +65,10 @@ class DescripcionCargo extends Model<DescripcionCargoAttributes, DescripcionCarg
         if (!this.datos_excel || typeof this.datos_excel !== 'object') return null;
         const datos = this.datos_excel as any;
         return datos[nombreHoja] || null;
+    }
+
+    public tieneDatosPdf(): boolean {
+        return this.datos_pdf !== null && this.datos_pdf !== undefined;
     }
 }
 
@@ -125,6 +131,10 @@ DescripcionCargo.init({
                 }
             }
         }
+    },
+    datos_pdf: {
+        type: DataTypes.BLOB,
+        allowNull: true
     },
     id_cargo: {
         type: DataTypes.INTEGER,

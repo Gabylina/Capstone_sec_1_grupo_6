@@ -43,7 +43,8 @@ export class DescripcionCargoService {
                 nombre: (desc.get('comuna') as any)?.nombre_comuna
             },
             tiene_datos_excel: desc.tieneDatosExcel(),
-            datos_excel: desc.getDatosExcel()
+            datos_excel: desc.getDatosExcel(),
+            tiene_datos_pdf: desc.tieneDatosPdf()
         }));
     }
 
@@ -82,7 +83,8 @@ export class DescripcionCargoService {
             cargo: cargo ? cargo.nombre_cargo : '',
             comuna: comuna ? comuna.nombre_comuna : '',
             datos_excel: descripcion.getDatosExcel(),
-            tiene_datos_excel: descripcion.tieneDatosExcel()
+            tiene_datos_excel: descripcion.tieneDatosExcel(),
+            tiene_datos_pdf: descripcion.tieneDatosPdf()
         };
     }
 
@@ -290,7 +292,8 @@ export class DescripcionCargoService {
             cargo: cargoData?.nombre_cargo || '',
             comuna: comunaData?.nombre_comuna || '',
             tiene_datos_excel: descripcionActualizada!.tieneDatosExcel(),
-            datos_excel: descripcionActualizada!.getDatosExcel()
+            datos_excel: descripcionActualizada!.getDatosExcel(),
+            tiene_datos_pdf: descripcionActualizada!.tieneDatosPdf()
         };
     }
 
@@ -332,6 +335,46 @@ export class DescripcionCargoService {
         return {
             id: descripcion.id_descripcioncargo,
             datos_excel: descripcion.getDatosExcel()
+        };
+    }
+
+    /**
+     * Actualizar / guardar PDF asociado a una descripción de cargo
+     */
+    static async updatePdf(id: number, pdfBuffer: Buffer) {
+        const descripcion = await DescripcionCargo.findByPk(id);
+
+        if (!descripcion) {
+            throw new Error('Descripción de cargo no encontrada');
+        }
+
+        await descripcion.update({
+            datos_pdf: pdfBuffer
+        });
+
+        return {
+            id: descripcion.id_descripcioncargo,
+            tiene_datos_pdf: descripcion.tieneDatosPdf()
+        };
+    }
+
+    /**
+     * Obtener PDF asociado a una descripción de cargo
+     */
+    static async getPdf(id: number) {
+        const descripcion = await DescripcionCargo.findByPk(id);
+
+        if (!descripcion) {
+            throw new Error('Descripción de cargo no encontrada');
+        }
+
+        if (!descripcion.tieneDatosPdf()) {
+            throw new Error('Esta descripción no tiene PDF asociado');
+        }
+
+        return {
+            id: descripcion.id_descripcioncargo,
+            pdf: descripcion.datos_pdf
         };
     }
 

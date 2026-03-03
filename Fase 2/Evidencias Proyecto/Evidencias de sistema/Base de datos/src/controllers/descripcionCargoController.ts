@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { DescripcionCargoService } from '@/services/descripcionCargoService';
+import { handleMulterError } from '@/config/multer';
 
 /**
  * Controlador para gestión de Descripciones de Cargo
@@ -180,6 +181,78 @@ export class DescripcionCargoController {
             }
 
             return sendError(res, error.message || 'Error al obtener datos de Excel', 500);
+        }
+    }
+
+    /**
+     * POST /api/descripciones-cargo/:id/pdf
+     * Subir o actualizar el PDF asociado a una descripción de cargo
+     */
+    static async uploadPdf(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+
+            if (!req.file) {
+                return sendError(res, 'No se proporcionó ningún archivo', 400);
+            }
+
+            // Solo permitir PDF explícitamente en este endpoint
+            if (req.file.mimetype !== 'application/pdf') {
+                return sendError(res, 'Solo se permiten archivos PDF', 400);
+            }
+
+            const resultado = await DescripcionCargoService.updatePdf(parseInt(id), req.file.buffer);
+
+            Logger.info(`PDF de descripción de cargo actualizado: ${id}`);
+            return sendSuccess(res, resultado, 'PDF de descripción de cargo actualizado exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al subir PDF de descripción de cargo:', error);
+
+            if (error.message === 'Descripción de cargo no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            // Manejar errores de Multer también aquí
+            if (error.message && error.message.includes('Solo se permiten')) {
+                return sendError(res, error.message, 400);
+            }
+
+            return sendError(res, handleMulterError(error), 500);
+        }
+    }
+
+    /**
+     * GET /api/descripciones-cargo/:id/pdf
+     * Obtener el PDF asociado a una descripción de cargo (solo lectura/visualización)
+     */
+    static async getPdf(req: Request, res: Response): Promise<Response> {
+        try {
+            const { id } = req.params;
+            const { pdf } = await DescripcionCargoService.getPdf(parseInt(id));
+
+            if (!pdf) {
+                return sendError(res, 'La descripción de cargo no tiene PDF asociado', 404);
+            }
+
+            res.setHeader('Content-Type', 'application/pdf');
+            // inline para que el navegador intente visualizarlo en lugar de forzar descarga
+            res.setHeader('Content-Disposition', 'inline; filename="descripcion_cargo.pdf"');
+            res.setHeader('Content-Length', pdf.length);
+
+            Logger.info(`PDF de descripción de cargo servido para id ${id}`);
+            return res.send(pdf);
+        } catch (error: any) {
+            Logger.error('Error al obtener PDF de descripción de cargo:', error);
+
+            if (error.message === 'Descripción de cargo no encontrada') {
+                return sendError(res, error.message, 404);
+            }
+
+            if (error.message === 'Esta descripción no tiene PDF asociado') {
+                return sendError(res, error.message, 404);
+            }
+
+            return sendError(res, 'Error al obtener PDF de descripción de cargo', 500);
         }
     }
 
