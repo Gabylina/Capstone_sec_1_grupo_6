@@ -2668,7 +2668,8 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
                 <p className="text-sm font-medium text-muted-foreground">Región</p>
                 <p className="text-lg font-semibold">
                   {(() => {
-                    const comunaNombre = process.client.contacts[0]?.city
+                    // Priorizar la comuna del cargo (process.ciudad) y usar la del contacto solo como respaldo
+                    const comunaNombre = process.ciudad || process.client.contacts[0]?.city
                     if (!comunaNombre) return 'No especificada'
                     
                     // Buscar la comuna en la lista de comunas
@@ -2683,7 +2684,7 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Comuna</p>
-                <p className="text-lg font-semibold">{process.client.contacts[0]?.city || 'No especificada'}</p>
+                <p className="text-lg font-semibold">{process.ciudad || process.client.contacts[0]?.city || 'No especificada'}</p>
               </div>
             </div>
           </div>
