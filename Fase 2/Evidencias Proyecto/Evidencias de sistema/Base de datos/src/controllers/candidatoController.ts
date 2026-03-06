@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
+import { detectCVContentType } from '@/utils/cvContentType';
 import { CandidatoService } from '@/services/candidatoService';
 
 /**
@@ -384,14 +385,14 @@ export class CandidatoController {
 
     /**
      * GET /api/candidatos/:id/cv
-     * Obtener CV de un candidato
+     * Obtener CV de un candidato.
+     * Query opcional: id_postulacion — si el candidato tiene varias postulaciones, usar esta para la correcta.
      */
     static async getCV(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
-            const { download } = req.query;
+            const { download, id_postulacion: idPostulacionParam } = req.query;
             
-            // Validar que el ID sea un número válido
             const candidatoId = parseInt(id);
             if (isNaN(candidatoId)) {
                 return sendError(res, 'ID de candidato inválido', 400);
@@ -402,8 +403,14 @@ export class CandidatoController {
                 return sendError(res, 'Candidato no encontrado', 404);
             }
 
-            // Obtener la postulación del candidato para acceder al CV
-            const postulacion = await CandidatoService.getPostulacionByCandidato(candidatoId);
+            let postulacion;
+            const idPostulacion = idPostulacionParam != null ? parseInt(String(idPostulacionParam)) : NaN;
+            if (!isNaN(idPostulacion)) {
+                postulacion = await CandidatoService.getPostulacionByIdAndCandidato(idPostulacion, candidatoId);
+            }
+            if (!postulacion) {
+                postulacion = await CandidatoService.getPostulacionByCandidato(candidatoId);
+            }
             if (!postulacion) {
                 return sendError(res, 'Postulación no encontrada', 404);
             }
@@ -412,24 +419,22 @@ export class CandidatoController {
                 return sendError(res, 'CV no encontrado en la postulación', 404);
             }
 
-            // Convertir Buffer a base64 para visualización
-            const pdfBuffer = postulacion.cv_postulacion;
+            const buffer = postulacion.cv_postulacion;
+            const { mimeType, extension } = detectCVContentType(buffer);
+            const safeName = candidato.name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+            const filename = `CV_${safeName}.${extension}`;
             
-            // Configurar headers según el tipo de solicitud
             if (download === 'true') {
-                // Para descarga
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `attachment; filename="CV_${candidato.name.replace(/\s+/g, '_')}.pdf"`);
-                res.setHeader('Content-Length', pdfBuffer.length);
-                return res.send(pdfBuffer);
-            } else {
-                // Para visualización
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', 'inline');
-                res.setHeader('Content-Length', pdfBuffer.length);
-                res.setHeader('Cache-Control', 'public, max-age=3600');
-                return res.send(pdfBuffer);
+                res.setHeader('Content-Type', mimeType);
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+                res.setHeader('Content-Length', buffer.length);
+                return res.send(buffer);
             }
+            res.setHeader('Content-Type', mimeType);
+            res.setHeader('Content-Disposition', 'inline');
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+            return res.send(buffer);
         } catch (error) {
             Logger.error('Error al obtener CV:', error);
             return sendError(res, 'Error al obtener CV', 500);

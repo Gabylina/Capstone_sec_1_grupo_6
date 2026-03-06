@@ -1048,27 +1048,38 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
               {candidates.map((candidate) => (
                 <div key={candidate.id} className="border border-border rounded-lg bg-card w-full mb-3">
                 <AccordionItem value={candidate.id} className="border-0">
-                  <AccordionTrigger className="hover:no-underline px-4 py-0 h-[52px] min-h-[52px] max-h-[52px] flex items-center">
-                    <div className="flex items-center justify-between w-full h-full">
+                  <AccordionTrigger className="hover:no-underline px-4 py-0 h-[52px] min-h-[52px] max-h-[52px] flex items-center data-[state=open]:[&>svg]:rotate-180">
+                    <div className="flex items-center justify-between w-full h-full pr-2">
                       <span className="font-semibold text-[17px] leading-[1.2] text-left truncate mr-4">{candidate.name}</span>
                       {candidate.cv_file ? (
-                        <Badge 
-                          variant="default" 
-                          className="shrink-0 text-sm h-[32px] px-4 flex items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors"
-                          onClick={(e) => {
+                        <button
+                          type="button"
+                          className="shrink-0 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setCurrentCandidateId(candidate.id);
                             setShowCVViewer(true);
                           }}
                         >
-                          <Download className="h-4 w-4" />
-                  Ver CV
-                        </Badge>
+                          <Badge 
+                            variant="default" 
+                            className="text-sm h-[32px] px-4 flex items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors pointer-events-none"
+                          >
+                            <Download className="h-4 w-4" />
+                            Ver CV
+                          </Badge>
+                        </button>
                       ) : (
                         <Badge variant="secondary" className="shrink-0 text-sm h-[32px] px-4 flex items-center">
                           Datos básicos
                         </Badge>
                       )}
-              </div>
+                    </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-4 pt-0">
                     <div className="space-y-4">

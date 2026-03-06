@@ -1234,6 +1234,17 @@ export class CandidatoService {
     }
 
     /**
+     * Obtener una postulación por ID verificando que pertenezca al candidato (para CV correcto cuando hay varias postulaciones)
+     */
+    static async getPostulacionByIdAndCandidato(idPostulacion: number, idCandidato: number) {
+        const { Postulacion } = await import('@/models');
+        const postulacion = await Postulacion.findOne({
+            where: { id_postulacion: idPostulacion, id_candidato: idCandidato }
+        });
+        return postulacion;
+    }
+
+    /**
      * Actualizar estado del candidato
      */
     static async updateStatus(idCandidato: number, status: string, comment?: string, postulacionId?: number) {

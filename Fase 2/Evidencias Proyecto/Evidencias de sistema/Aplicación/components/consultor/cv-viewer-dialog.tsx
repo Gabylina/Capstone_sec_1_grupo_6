@@ -19,60 +19,85 @@ interface CVViewerDialogProps {
   onClose: () => void
 }
 
+const CV_API_BASE = () => process.env.NEXT_PUBLIC_API_URL || ''
+
+function buildCVUrl(candidate: Candidate, download: boolean): string {
+  // API espera id_candidato; en algunos contextos el objeto tiene id_candidato numérico
+  const candidatoId = (candidate as { id_candidato?: number }).id_candidato != null
+    ? String((candidate as { id_candidato: number }).id_candidato)
+    : candidate.id
+  const base = `${CV_API_BASE()}/api/candidatos/${candidatoId}/cv`
+  const params = new URLSearchParams()
+  if (download) params.set('download', 'true')
+  const idPost = (candidate as { id_postulacion?: number }).id_postulacion
+  if (idPost != null && idPost !== undefined) params.set('id_postulacion', String(idPost))
+  const qs = params.toString()
+  return qs ? `${base}?${qs}` : base
+}
+
 export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerDialogProps) {
   const [cvUrl, setCvUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isNonPdf, setIsNonPdf] = useState(false)
 
   useEffect(() => {
-    if (candidate && isOpen) {
-      loadCV()
-    }
-    
-    // Cleanup: revocar URLs temporales cuando se cierre el modal
+    if (!candidate || !isOpen) return
+    loadCV()
     return () => {
-      if (cvUrl && cvUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(cvUrl)
-      }
+      setCvUrl(prev => {
+        if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+        return null
+      })
     }
-  }, [candidate, isOpen, cvUrl])
+  }, [candidate, isOpen])
 
   const loadCV = async () => {
     if (!candidate) return
 
     setIsLoading(true)
     setError(null)
+    setIsNonPdf(false)
+    setCvUrl(null)
 
     try {
-      // Si el candidato tiene un archivo CV subido como File object (desde formulario)
       if (candidate.cv_file && typeof candidate.cv_file === 'object' && 'name' in candidate.cv_file) {
-        const url = URL.createObjectURL(candidate.cv_file)
-        setCvUrl(url)
-      } else {
-        // Siempre intentar obtener el CV desde el backend usando el ID del candidato
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/candidatos/${candidate.id}/cv`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('llc_token')}`
-          }
-        })
-
-        if (response.ok) {
-          const blob = await response.blob()
-          
-          // Convertir blob a base64 para visualización en iframe
-          const reader = new FileReader()
-          reader.onload = () => {
-            setCvUrl(reader.result as string)
-          }
-          reader.readAsDataURL(blob)
+        const file = candidate.cv_file as File
+        const isPdf = file.type === 'application/pdf'
+        if (isPdf) {
+          setCvUrl(URL.createObjectURL(file))
         } else {
-          setError('No se pudo cargar el CV')
+          setIsNonPdf(true)
         }
+        setIsLoading(false)
+        return
       }
+
+      const apiUrl = buildCVUrl(candidate, false)
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('llc_token')}`
+        }
+      })
+
+      if (!response.ok) {
+        setError('No se pudo cargar el CV')
+        setIsLoading(false)
+        return
+      }
+
+      const blob = await response.blob()
+      const isWord = blob.type.includes('word') || blob.type.includes('document')
+      if (isWord) {
+        setIsNonPdf(true)
+      } else {
+        // PDF o tipo desconocido: mostrar en iframe (blob URL es más rápido que base64)
+        setCvUrl(URL.createObjectURL(blob))
+      }
+      setIsLoading(false)
     } catch (err) {
       console.error('Error al cargar CV:', err)
       setError('Error al cargar el CV')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -81,7 +106,8 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
     if (!candidate) return
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/candidatos/${candidate.id}/cv?download=true`, {
+      const url = buildCVUrl(candidate, true)
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('llc_token')}`
         }
@@ -90,10 +116,10 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
       if (response.ok) {
         const blob = await response.blob()
         const url = URL.createObjectURL(blob)
-        
+        const ext = blob.type.includes('word') || blob.type.includes('document') ? 'docx' : 'pdf'
         const link = document.createElement('a')
         link.href = url
-        link.download = `CV_${candidate.name.replace(/\s+/g, '_')}.pdf`
+        link.download = `CV_${candidate.name.replace(/\s+/g, '_')}.${ext}`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -165,7 +191,7 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
               </Badge>
               <Button
                 onClick={handleDownload}
-                disabled={!cvUrl || isLoading}
+                disabled={isLoading || (!cvUrl && !isNonPdf)}
                 size="sm"
                 className="gap-2"
               >
@@ -195,7 +221,25 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
                     size="sm"
                     className="mt-2"
                   >
-                    Reintentar
+                    Volver a cargar
+                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2">Si el problema continúa, usa el botón Descargar de arriba.</p>
+                </div>
+              </div>
+            ) : isNonPdf ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center p-4">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm font-medium">Documento Word</p>
+                  <p className="text-sm text-muted-foreground mt-1">Este CV no se puede previsualizar aquí. Puedes descargarlo usando el botón de arriba.</p>
+                  <Button
+                    onClick={handleDownload}
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar
                   </Button>
                 </div>
               </div>
@@ -206,8 +250,7 @@ export default function CVViewerDialog({ candidate, isOpen, onClose }: CVViewerD
                   className="w-full h-full border-0"
                   title={`CV de ${candidate.name}`}
                   onError={() => {
-                    console.error('❌ Error al cargar iframe del PDF')
-                    setError('Error al mostrar el PDF. Intenta descargarlo.')
+                    setError('Se ha producido un error al cargar el documento PDF.')
                   }}
                 />
                 <div className="text-xs text-muted-foreground text-center mt-2">
