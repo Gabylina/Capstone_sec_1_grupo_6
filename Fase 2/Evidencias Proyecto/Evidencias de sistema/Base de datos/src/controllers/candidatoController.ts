@@ -428,12 +428,15 @@ export class CandidatoController {
                 res.setHeader('Content-Type', mimeType);
                 res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
                 res.setHeader('Content-Length', buffer.length);
+                // Para descargas, también evitamos cachear versiones antiguas del CV
+                res.setHeader('Cache-Control', 'no-store');
                 return res.send(buffer);
             }
             res.setHeader('Content-Type', mimeType);
             res.setHeader('Content-Disposition', 'inline');
             res.setHeader('Content-Length', buffer.length);
-            res.setHeader('Cache-Control', 'public, max-age=3600');
+            // No cachear el PDF, así siempre se ve la versión más reciente
+            res.setHeader('Cache-Control', 'no-store');
             return res.send(buffer);
         } catch (error) {
             Logger.error('Error al obtener CV:', error);

@@ -1408,6 +1408,18 @@ export class SolicitudService {
         const historial = solicitud.get('historialEstados') as any[];
         const estadoActual = historial?.[0]?.estado;
 
+        // Determinar fecha de cierre (o cambio a estado final) si aplica
+        const nombreEstadoActual: string | undefined = estadoActual?.nombre_estado_solicitud;
+        const esEstadoFinal =
+            nombreEstadoActual === 'Cerrado' ||
+            nombreEstadoActual === 'Cancelado' ||
+            nombreEstadoActual === 'Congelado' ||
+            nombreEstadoActual === 'Cierre Extraordinario';
+        const fechaCierre =
+            esEstadoFinal && historial?.[0]?.fecha_cambio_estado_solicitud
+                ? historial[0].fecha_cambio_estado_solicitud
+                : null;
+
         return {
             // Formato completo para APIs que necesitan toda la información
             id: solicitud.id_solicitud,
@@ -1425,6 +1437,7 @@ export class SolicitudService {
             etapa: etapa?.nombre_etapa || 'Sin etapa',
             fecha_creacion: solicitud.fecha_ingreso_solicitud,
             fecha_ingreso_solicitud: solicitud.fecha_ingreso_solicitud,
+            fecha_cierre: fechaCierre,
             datos_excel: descripcionCargo?.datos_excel || null,
             
             // Información detallada (para compatibilidad con otros componentes)

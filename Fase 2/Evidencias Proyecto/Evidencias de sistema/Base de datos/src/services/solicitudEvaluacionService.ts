@@ -374,26 +374,68 @@ export class SolicitudEvaluacionService {
                     descripcionCargo.requisitos_y_condiciones = data.requirements?.trim() || undefined;
                 }
 
-                // Actualizar número de vacantes si hay candidatos nuevos
-                if (data.candidatos && data.candidatos.length > 0) {
-                    // Obtener número actual de postulaciones
-                    const Postulacion = (await import('@/models/Postulacion')).default;
-                    const postulacionesExistentes = await Postulacion.count({
-                        where: { id_solicitud: solicitudId },
-                        transaction
-                    });
-                    descripcionCargo.num_vacante = postulacionesExistentes + data.candidatos.length;
-                }
-
                 await descripcionCargo.save({ transaction });
             }
 
-            // 3. Crear candidatos nuevos y sus postulaciones si se proporcionan
+            // 3. Preparar mapa de postulaciones existentes (para reutilizar candidato/postulación y evitar duplicados)
+            const Postulacion = (await import('@/models/Postulacion')).default;
+            const Candidato = (await import('@/models/Candidato')).default;
+
+            const postulacionesExistentesDetalladas = await Postulacion.findAll({
+                where: { id_solicitud: solicitudId },
+                include: [{ model: Candidato, as: 'candidato' }],
+                transaction
+            });
+
+            const buildKeysFromCandidato = (cand: any): string[] => {
+                if (!cand) return [];
+                const keys: string[] = [];
+                const email = cand.email_candidato?.trim().toLowerCase();
+                const rut = cand.rut_candidato?.trim().toLowerCase();
+                const nombre = cand.nombre_candidato?.trim().toLowerCase();
+                const apellido = cand.primer_apellido_candidato?.trim().toLowerCase();
+
+                if (email) keys.push(`email:${email}`);
+                if (rut) keys.push(`rut:${rut}`);
+                if (nombre && apellido) keys.push(`nom:${nombre}|${apellido}`);
+
+                return keys;
+            };
+
+            const buildKeysFromPayload = (cand: {
+                nombre: string;
+                primer_apellido: string;
+                email: string;
+                rut?: string;
+            }): string[] => {
+                const keys: string[] = [];
+                const email = cand.email?.trim().toLowerCase();
+                const rut = cand.rut?.trim().toLowerCase();
+                const nombre = cand.nombre?.trim().toLowerCase();
+                const apellido = cand.primer_apellido?.trim().toLowerCase();
+
+                if (email) keys.push(`email:${email}`);
+                if (rut) keys.push(`rut:${rut}`);
+                if (nombre && apellido) keys.push(`nom:${nombre}|${apellido}`);
+
+                return keys;
+            };
+
+            const mapaPostulacionesPorClave = new Map<string, { postulacionId: number; candidatoId: number }>();
+            for (const post of postulacionesExistentesDetalladas) {
+                const cand = (post as any).candidato;
+                const claves = buildKeysFromCandidato(cand);
+                for (const clave of claves) {
+                    if (!mapaPostulacionesPorClave.has(clave)) {
+                        mapaPostulacionesPorClave.set(clave, { postulacionId: post.id_postulacion, candidatoId: post.id_candidato });
+                    }
+                }
+            }
+
+            // 4. Crear candidatos nuevos y sus postulaciones si se proporcionan
             const candidatosCreados: number[] = [];
             const postulacionesCreadas: number[] = [];
             const candidatosPostulaciones: Array<{ email: string; postulacion_id: number }> = [];
-            const Postulacion = (await import('@/models/Postulacion')).default;
-            const Candidato = (await import('@/models/Candidato')).default;
 
             if (data.candidatos && data.candidatos.length > 0) {
                 Logger.info(`Procesando ${data.candidatos.length} candidato(s) para la solicitud ${solicitudId}`);
@@ -401,35 +443,58 @@ export class SolicitudEvaluacionService {
                 for (const candidato of data.candidatos) {
                     Logger.info(`Procesando candidato: ${candidato.nombre} ${candidato.primer_apellido} (${candidato.email})`);
 
-                    let candidatoId: number;
+                    let candidatoId: number | null = null;
                     let postulacionId: number | null = null;
 
-                    // Verificar si el candidato ya existe por email (dentro de la transacción)
-                    const candidatoExistente = await Candidato.findOne({
-                        where: { email_candidato: candidato.email.trim() },
-                        transaction
-                    });
-                    
-                    if (candidatoExistente) {
-                        // El candidato ya existe, usar su ID
-                        candidatoId = candidatoExistente.id_candidato;
-                        Logger.info(`Candidato existente encontrado con ID: ${candidatoId}`);
-
-                        // Verificar si ya está asociado a esta solicitud
-                        const postulacionExistente = await Postulacion.findOne({
-                            where: {
-                                id_candidato: candidatoId,
-                                id_solicitud: solicitudId
-                            },
-                            transaction
-                        });
-
-                        if (postulacionExistente) {
-                            // Ya está asociado, usar esa postulación
-                            postulacionId = postulacionExistente.id_postulacion;
-                            Logger.info(`Candidato ${candidatoId} ya está asociado a la solicitud ${solicitudId}, usando postulación ${postulacionId}`);
+                    // Intentar reutilizar una postulación existente por email / RUT / nombre+apellido
+                    const clavesPayload = buildKeysFromPayload(candidato);
+                    for (const clave of clavesPayload) {
+                        const existente = mapaPostulacionesPorClave.get(clave);
+                        if (existente) {
+                            candidatoId = existente.candidatoId;
+                            postulacionId = existente.postulacionId;
+                            Logger.info(`Reutilizando postulación existente ${postulacionId} para candidato ${candidatoId} mediante clave ${clave}`);
+                            break;
                         }
-                    } else {
+                    }
+
+                    if (!postulacionId) {
+                        // Verificar si el candidato ya existe por email (fallback cuando no se encontró por mapa)
+                        let candidatoExistente: any = null;
+                        if (candidato.email && candidato.email.trim()) {
+                            candidatoExistente = await Candidato.findOne({
+                                where: { email_candidato: candidato.email.trim() },
+                                transaction
+                            });
+                        }
+
+                        if (!candidatoExistente && candidato.rut && candidato.rut.trim()) {
+                            candidatoExistente = await Candidato.findOne({
+                                where: { rut_candidato: candidato.rut.trim() },
+                                transaction
+                            });
+                        }
+
+                        if (candidatoExistente) {
+                            candidatoId = candidatoExistente.id_candidato;
+                            Logger.info(`Candidato existente encontrado con ID: ${candidatoId}`);
+
+                            const postulacionExistente = await Postulacion.findOne({
+                                where: {
+                                    id_candidato: candidatoExistente.id_candidato,
+                                    id_solicitud: solicitudId
+                                },
+                                transaction
+                            });
+
+                            if (postulacionExistente) {
+                                postulacionId = postulacionExistente.id_postulacion;
+                                Logger.info(`Candidato ${candidatoId} ya está asociado a la solicitud ${solicitudId}, usando postulación ${postulacionId}`);
+                            }
+                        }
+                    }
+
+                    if (!postulacionId) {
                         // El candidato no existe, crearlo
                         Logger.info(`Creando nuevo candidato: ${candidato.nombre} ${candidato.primer_apellido}`);
                         const nuevoCandidato = await CandidatoService.createCandidato({
@@ -449,6 +514,9 @@ export class SolicitudEvaluacionService {
 
                     // Crear postulación solo si no existía
                     if (!postulacionId) {
+                        if (candidatoId == null) {
+                            throw new Error('No se pudo determinar el ID de candidato antes de crear la postulación');
+                        }
                         const nuevaPostulacion = await Postulacion.create({
                             id_candidato: candidatoId,
                             id_solicitud: solicitudId,
@@ -460,6 +528,17 @@ export class SolicitudEvaluacionService {
                         postulacionId = nuevaPostulacion.id_postulacion;
                         postulacionesCreadas.push(postulacionId);
                         Logger.info(`Postulación creada con ID: ${postulacionId}`);
+
+                        // Registrar claves para evitar duplicar en este mismo flujo
+                        if (candidatoId != null) {
+                            const candidatoModelo = await Candidato.findByPk(candidatoId, { transaction });
+                            const clavesCreadas = buildKeysFromCandidato(candidatoModelo);
+                            for (const clave of clavesCreadas) {
+                                if (!mapaPostulacionesPorClave.has(clave)) {
+                                    mapaPostulacionesPorClave.set(clave, { postulacionId, candidatoId });
+                                }
+                            }
+                        }
                     }
 
                     // Agregar al mapeo para subir CVs después

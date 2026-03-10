@@ -17,12 +17,31 @@ import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, C
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
-const getDiasTranscurridos = (process: { fecha_creacion?: string; created_at?: string; started_at?: string }) => {
-  const fecha = process.started_at || process.fecha_creacion || process.created_at
-  if (!fecha) return 0
-  const inicio = new Date(fecha).getTime()
-  const hoy = Date.now()
-  return Math.floor((hoy - inicio) / (1000 * 60 * 60 * 24))
+const getDiasTranscurridos = (process: {
+  fecha_creacion?: string
+  created_at?: string
+  started_at?: string
+  estado_solicitud?: string
+  fecha_cierre?: string | null
+}) => {
+  const fechaInicio = process.started_at || process.fecha_creacion || process.created_at
+  if (!fechaInicio) return 0
+
+  const inicioMs = new Date(fechaInicio).getTime()
+  if (Number.isNaN(inicioMs)) return 0
+
+  const estadosFinales = new Set(["Cerrado", "Cancelado", "Congelado", "Cierre Extraordinario"])
+  let finMs = Date.now()
+
+  if (process.estado_solicitud && estadosFinales.has(process.estado_solicitud) && process.fecha_cierre) {
+    const cierreMs = new Date(process.fecha_cierre).getTime()
+    if (!Number.isNaN(cierreMs)) {
+      finMs = cierreMs
+    }
+  }
+
+  const diffDias = Math.floor((finMs - inicioMs) / (1000 * 60 * 60 * 24))
+  return diffDias < 0 ? 0 : diffDias
 }
 
 const getStatusColor = (status: string) => {

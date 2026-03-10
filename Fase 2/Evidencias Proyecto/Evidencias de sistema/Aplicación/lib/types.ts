@@ -79,6 +79,8 @@ export interface Process {
   stage?: string
   /** Código del tipo de servicio (ej. "CA", "SC"); alias de service_type desde API */
   tipo_servicio?: string
+  /** Fecha en que el proceso pasó a un estado final (Cerrado / Cancelado / Congelado / Cierre Extraordinario), si aplica */
+  fecha_cierre?: string | null
   created_at: string
   started_at?: string
   completed_at?: string
