@@ -430,11 +430,15 @@ export class CandidatoService {
             }
 
             // Verificar si el candidato ya existe (solo si se proporciona email)
+            // Nuevo comportamiento:
+            // - Si NO existe: se crea un candidato nuevo (como antes).
+            // - Si SÍ existe: se reutiliza y se actualizan sus datos básicos en lugar de lanzar error.
+            let candidatoExistente: any = null;
             if (email && email.trim()) {
-                const candidatoExistente = await this.getCandidatoByEmail(email);
-                if (candidatoExistente) {
-                    throw new Error('Ya existe un candidato con este email');
-                }
+                candidatoExistente = await Candidato.findOne({
+                    where: { email_candidato: email.trim() },
+                    transaction: useTransaction
+                });
             }
 
             // Buscar comuna por nombre
@@ -471,8 +475,8 @@ export class CandidatoService {
                 idRubro = rubroFound?.id_rubro;
             }
 
-            // Crear el candidato
-            const nuevoCandidato = await Candidato.create({
+            // Crear o actualizar el candidato
+            const baseData = {
                 rut_candidato: rut,
                 nombre_candidato: nombre.trim(),
                 primer_apellido_candidato: primer_apellido.trim(),
@@ -488,16 +492,20 @@ export class CandidatoService {
                 id_comuna: idComuna,
                 id_nacionalidad: idNacionalidad,
                 id_rubro: idRubro
-            }, { transaction: useTransaction });
+            };
+
+            const candidatoModelo = candidatoExistente
+                ? await candidatoExistente.update(baseData, { transaction: useTransaction })
+                : await Candidato.create(baseData, { transaction: useTransaction });
 
             // Agregar experiencias laborales
             if (work_experience && work_experience.length > 0) {
-                await this.addExperiencias(nuevoCandidato.id_candidato, work_experience, useTransaction);
+                await this.addExperiencias(candidatoModelo.id_candidato, work_experience, useTransaction);
             }
 
             // Agregar formación académica
             if (education && education.length > 0) {
-                await this.addEducacion(nuevoCandidato.id_candidato, education, useTransaction);
+                await this.addEducacion(candidatoModelo.id_candidato, education, useTransaction);
             }
 
             // Agregar profesiones si se especificaron
@@ -505,7 +513,7 @@ export class CandidatoService {
                 for (const prof of professions) {
                     if (prof.profession && prof.institution) {
                         await this.addProfesion(
-                            nuevoCandidato.id_candidato, 
+                            candidatoModelo.id_candidato, 
                             prof.profession, 
                             prof.institution, 
                             prof.date, 
@@ -517,7 +525,7 @@ export class CandidatoService {
                 // Comportamiento legacy: una sola profesión
                 const professionValue = typeof profession === 'string' ? profession.trim() : String(profession);
                 if (professionValue) {
-                    await this.addProfesion(nuevoCandidato.id_candidato, profession, profession_institution, profession_date, useTransaction);
+                    await this.addProfesion(candidatoModelo.id_candidato, profession, profession_institution, profession_date, useTransaction);
                 }
             }
 
@@ -527,7 +535,7 @@ export class CandidatoService {
             }
 
             // Obtener el candidato completo con todas las relaciones (sin transacción)
-            const candidatoCompleto = await Candidato.findByPk(nuevoCandidato.id_candidato, {
+            const candidatoCompleto = await Candidato.findByPk(candidatoModelo.id_candidato, {
                 include: [
                     {
                         model: Comuna,
@@ -567,8 +575,8 @@ export class CandidatoService {
 
             if (!candidatoCompleto) {
                 return {
-                    id: nuevoCandidato.id_candidato.toString(),
-                    email: nuevoCandidato.email_candidato
+                    id: candidatoModelo.id_candidato.toString(),
+                    email: candidatoModelo.email_candidato
                 };
             }
 
