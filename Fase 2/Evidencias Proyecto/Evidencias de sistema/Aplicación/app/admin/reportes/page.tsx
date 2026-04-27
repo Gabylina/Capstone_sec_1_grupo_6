@@ -800,20 +800,20 @@ export default function ReportesPage() {
     { label: "Vencidos", value: urgencySummary.overdueCount },
   ]
 
-  const processesInProgress = useMemo(
-    () => {
-      // Usar procesos activos actuales (sin filtro de período)
-      let filtered = processOverview?.currentActiveProcesses || []
-      
-      // Aplicar filtro de tipo de proceso
-      if (processTypeFilter !== "all") {
-        filtered = filtered.filter((process) => process.serviceCode === processTypeFilter)
-      }
-      
-      return filtered
-    },
-    [processOverview?.currentActiveProcesses, processTypeFilter],
-  )
+  const processesInProgress = useMemo(() => {
+    let filtered = processOverview?.currentActiveProcesses || []
+
+    if (processTypeFilter !== "all") {
+      filtered = filtered.filter((process) => {
+        const code = process.serviceCode || ""
+        // BD usa codigo_servicio en solicitud (tiposervicio.codigo_servicio): HH Headhunting; puede existir HS legacy
+        if (processTypeFilter === "HH") return code === "HH" || code === "HS"
+        return code === processTypeFilter
+      })
+    }
+
+    return filtered
+  }, [processOverview?.currentActiveProcesses, processTypeFilter])
 
   const ITEMS_PER_PAGE = 10
   const totalProcessesPages = Math.ceil(processesInProgress.length / ITEMS_PER_PAGE)
@@ -1624,9 +1624,11 @@ export default function ReportesPage() {
                   <SelectContent>
                     <SelectItem value="all">Todos los tipos</SelectItem>
                     <SelectItem value="PC">Proceso Completo (PC)</SelectItem>
+                    <SelectItem value="SC">San Cristóbal Completo (SC)</SelectItem>
+                    <SelectItem value="CA">San Cristóbal Acotado (CA)</SelectItem>
                     <SelectItem value="LL">Long List (LL)</SelectItem>
                     <SelectItem value="TR">Targeted Recruitment (TR)</SelectItem>
-                    <SelectItem value="HS">Headhunting (HS)</SelectItem>
+                    <SelectItem value="HH">Headhunting (HH)</SelectItem>
                     <SelectItem value="FI">Filtro Inteligente (FI)</SelectItem>
                     <SelectItem value="ES">Evaluación Psicolaboral (ES)</SelectItem>
                     <SelectItem value="TS">Test Psicolaboral (TS)</SelectItem>
@@ -1641,7 +1643,7 @@ export default function ReportesPage() {
                   <Target className="mx-auto h-12 w-12 text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-semibold">No hay procesos en curso</h3>
                   <p className="text-muted-foreground">
-                    No se encontraron procesos activos para el período seleccionado
+                    No hay procesos que cumplan el filtro de tipo (los datos son globales, sin período).
                   </p>
                 </div>
               ) : (

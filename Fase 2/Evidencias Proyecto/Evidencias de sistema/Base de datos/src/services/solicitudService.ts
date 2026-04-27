@@ -1626,6 +1626,7 @@ export class SolicitudService {
                     'TS': 'Test Psicolaboral',
                     'PP': 'Publicación Portales',
                     'SC': 'San Cristobal Completo',
+                    'CA': 'San Cristóbal Acotado',
                 };
 
                 const serviceLabel = serviceMapping[codigoServicio] || nombreServicio;
@@ -1983,6 +1984,7 @@ export class SolicitudService {
                 'TS': 'Test Psicolaboral',
                 'PP': 'Publicación Portales',
                 'SC': 'San Cristobal Completo',
+                'CA': 'San Cristóbal Acotado',
             };
 
             const aggregated: Record<string, { avgDays: number; total: number }> = {};
