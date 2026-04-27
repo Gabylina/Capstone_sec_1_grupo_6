@@ -21,7 +21,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { getCandidatesByProcess } from "@/lib/api"
-import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService, examenMedicoService } from "@/lib/api"
+import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM5Service, solicitudService, examenMedicoService, entrevistaTecnicaService } from "@/lib/api"
 import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
@@ -209,27 +209,48 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
         // Origen de candidatos en Módulo 4 según tipo de proceso:
         // - Evaluación Psicolaboral (ES/EP/TS): desde Módulo 1 (todos los candidatos del proceso).
         // - Headhunting y Proceso Completo (HH/PC): desde Módulo 3 (solo aprobados por el cliente).
-        // - San Cristóbal (SC/CA): desde Módulo Exámenes Médicos (aprobados por cliente + exámenes aprobados).
+        // - San Cristóbal (SC/CA): mismo criterio que Exámenes → M4: aprobado por cliente, entrevista "avanza",
+        //   al menos un examen médico aprobado y ninguno pendiente/rechazado (alineado con process-module-examenes-medicos).
         let candidatesToShow = isEvaluationProcess
           ? allCandidates
           : allCandidates.filter(
               (c: Candidate) => (c as any).client_response === "aprobado" || (c as any).estado_candidato === "aprobado"
             )
-        // San Cristóbal (SC y CA): solo candidatos con exámenes médicos aprobados (vienen del Módulo Exámenes Médicos).
         if (isSanCristobal) {
-          const examenesRes = await examenMedicoService.getBySolicitud(Number(process.id))
+          const solicitudId = Number(process.id)
+          const entRev = await entrevistaTecnicaService.getBySolicitud(solicitudId)
+          const idPostulacionesAvanza = new Set<number>()
+          if (entRev.success && entRev.data && Array.isArray(entRev.data)) {
+            ;(entRev.data as any[]).forEach((ent: any) => {
+              if (ent.resultado === "avanza") idPostulacionesAvanza.add(ent.id_postulacion)
+            })
+          }
+          candidatesToShow = candidatesToShow.filter(
+            (c: Candidate) =>
+              (c as any).id_postulacion != null && idPostulacionesAvanza.has((c as any).id_postulacion)
+          )
+
+          const examenesRes = await examenMedicoService.getBySolicitud(solicitudId)
           if (examenesRes.success && examenesRes.data && Array.isArray(examenesRes.data)) {
             const examenes = examenesRes.data as any[]
             const idPostulacionesConExamenRechazadoOPendiente = new Set<number>()
+            const idPostulacionesConAlMenosUnAprobado = new Set<number>()
             examenes.forEach((ex: any) => {
               const estado = (ex.estado_aprobacion || "").toLowerCase()
               if (estado === "rechazado" || estado === "pendiente") {
                 idPostulacionesConExamenRechazadoOPendiente.add(ex.id_postulacion)
               }
+              if (estado === "aprobado") {
+                idPostulacionesConAlMenosUnAprobado.add(ex.id_postulacion)
+              }
             })
             candidatesToShow = candidatesToShow.filter(
-              (c: Candidate) => !idPostulacionesConExamenRechazadoOPendiente.has((c as any).id_postulacion)
+              (c: Candidate) =>
+                idPostulacionesConAlMenosUnAprobado.has((c as any).id_postulacion) &&
+                !idPostulacionesConExamenRechazadoOPendiente.has((c as any).id_postulacion)
             )
+          } else {
+            candidatesToShow = []
           }
         }
         setCandidates(candidatesToShow)
