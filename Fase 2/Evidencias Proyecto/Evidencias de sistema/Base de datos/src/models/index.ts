@@ -53,6 +53,7 @@ import EvaluacionTest from './EvaluacionTest';
 // Entrevista técnica y exámenes médicos (San Cristóbal Completo)
 import EntrevistaTecnica from './EntrevistaTecnica';
 import ExamenMedico from './ExamenMedico';
+import BolaNieveSolicitud from './BolaNieveSolicitud';
 
 // Modelos de auditoría
 import LogCambios from './LogCambios';
@@ -190,6 +191,10 @@ Solicitud.belongsTo(EtapaSolicitud, { foreignKey: 'id_etapa_solicitud', as: 'eta
 // Solicitud -> EstadoSolicitudHist (1:N)
 Solicitud.hasMany(EstadoSolicitudHist, { foreignKey: 'id_solicitud', as: 'historialEstados' });
 EstadoSolicitudHist.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
+
+// Solicitud -> Bola de Nieve (1:1, solo PC/HH/HS)
+Solicitud.hasOne(BolaNieveSolicitud, { foreignKey: 'id_solicitud', as: 'bolaNieve' });
+BolaNieveSolicitud.belongsTo(Solicitud, { foreignKey: 'id_solicitud', as: 'solicitud' });
 
 // Solicitud -> Publicacion (1:N)
 Solicitud.hasMany(Publicacion, { foreignKey: 'id_solicitud', as: 'publicaciones' });
@@ -436,5 +441,6 @@ export {
     EvaluacionTest,
     EntrevistaTecnica,
     ExamenMedico,
+    BolaNieveSolicitud,
     LogCambios
 };

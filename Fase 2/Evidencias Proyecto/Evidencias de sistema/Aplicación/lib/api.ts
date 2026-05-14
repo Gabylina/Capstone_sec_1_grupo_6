@@ -503,6 +503,31 @@ export const solicitudService = {
     });
   },
 
+  async getBolaNieve(id: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/bola-nieve`);
+  },
+
+  async saveBolaNieve(
+    id: number,
+    body: {
+      contacto_personas_rubro: boolean;
+      detalle_contacto_personas_rubro?: string | null;
+      contacto_empresas_rubro: boolean;
+      detalle_contacto_empresas_rubro?: string | null;
+      busqueda_linkedin: boolean;
+      detalle_busqueda_linkedin?: string | null;
+      apoyo_reclutadores: boolean;
+      detalle_apoyo_reclutadores?: string | null;
+      visitas_terreno: boolean;
+      detalle_visitas_terreno?: string | null;
+    }
+  ): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/${id}/bola-nieve`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  },
+
   // Avanzar al módulo 4
   async avanzarAModulo4(id: number): Promise<ApiResponse<any>> {
     return apiRequest(`/api/solicitudes/${id}/avanzar-modulo4`, {

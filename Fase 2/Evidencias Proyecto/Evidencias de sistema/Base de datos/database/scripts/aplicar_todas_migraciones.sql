@@ -42,3 +42,22 @@ ON CONFLICT (nombre_etapa) DO NOTHING;
 INSERT INTO tiposervicio (codigo_servicio, nombre_servicio)
 VALUES ('CA', 'San Cristóbal Acotado')
 ON CONFLICT (codigo_servicio) DO NOTHING;
+
+-- Registro Bola de Nieve (PC / HH / HS)
+CREATE TABLE IF NOT EXISTS bola_nieve_solicitud (
+    id_bola_nieve_solicitud SERIAL PRIMARY KEY,
+    id_solicitud INTEGER NOT NULL UNIQUE REFERENCES solicitud(id_solicitud) ON DELETE CASCADE,
+    contacto_personas_rubro BOOLEAN NOT NULL DEFAULT false,
+    detalle_contacto_personas_rubro TEXT,
+    contacto_empresas_rubro BOOLEAN NOT NULL DEFAULT false,
+    detalle_contacto_empresas_rubro TEXT,
+    busqueda_linkedin BOOLEAN NOT NULL DEFAULT false,
+    detalle_busqueda_linkedin TEXT,
+    apoyo_reclutadores BOOLEAN NOT NULL DEFAULT false,
+    detalle_apoyo_reclutadores TEXT,
+    visitas_terreno BOOLEAN NOT NULL DEFAULT false,
+    detalle_visitas_terreno TEXT,
+    fecha_actualizacion TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bola_nieve_solicitud_id_solicitud ON bola_nieve_solicitud(id_solicitud);

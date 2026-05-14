@@ -352,6 +352,14 @@ export class SolicitudController {
             if (error.message === 'Etapa Módulo 3 no encontrada') {
                 return sendError(res, error.message, 404);
             }
+
+            if (error.message === 'BOLA_NIEVE_INCOMPLETA') {
+                return sendError(
+                    res,
+                    'Complete el registro Bola de Nieve: marque los 5 ítems como realizados antes de avanzar al Módulo 3.',
+                    400
+                );
+            }
             
             return sendError(res, error.message || 'Ha ocurrido un error inesperado. Por favor, intente nuevamente más tarde.', 500);
         }

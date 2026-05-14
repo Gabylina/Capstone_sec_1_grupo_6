@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { SolicitudController } from '@/controllers/solicitudController';
 import { SolicitudEvaluacionController } from '@/controllers/solicitudEvaluacionController';
+import { BolaNieveSolicitudController } from '@/controllers/bolaNieveSolicitudController';
 import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
@@ -69,6 +70,10 @@ router.put('/:id/avanzar-modulo2', SolicitudController.avanzarAModulo2);
 
 // Avanzar al módulo 3
 router.put('/:id/avanzar-modulo3', SolicitudController.avanzarAModulo3);
+
+// Bola de Nieve (registro paralelo a publicación, obligatorio PC/HH/HS para pasar a M3)
+router.get('/:id(\\d+)/bola-nieve', BolaNieveSolicitudController.getBySolicitud);
+router.put('/:id(\\d+)/bola-nieve', BolaNieveSolicitudController.upsert);
 
 // Avanzar al módulo 4
 router.put('/:id/avanzar-modulo4', SolicitudController.avanzarAModulo4);

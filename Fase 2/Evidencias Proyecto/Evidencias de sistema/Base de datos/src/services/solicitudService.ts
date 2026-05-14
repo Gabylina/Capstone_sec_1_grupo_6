@@ -21,6 +21,7 @@ import {
     EstadoContratacion,
     ExamenMedico
 } from '@/models';
+import { BolaNieveSolicitudService, solicitudRequiereBolaNieve } from './bolaNieveSolicitudService';
 import { HitoSolicitudService } from './hitoSolicitudService';
 import { HitoHelperService } from './hitoHelperService';
 import { obtenerDuracionProceso } from '@/utils/duracionProcesos';
@@ -978,6 +979,13 @@ export class SolicitudService {
                 const todasLasEtapas = await EtapaSolicitud.findAll();
                 console.log('📋 Todas las etapas disponibles:', todasLasEtapas.map(e => ({ id: e.id_etapa_solicitud, nombre: e.nombre_etapa })));
                 throw new Error('Etapa Módulo 3 no encontrada');
+            }
+
+            const codigoServicio = String(
+                ((solicitud as any).get('tipoServicio') as any)?.codigo_servicio || solicitud.codigo_servicio || ''
+            ).toUpperCase();
+            if (solicitudRequiereBolaNieve(codigoServicio)) {
+                await BolaNieveSolicitudService.assertCompletoParaAvance(id, transaction);
             }
 
             // Actualizar la solicitud
