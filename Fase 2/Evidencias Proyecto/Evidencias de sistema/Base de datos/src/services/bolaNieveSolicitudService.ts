@@ -9,17 +9,22 @@ export function solicitudRequiereBolaNieve(codigoServicio: string | null | undef
 }
 
 export type BolaNievePayload = {
-    contacto_personas_rubro: boolean;
+    contacto_personas_rubro: boolean | null;
     detalle_contacto_personas_rubro?: string | null;
-    contacto_empresas_rubro: boolean;
+    contacto_empresas_rubro: boolean | null;
     detalle_contacto_empresas_rubro?: string | null;
-    busqueda_linkedin: boolean;
+    busqueda_linkedin: boolean | null;
     detalle_busqueda_linkedin?: string | null;
-    apoyo_reclutadores: boolean;
+    apoyo_reclutadores: boolean | null;
     detalle_apoyo_reclutadores?: string | null;
-    visitas_terreno: boolean;
+    visitas_terreno: boolean | null;
     detalle_visitas_terreno?: string | null;
 };
+
+export function parseBolaNieveBool(value: unknown): boolean | null {
+    if (value === null || value === undefined) return null;
+    return Boolean(value);
+}
 
 export class BolaNieveSolicitudService {
     static async getBySolicitudId(idSolicitud: number) {
@@ -48,15 +53,15 @@ export class BolaNieveSolicitudService {
         await BolaNieveSolicitud.upsert(
             {
                 id_solicitud: idSolicitud,
-                contacto_personas_rubro: !!payload.contacto_personas_rubro,
+                contacto_personas_rubro: payload.contacto_personas_rubro,
                 detalle_contacto_personas_rubro: payload.detalle_contacto_personas_rubro ?? null,
-                contacto_empresas_rubro: !!payload.contacto_empresas_rubro,
+                contacto_empresas_rubro: payload.contacto_empresas_rubro,
                 detalle_contacto_empresas_rubro: payload.detalle_contacto_empresas_rubro ?? null,
-                busqueda_linkedin: !!payload.busqueda_linkedin,
+                busqueda_linkedin: payload.busqueda_linkedin,
                 detalle_busqueda_linkedin: payload.detalle_busqueda_linkedin ?? null,
-                apoyo_reclutadores: !!payload.apoyo_reclutadores,
+                apoyo_reclutadores: payload.apoyo_reclutadores,
                 detalle_apoyo_reclutadores: payload.detalle_apoyo_reclutadores ?? null,
-                visitas_terreno: !!payload.visitas_terreno,
+                visitas_terreno: payload.visitas_terreno,
                 detalle_visitas_terreno: payload.detalle_visitas_terreno ?? null,
                 fecha_actualizacion: new Date(),
             },
@@ -74,7 +79,7 @@ export class BolaNieveSolicitudService {
             where: { id_solicitud: idSolicitud },
             transaction,
         });
-        if (!BolaNieveSolicitud.todosMarcados(row)) {
+        if (!BolaNieveSolicitud.todosDefinidos(row)) {
             throw new Error('BOLA_NIEVE_INCOMPLETA');
         }
     }

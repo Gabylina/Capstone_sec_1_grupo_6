@@ -356,7 +356,7 @@ export class SolicitudController {
             if (error.message === 'BOLA_NIEVE_INCOMPLETA') {
                 return sendError(
                     res,
-                    'Complete el registro Bola de Nieve: marque los 5 ítems como realizados antes de avanzar al Módulo 3.',
+                    'Complete el registro Bola de Nieve: registre los 5 ítems (logrado o no logrado) antes de avanzar al Módulo 3.',
                     400
                 );
             }

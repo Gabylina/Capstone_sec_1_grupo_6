@@ -147,6 +147,32 @@ const BOLA_NIEVE_ITEMS = [
 
 type BolaNieveItemKey = (typeof BOLA_NIEVE_ITEMS)[number]["key"]
 
+type BolaNieveFormState = {
+  contacto_personas_rubro: boolean | null
+  detalle_contacto_personas_rubro: string
+  contacto_empresas_rubro: boolean | null
+  detalle_contacto_empresas_rubro: string
+  busqueda_linkedin: boolean | null
+  detalle_busqueda_linkedin: string
+  apoyo_reclutadores: boolean | null
+  detalle_apoyo_reclutadores: string
+  visitas_terreno: boolean | null
+  detalle_visitas_terreno: string
+}
+
+function parseBolaNieveBoolFromApi(value: unknown): boolean | null {
+  if (value === null || value === undefined) return null
+  return Boolean(value)
+}
+
+function isBolaNieveItemDefined(value: boolean | null): boolean {
+  return value !== null && value !== undefined
+}
+
+function countBolaNieveDefined(state: BolaNieveFormState): number {
+  return BOLA_NIEVE_ITEMS.filter((row) => isBolaNieveItemDefined(state[row.key])).length
+}
+
 interface ProcessModule2Props {
   process: Process
   readOnly?: boolean
@@ -278,39 +304,35 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
   }, [processAny.tipo_servicio, process.service_type])
 
   const defaultBolaNieve = useMemo(
-    () => ({
-      contacto_personas_rubro: false,
+    (): BolaNieveFormState => ({
+      contacto_personas_rubro: null,
       detalle_contacto_personas_rubro: "",
-      contacto_empresas_rubro: false,
+      contacto_empresas_rubro: null,
       detalle_contacto_empresas_rubro: "",
-      busqueda_linkedin: false,
+      busqueda_linkedin: null,
       detalle_busqueda_linkedin: "",
-      apoyo_reclutadores: false,
+      apoyo_reclutadores: null,
       detalle_apoyo_reclutadores: "",
-      visitas_terreno: false,
+      visitas_terreno: null,
       detalle_visitas_terreno: "",
     }),
     []
   )
 
-  const [bolaNieve, setBolaNieve] = useState(defaultBolaNieve)
+  const [bolaNieve, setBolaNieve] = useState<BolaNieveFormState>(defaultBolaNieve)
   const [bolaNieveSaving, setBolaNieveSaving] = useState(false)
   const [bolaNieveItemKey, setBolaNieveItemKey] = useState<BolaNieveItemKey | null>(null)
-  const [bolaNieveItemDraft, setBolaNieveItemDraft] = useState<{ realizado: boolean; detalle: string }>({
-    realizado: false,
+  const [bolaNieveItemDraft, setBolaNieveItemDraft] = useState<{ realizado: boolean | null; detalle: string }>({
+    realizado: null,
     detalle: "",
   })
 
+  const bolaNieveDefinedCount = useMemo(() => countBolaNieveDefined(bolaNieve), [bolaNieve])
+
   const hasBolaNieveComplete = useMemo(() => {
     if (!requiresBolaNieve) return true
-    return (
-      bolaNieve.contacto_personas_rubro &&
-      bolaNieve.contacto_empresas_rubro &&
-      bolaNieve.busqueda_linkedin &&
-      bolaNieve.apoyo_reclutadores &&
-      bolaNieve.visitas_terreno
-    )
-  }, [requiresBolaNieve, bolaNieve])
+    return bolaNieveDefinedCount === BOLA_NIEVE_ITEMS.length
+  }, [requiresBolaNieve, bolaNieveDefinedCount])
 
   // Cargar datos reales desde el backend
 
@@ -587,15 +609,15 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
           if (bnRes.success && bnRes.data?.applies && bnRes.data?.data) {
             const d = bnRes.data.data as Record<string, unknown>
             setBolaNieve({
-              contacto_personas_rubro: !!d.contacto_personas_rubro,
+              contacto_personas_rubro: parseBolaNieveBoolFromApi(d.contacto_personas_rubro),
               detalle_contacto_personas_rubro: String(d.detalle_contacto_personas_rubro ?? ""),
-              contacto_empresas_rubro: !!d.contacto_empresas_rubro,
+              contacto_empresas_rubro: parseBolaNieveBoolFromApi(d.contacto_empresas_rubro),
               detalle_contacto_empresas_rubro: String(d.detalle_contacto_empresas_rubro ?? ""),
-              busqueda_linkedin: !!d.busqueda_linkedin,
+              busqueda_linkedin: parseBolaNieveBoolFromApi(d.busqueda_linkedin),
               detalle_busqueda_linkedin: String(d.detalle_busqueda_linkedin ?? ""),
-              apoyo_reclutadores: !!d.apoyo_reclutadores,
+              apoyo_reclutadores: parseBolaNieveBoolFromApi(d.apoyo_reclutadores),
               detalle_apoyo_reclutadores: String(d.detalle_apoyo_reclutadores ?? ""),
-              visitas_terreno: !!d.visitas_terreno,
+              visitas_terreno: parseBolaNieveBoolFromApi(d.visitas_terreno),
               detalle_visitas_terreno: String(d.detalle_visitas_terreno ?? ""),
             })
           } else {
@@ -1915,10 +1937,19 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
     const meta = BOLA_NIEVE_ITEMS.find((i) => i.key === bolaNieveItemKey)
     if (!meta) return
 
+    if (bolaNieveItemDraft.realizado === null) {
+      showToast({
+        type: "error",
+        title: "Selección requerida",
+        description: "Indica si la acción fue lograda o no lograda antes de guardar.",
+      })
+      return
+    }
+
     const processId = parseInt(process.id)
     if (Number.isNaN(processId)) return
 
-    const merged = {
+    const merged: BolaNieveFormState = {
       ...bolaNieve,
       [meta.key]: bolaNieveItemDraft.realizado,
       [meta.detKey]: bolaNieveItemDraft.detalle.trim() || "",
@@ -1939,18 +1970,13 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
         detalle_visitas_terreno: merged.detalle_visitas_terreno.trim() || null,
       })
       if (res.success) {
-        const done =
-          merged.contacto_personas_rubro &&
-          merged.contacto_empresas_rubro &&
-          merged.busqueda_linkedin &&
-          merged.apoyo_reclutadores &&
-          merged.visitas_terreno
+        const done = countBolaNieveDefined(merged) === BOLA_NIEVE_ITEMS.length
         showToast({
           type: "success",
           title: "Guardado",
           description: done
-            ? "Bola de nieve: registro completado (5/5 ítems marcados como logrados)."
-            : "Ítem actualizado. Aún faltan acciones por registrar como logradas.",
+            ? "Bola de nieve: registro completado (5/5 ítems registrados)."
+            : "Ítem guardado. Aún faltan ítems por registrar.",
         })
         setBolaNieveItemKey(null)
         await loadData()
@@ -1975,9 +2001,10 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
   const openBolaNieveItem = (key: BolaNieveItemKey) => {
     const meta = BOLA_NIEVE_ITEMS.find((i) => i.key === key)
     if (!meta) return
+    const current = bolaNieve[meta.key]
     setBolaNieveItemKey(key)
     setBolaNieveItemDraft({
-      realizado: !!bolaNieve[meta.key],
+      realizado: isBolaNieveItemDefined(current) ? current : null,
       detalle: bolaNieve[meta.detKey] || "",
     })
   }
@@ -1997,7 +2024,7 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
         type: "error",
         title: "No se puede avanzar",
         description:
-          "Complete el registro Bola de Nieve: marque los 5 ítems como realizados (acción hecha) antes de avanzar al Módulo 3.",
+          "Complete el registro Bola de Nieve: registre los 5 ítems (logrado o no logrado) antes de avanzar al Módulo 3.",
       })
       return
     }
@@ -3365,7 +3392,7 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
               <div className="space-y-1">
                 <CardTitle className="text-lg">Bola de nieve (búsqueda activa)</CardTitle>
                 <CardDescription>
-                  Registro en paralelo a la publicación en portales. Debes completar los 5 ítems para avanzar al Módulo 3.
+                  Registro en paralelo a la publicación en portales. Debes registrar los 5 ítems (logrado o no logrado) para avanzar al Módulo 3.
                 </CardDescription>
               </div>
             </CardHeader>
@@ -3390,14 +3417,8 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                   </p>
                   <p className="text-muted-foreground mt-0.5 dark:text-amber-100/80">
                     {hasBolaNieveComplete
-                      ? "Los 5 ítems están marcados como realizados. Puedes avanzar al Módulo 3 cuando tengas candidatos presentados."
-                      : `Faltan ítems por marcar como realizados (${[
-                          bolaNieve.contacto_personas_rubro,
-                          bolaNieve.contacto_empresas_rubro,
-                          bolaNieve.busqueda_linkedin,
-                          bolaNieve.apoyo_reclutadores,
-                          bolaNieve.visitas_terreno,
-                        ].filter(Boolean).length}/5). Usa «Gestionar» para actualizar el checklist.`}
+                      ? "Los 5 ítems están registrados (logrado o no logrado). Puedes avanzar al Módulo 3 cuando tengas candidatos presentados."
+                      : `Faltan ítems por registrar (${bolaNieveDefinedCount}/5). Usa «Gestionar» en cada acción.`}
                   </p>
                 </div>
               </div>
@@ -3406,18 +3427,31 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Acciones
                 </p>
-                {BOLA_NIEVE_ITEMS.map((row) => (
+                {BOLA_NIEVE_ITEMS.map((row) => {
+                  const itemValue = bolaNieve[row.key]
+                  const isDefined = isBolaNieveItemDefined(itemValue)
+                  return (
                   <div
                     key={row.key}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-2 hover:border-amber-200/80 dark:hover:border-amber-800/60"
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      {bolaNieve[row.key] ? (
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                      {isDefined && (
                         <CheckCircle className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
-                      ) : (
-                        <X className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" aria-hidden />
                       )}
                       <span className="text-sm font-medium leading-snug">{row.label}</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          !isDefined
+                            ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                            : itemValue === true
+                              ? "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200"
+                              : "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+                        }
+                      >
+                        {!isDefined ? "Pendiente" : itemValue === true ? "Logrado" : "No logrado"}
+                      </Badge>
                     </div>
                     <Button
                       type="button"
@@ -3431,7 +3465,8 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                       Gestionar
                     </Button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </CardContent>
           </Card>
@@ -3463,9 +3498,9 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                     <div className="grid grid-cols-2 gap-3">
                       <Button
                         type="button"
-                        variant={bolaNieveItemDraft.realizado ? "default" : "outline"}
+                        variant={bolaNieveItemDraft.realizado === true ? "default" : "outline"}
                         className={
-                          bolaNieveItemDraft.realizado
+                          bolaNieveItemDraft.realizado === true
                             ? "h-auto flex-col gap-2 border-green-600 bg-green-600 py-4 text-white hover:bg-green-700 hover:text-white"
                             : "h-auto flex-col gap-2 border-muted py-4 text-foreground hover:bg-muted/50"
                         }
@@ -3477,9 +3512,9 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                       </Button>
                       <Button
                         type="button"
-                        variant={!bolaNieveItemDraft.realizado ? "default" : "outline"}
+                        variant={bolaNieveItemDraft.realizado === false ? "default" : "outline"}
                         className={
-                          !bolaNieveItemDraft.realizado
+                          bolaNieveItemDraft.realizado === false
                             ? "h-auto flex-col gap-2 border-red-600 bg-red-600 py-4 text-white hover:bg-red-700 hover:text-white"
                             : "h-auto flex-col gap-2 border-muted py-4 text-foreground hover:bg-muted/50"
                         }
@@ -3487,14 +3522,14 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                         disabled={readOnly || isBlocked || bolaNieveSaving}
                       >
                         <X className="h-7 w-7" strokeWidth={2.5} />
-                        <span className="text-sm font-medium">No realizado</span>
+                        <span className="text-sm font-medium">No logrado</span>
                       </Button>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="bn-item-detalle">Detalle</Label>
                       <Textarea
                         id="bn-item-detalle"
-                        placeholder="Describe brevemente qué se hizo o el contexto (opcional)"
+                        placeholder="Describe brevemente qué se hizo o el contexto."
                         value={bolaNieveItemDraft.detalle}
                         onChange={(e) =>
                           setBolaNieveItemDraft((d) => ({ ...d, detalle: e.target.value }))

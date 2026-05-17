@@ -510,15 +510,15 @@ export const solicitudService = {
   async saveBolaNieve(
     id: number,
     body: {
-      contacto_personas_rubro: boolean;
+      contacto_personas_rubro: boolean | null;
       detalle_contacto_personas_rubro?: string | null;
-      contacto_empresas_rubro: boolean;
+      contacto_empresas_rubro: boolean | null;
       detalle_contacto_empresas_rubro?: string | null;
-      busqueda_linkedin: boolean;
+      busqueda_linkedin: boolean | null;
       detalle_busqueda_linkedin?: string | null;
-      apoyo_reclutadores: boolean;
+      apoyo_reclutadores: boolean | null;
       detalle_apoyo_reclutadores?: string | null;
-      visitas_terreno: boolean;
+      visitas_terreno: boolean | null;
       detalle_visitas_terreno?: string | null;
     }
   ): Promise<ApiResponse<any>> {

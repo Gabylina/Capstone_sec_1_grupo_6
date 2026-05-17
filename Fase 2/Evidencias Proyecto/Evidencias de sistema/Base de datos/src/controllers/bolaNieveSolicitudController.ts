@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { BolaNieveSolicitudService } from '@/services/bolaNieveSolicitudService';
+import { BolaNieveSolicitudService, parseBolaNieveBool } from '@/services/bolaNieveSolicitudService';
 import { sendSuccess, sendError } from '@/utils/response';
 
 export class BolaNieveSolicitudController {
@@ -24,15 +24,15 @@ export class BolaNieveSolicitudController {
             }
             const body = req.body || {};
             const row = await BolaNieveSolicitudService.upsert(idSolicitud, {
-                contacto_personas_rubro: !!body.contacto_personas_rubro,
+                contacto_personas_rubro: parseBolaNieveBool(body.contacto_personas_rubro),
                 detalle_contacto_personas_rubro: body.detalle_contacto_personas_rubro ?? null,
-                contacto_empresas_rubro: !!body.contacto_empresas_rubro,
+                contacto_empresas_rubro: parseBolaNieveBool(body.contacto_empresas_rubro),
                 detalle_contacto_empresas_rubro: body.detalle_contacto_empresas_rubro ?? null,
-                busqueda_linkedin: !!body.busqueda_linkedin,
+                busqueda_linkedin: parseBolaNieveBool(body.busqueda_linkedin),
                 detalle_busqueda_linkedin: body.detalle_busqueda_linkedin ?? null,
-                apoyo_reclutadores: !!body.apoyo_reclutadores,
+                apoyo_reclutadores: parseBolaNieveBool(body.apoyo_reclutadores),
                 detalle_apoyo_reclutadores: body.detalle_apoyo_reclutadores ?? null,
-                visitas_terreno: !!body.visitas_terreno,
+                visitas_terreno: parseBolaNieveBool(body.visitas_terreno),
                 detalle_visitas_terreno: body.detalle_visitas_terreno ?? null,
             });
             return sendSuccess(res, row, 'Registro Bola de Nieve guardado');

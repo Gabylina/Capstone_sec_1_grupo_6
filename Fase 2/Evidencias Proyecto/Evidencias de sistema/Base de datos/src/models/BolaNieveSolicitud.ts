@@ -1,18 +1,28 @@
 import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '@/config/database';
 
+export const BOLA_NIEVE_ITEM_KEYS = [
+    'contacto_personas_rubro',
+    'contacto_empresas_rubro',
+    'busqueda_linkedin',
+    'apoyo_reclutadores',
+    'visitas_terreno',
+] as const;
+
+export type BolaNieveItemKey = (typeof BOLA_NIEVE_ITEM_KEYS)[number];
+
 export interface BolaNieveSolicitudAttributes {
     id_bola_nieve_solicitud: number;
     id_solicitud: number;
-    contacto_personas_rubro: boolean;
+    contacto_personas_rubro: boolean | null;
     detalle_contacto_personas_rubro: string | null;
-    contacto_empresas_rubro: boolean;
+    contacto_empresas_rubro: boolean | null;
     detalle_contacto_empresas_rubro: string | null;
-    busqueda_linkedin: boolean;
+    busqueda_linkedin: boolean | null;
     detalle_busqueda_linkedin: string | null;
-    apoyo_reclutadores: boolean;
+    apoyo_reclutadores: boolean | null;
     detalle_apoyo_reclutadores: string | null;
-    visitas_terreno: boolean;
+    visitas_terreno: boolean | null;
     detalle_visitas_terreno: string | null;
     fecha_actualizacion: Date;
 }
@@ -21,6 +31,11 @@ export interface BolaNieveSolicitudCreationAttributes
     extends Optional<
         BolaNieveSolicitudAttributes,
         | 'id_bola_nieve_solicitud'
+        | 'contacto_personas_rubro'
+        | 'contacto_empresas_rubro'
+        | 'busqueda_linkedin'
+        | 'apoyo_reclutadores'
+        | 'visitas_terreno'
         | 'detalle_contacto_personas_rubro'
         | 'detalle_contacto_empresas_rubro'
         | 'detalle_busqueda_linkedin'
@@ -35,27 +50,22 @@ class BolaNieveSolicitud
 {
     public id_bola_nieve_solicitud!: number;
     public id_solicitud!: number;
-    public contacto_personas_rubro!: boolean;
+    public contacto_personas_rubro!: boolean | null;
     public detalle_contacto_personas_rubro!: string | null;
-    public contacto_empresas_rubro!: boolean;
+    public contacto_empresas_rubro!: boolean | null;
     public detalle_contacto_empresas_rubro!: string | null;
-    public busqueda_linkedin!: boolean;
+    public busqueda_linkedin!: boolean | null;
     public detalle_busqueda_linkedin!: string | null;
-    public apoyo_reclutadores!: boolean;
+    public apoyo_reclutadores!: boolean | null;
     public detalle_apoyo_reclutadores!: string | null;
-    public visitas_terreno!: boolean;
+    public visitas_terreno!: boolean | null;
     public detalle_visitas_terreno!: string | null;
     public fecha_actualizacion!: Date;
 
-    public static todosMarcados(row: BolaNieveSolicitud | null): boolean {
+    /** Los 5 ítems tienen decisión registrada (logrado o no logrado). */
+    public static todosDefinidos(row: BolaNieveSolicitud | null): boolean {
         if (!row) return false;
-        return (
-            row.contacto_personas_rubro &&
-            row.contacto_empresas_rubro &&
-            row.busqueda_linkedin &&
-            row.apoyo_reclutadores &&
-            row.visitas_terreno
-        );
+        return BOLA_NIEVE_ITEM_KEYS.every((key) => row[key] !== null && row[key] !== undefined);
     }
 }
 
@@ -73,35 +83,15 @@ BolaNieveSolicitud.init(
             unique: true,
             references: { model: 'solicitud', key: 'id_solicitud' },
         },
-        contacto_personas_rubro: {
-            type: DataTypes.BOOLEAN,
-            allowNull: false,
-            defaultValue: false,
-        },
+        contacto_personas_rubro: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
         detalle_contacto_personas_rubro: { type: DataTypes.TEXT, allowNull: true },
-        contacto_empresas_rubro: {
-            type: DataTypes.BOOLEAN,
-            allowNull: false,
-            defaultValue: false,
-        },
+        contacto_empresas_rubro: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
         detalle_contacto_empresas_rubro: { type: DataTypes.TEXT, allowNull: true },
-        busqueda_linkedin: {
-            type: DataTypes.BOOLEAN,
-            allowNull: false,
-            defaultValue: false,
-        },
+        busqueda_linkedin: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
         detalle_busqueda_linkedin: { type: DataTypes.TEXT, allowNull: true },
-        apoyo_reclutadores: {
-            type: DataTypes.BOOLEAN,
-            allowNull: false,
-            defaultValue: false,
-        },
+        apoyo_reclutadores: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
         detalle_apoyo_reclutadores: { type: DataTypes.TEXT, allowNull: true },
-        visitas_terreno: {
-            type: DataTypes.BOOLEAN,
-            allowNull: false,
-            defaultValue: false,
-        },
+        visitas_terreno: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: null },
         detalle_visitas_terreno: { type: DataTypes.TEXT, allowNull: true },
         fecha_actualizacion: {
             type: DataTypes.DATE,
