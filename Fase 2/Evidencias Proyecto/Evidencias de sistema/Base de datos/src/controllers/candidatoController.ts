@@ -478,6 +478,10 @@ export class CandidatoController {
             if (error.message === 'Candidato no encontrado') {
                 return sendError(res, error.message, 404);
             }
+
+            if (error.message?.includes('coordinadora') || error.message?.includes('revisión') || error.message?.includes('aprobación')) {
+                return sendError(res, error.message, 403);
+            }
             
             return sendError(res, 'Error al actualizar estado del candidato', 500);
         }

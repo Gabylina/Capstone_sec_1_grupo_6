@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PostulacionController } from '@/controllers/postulacionController';
+import { AprobacionCandidatoController } from '@/controllers/aprobacionCandidatoController';
 import { uploadCV } from '@/config/multer';
 import { authenticateToken } from '@/middleware/auth';
 
@@ -21,6 +22,11 @@ router.get('/solicitud/:idSolicitud/optimized', PostulacionController.getBySolic
 // RUTAS PROTEGIDAS (requieren token)
 // ====================================
 router.use(authenticateToken);
+
+// Aprobación de candidatos (LL, PC, HH/HS)
+router.get('/solicitud/:idSolicitud/aprobaciones', AprobacionCandidatoController.listBySolicitud);
+router.post('/:idPostulacion/aprobacion/enviar-revision', AprobacionCandidatoController.enviarARevision);
+router.put('/:idPostulacion/aprobacion/resolver', AprobacionCandidatoController.resolver);
 
 // Crear nueva postulación (con CV opcional)
 router.post('/', uploadCV.single('cv_file'), PostulacionController.create);

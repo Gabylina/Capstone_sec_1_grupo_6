@@ -19,9 +19,11 @@ import {
     Comuna,
     Region,
     Nacionalidad,
-    Rubro
+    Rubro,
+    AprobacionCandidatoPostulacion,
 } from '@/models';
 import { CandidatoService } from './candidatoService';
+import { AprobacionCandidatoService, solicitudRequiereAprobacionCandidato } from './aprobacionCandidatoService';
 
 /**
  * Servicio para gestión de Postulaciones
@@ -89,6 +91,11 @@ export class PostulacionService {
                 {
                     model: PortalPostulacion,
                     as: 'portalPostulacion'
+                },
+                {
+                    model: AprobacionCandidatoPostulacion,
+                    as: 'aprobacionCoordinadora',
+                    required: false,
                 },
                 {
                     model: EstadoClientePostulacion,
@@ -165,6 +172,11 @@ export class PostulacionService {
                     model: PortalPostulacion,
                     as: 'portalPostulacion',
                     attributes: ['id_portal_postulacion', 'nombre_portal_postulacion']
+                },
+                {
+                    model: AprobacionCandidatoPostulacion,
+                    as: 'aprobacionCoordinadora',
+                    required: false,
                 },
                 {
                     model: EstadoClientePostulacion,
@@ -250,6 +262,10 @@ export class PostulacionService {
                 situacion_familiar: data.situacion_familiar,
                 cv_postulacion: data.cv_file
             }, { transaction });
+
+            if (solicitudRequiereAprobacionCandidato(solicitud.codigo_servicio)) {
+                await AprobacionCandidatoService.getOrCreate(nuevaPostulacion.id_postulacion, transaction);
+            }
 
             await transaction.commit();
 
@@ -401,6 +417,10 @@ export class PostulacionService {
                 id_portal_postulacion: portal.id_portal_postulacion
             }, { transaction });
 
+            if (solicitudRequiereAprobacionCandidato(solicitud.codigo_servicio)) {
+                await AprobacionCandidatoService.getOrCreate(nuevaPostulacion.id_postulacion, transaction);
+            }
+
             await transaction.commit();
 
             return {
@@ -435,6 +455,7 @@ export class PostulacionService {
             // Mapear estado
             let nombreEstado = 'Agregado';
             if (presentation_status === 'presentado') {
+                await AprobacionCandidatoService.assertPuedePresentar(id, transaction);
                 nombreEstado = 'Presentado';
             } else if (presentation_status === 'no_presentado') {
                 nombreEstado = 'No Presentado';
@@ -650,6 +671,7 @@ export class PostulacionService {
         }
 
         const estadoClienteNombre = ultimoEstadoCliente?.estadoCliente?.nombre_estado?.toLowerCase();
+        const aprobacion = postulacion.get('aprobacionCoordinadora') as any;
 
         return {
             id: candidato.id_candidato.toString(),
@@ -728,7 +750,20 @@ export class PostulacionService {
                 english_level: candidato.nivel_ingles,
                 has_driving_license: false,
                 software_tools: candidato.software_herramientas
-            }
+            },
+            approval_status: (aprobacion?.estado as string) || 'pendiente',
+            approval_motivo: aprobacion?.motivo || undefined,
+            approval_fecha_envio: aprobacion?.fecha_envio_revision
+                ? (aprobacion.fecha_envio_revision instanceof Date
+                    ? aprobacion.fecha_envio_revision.toISOString()
+                    : new Date(aprobacion.fecha_envio_revision).toISOString())
+                : undefined,
+            approval_fecha_resolucion: aprobacion?.fecha_resolucion
+                ? (aprobacion.fecha_resolucion instanceof Date
+                    ? aprobacion.fecha_resolucion.toISOString()
+                    : new Date(aprobacion.fecha_resolucion).toISOString())
+                : undefined,
+            approval_usuario_aprobador: aprobacion?.rut_usuario_aprobador || undefined,
         };
     }
 

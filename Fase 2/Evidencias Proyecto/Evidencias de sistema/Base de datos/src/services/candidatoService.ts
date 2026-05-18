@@ -1303,6 +1303,11 @@ export class CandidatoService {
                 throw new Error('Estado inválido');
             }
 
+            if (status === 'presentado') {
+                const { AprobacionCandidatoService } = await import('./aprobacionCandidatoService');
+                await AprobacionCandidatoService.assertPuedePresentar(postulacion.id_postulacion, transaction);
+            }
+
             // Actualizar la postulación con el nuevo estado
             const updateData: any = {
                 id_estado_candidato: idEstadoCandidato

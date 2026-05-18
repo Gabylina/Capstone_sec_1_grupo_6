@@ -17,9 +17,16 @@ interface CandidateStatusDialogProps {
   onOpenChange: (open: boolean) => void
   candidate: Candidate | null
   onSuccess?: () => void
+  requiresCoordinatorApproval?: boolean
 }
 
-export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess }: CandidateStatusDialogProps) {
+export function CandidateStatusDialog({
+  open,
+  onOpenChange,
+  candidate,
+  onSuccess,
+  requiresCoordinatorApproval = false,
+}: CandidateStatusDialogProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
@@ -46,6 +53,20 @@ export function CandidateStatusDialog({ open, onOpenChange, candidate, onSuccess
     e.preventDefault()
     
     if (!candidate) return
+
+    if (
+      requiresCoordinatorApproval &&
+      formData.status === "presentado" &&
+      candidate.approval_status !== "aprobado"
+    ) {
+      toast({
+        title: "Aprobación requerida",
+        description:
+          "El candidato debe estar aprobado por la coordinadora antes de marcarlo como Presentado. Envíelo a revisión y espere la resolución.",
+        variant: "destructive",
+      })
+      return
+    }
 
     // Validar que no se permita enviar con estado "agregado"
     if (formData.status === "agregado") {

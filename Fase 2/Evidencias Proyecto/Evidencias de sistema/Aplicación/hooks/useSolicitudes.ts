@@ -12,6 +12,7 @@ interface HookSolicitud extends Process {
   cliente?: string
   consultor?: string
   estado_solicitud?: string
+  tipo_servicio?: string
   tipo_servicio_nombre?: string
   fecha_creacion?: string
   id_descripcion_cargo?: number
@@ -125,6 +126,7 @@ export function useSolicitudes() {
           cliente: solicitud.cliente || 'Sin cliente',
           consultor: solicitud.consultor || 'Sin asignar',
           estado_solicitud: solicitud.estado_solicitud || 'Creado',
+          tipo_servicio: solicitud.tipo_servicio || solicitud.service_type || '',
           tipo_servicio_nombre: solicitud.tipo_servicio_nombre || solicitud.service_type || '',
           fecha_creacion: solicitud.fecha_creacion || solicitud.created_at || new Date().toISOString(),
           id_descripcion_cargo: solicitud.id_descripcion_cargo || 0,

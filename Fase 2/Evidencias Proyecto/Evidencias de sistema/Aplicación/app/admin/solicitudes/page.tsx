@@ -1,18 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, Edit } from "lucide-react"
+import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, Edit, ShieldCheck } from "lucide-react"
 import Link from "next/link"
 import { formatDateShort, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
 import { solicitudService, getCandidatesByProcess, clientService } from "@/lib/api"
+import { solicitudRequiresCoordinatorApproval, countCandidatesEnRevision } from "@/lib/approval-utils"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
@@ -23,6 +24,7 @@ interface Solicitud {
   cargo?: string
   cliente?: string
   tipo_servicio?: string
+  service_type?: string
   tipo_servicio_nombre?: string
   consultor?: string
   estado_solicitud?: string
@@ -162,8 +164,54 @@ export default function SolicitudesPage() {
   const [solicitudToDelete, setSolicitudToDelete] = useState<string | null>(null)
   
   // Estado para almacenar candidatos por solicitud
-  const [candidatesBySolicitud, setCandidatesBySolicitud] = useState<Record<string, { nombre: string; apellido: string } | null>>({})
+  const [candidatesBySolicitud, setCandidatesBySolicitud] = useState<
+    Record<
+      string,
+      {
+        nombre: string
+        apellido: string
+        enRevisionCount: number
+        requiresApproval: boolean
+      } | null
+    >
+  >({})
   const [loadingCandidates, setLoadingCandidates] = useState<Record<string, boolean>>({})
+  const loadingCandidatesRef = useRef<Set<string>>(new Set())
+
+  const applyCandidatesMeta = useCallback(
+    (
+      solicitudId: string,
+      candidates: Array<Record<string, unknown>>,
+      needsApproval: boolean
+    ) => {
+      const enRevisionCount = needsApproval ? countCandidatesEnRevision(candidates) : 0
+      const display =
+        candidates.find((c) => {
+          const nombre = String(c.nombre || c.nombre_candidato || "").trim()
+          const apellido = String(c.primer_apellido || c.primer_apellido_candidato || "").trim()
+          return nombre && apellido
+        }) || candidates[0]
+
+      const nombre = String(display?.nombre || display?.nombre_candidato || "").trim()
+      const apellido = String(display?.primer_apellido || display?.primer_apellido_candidato || "").trim()
+
+      if (!needsApproval && candidates.length === 0) {
+        setCandidatesBySolicitud((prev) => ({ ...prev, [solicitudId]: null }))
+        return
+      }
+
+      setCandidatesBySolicitud((prev) => ({
+        ...prev,
+        [solicitudId]: {
+          nombre,
+          apellido,
+          enRevisionCount,
+          requiresApproval: needsApproval,
+        },
+      }))
+    },
+    []
+  )
 
   const handleDelete = (id: string) => {
     setSolicitudToDelete(id)
@@ -224,44 +272,38 @@ export default function SolicitudesPage() {
     }
   }
 
-  // Función para cargar candidatos de una solicitud
-  const loadCandidatesForSolicitud = async (solicitudId: string) => {
-    // Si ya está cargando o ya tenemos los datos, no hacer nada
-    if (loadingCandidates[solicitudId] || candidatesBySolicitud[solicitudId] !== undefined) {
-      return
-    }
+  const loadCandidatesForSolicitud = useCallback(
+    async (solicitudItem: Solicitud, force = false) => {
+      const solicitudId = solicitudItem.id.toString()
+      if (!force && loadingCandidatesRef.current.has(solicitudId)) return
 
-    setLoadingCandidates(prev => ({ ...prev, [solicitudId]: true }))
-    
-    try {
-      const candidates = await getCandidatesByProcess(solicitudId)
-      
-      if (candidates && candidates.length > 0) {
-        // Obtener el primer candidato
-        const firstCandidate = candidates[0]
-        const nombre = firstCandidate.nombre || firstCandidate.nombre_candidato || ''
-        const apellido = firstCandidate.primer_apellido || firstCandidate.primer_apellido_candidato || ''
-        
-        setCandidatesBySolicitud(prev => ({
-          ...prev,
-          [solicitudId]: nombre && apellido ? { nombre, apellido } : null
-        }))
-      } else {
-        setCandidatesBySolicitud(prev => ({
-          ...prev,
-          [solicitudId]: null
-        }))
+      loadingCandidatesRef.current.add(solicitudId)
+      const needsApproval = solicitudRequiresCoordinatorApproval(solicitudItem)
+      setLoadingCandidates((prev) => ({ ...prev, [solicitudId]: true }))
+
+      try {
+        const candidates = await getCandidatesByProcess(solicitudId)
+        applyCandidatesMeta(solicitudId, candidates || [], needsApproval)
+      } catch (error) {
+        console.error(`Error al cargar candidatos para solicitud ${solicitudId}:`, error)
+        if (needsApproval) {
+          setCandidatesBySolicitud((prev) => ({
+            ...prev,
+            [solicitudId]: prev[solicitudId] ?? {
+              nombre: "",
+              apellido: "",
+              enRevisionCount: 0,
+              requiresApproval: true,
+            },
+          }))
+        }
+      } finally {
+        loadingCandidatesRef.current.delete(solicitudId)
+        setLoadingCandidates((prev) => ({ ...prev, [solicitudId]: false }))
       }
-    } catch (error) {
-      console.error(`Error al cargar candidatos para solicitud ${solicitudId}:`, error)
-      setCandidatesBySolicitud(prev => ({
-        ...prev,
-        [solicitudId]: null
-      }))
-    } finally {
-      setLoadingCandidates(prev => ({ ...prev, [solicitudId]: false }))
-    }
-  }
+    },
+    [applyCandidatesMeta]
+  )
 
   // Cargar lista de clientes para el filtro
   useEffect(() => {
@@ -275,48 +317,30 @@ export default function SolicitudesPage() {
     }).catch(() => setClientes([]))
   }, [])
 
-  // Cargar candidatos cuando cambian las solicitudes
+  // Cargar y refrescar candidatos (estado de validación) para cada solicitud visible
   useEffect(() => {
-    solicitudes.forEach(solicitud => {
-      const solicitudId = solicitud.id.toString()
-      // Si ya está cargando o ya tenemos los datos, no hacer nada
-      if (loadingCandidates[solicitudId] || candidatesBySolicitud[solicitudId] !== undefined) {
-        return
-      }
+    if (solicitudes.length === 0) return
 
-      setLoadingCandidates(prev => ({ ...prev, [solicitudId]: true }))
-      
-      getCandidatesByProcess(solicitudId)
-        .then(candidates => {
-          if (candidates && candidates.length > 0) {
-            // Obtener el primer candidato
-            const firstCandidate = candidates[0]
-            const nombre = firstCandidate.nombre || firstCandidate.nombre_candidato || ''
-            const apellido = firstCandidate.primer_apellido || firstCandidate.primer_apellido_candidato || ''
-            
-            setCandidatesBySolicitud(prev => ({
-              ...prev,
-              [solicitudId]: nombre && apellido ? { nombre, apellido } : null
-            }))
-          } else {
-            setCandidatesBySolicitud(prev => ({
-              ...prev,
-              [solicitudId]: null
-            }))
-          }
-        })
-        .catch(error => {
-          console.error(`Error al cargar candidatos para solicitud ${solicitudId}:`, error)
-          setCandidatesBySolicitud(prev => ({
-            ...prev,
-            [solicitudId]: null
-          }))
-        })
-        .finally(() => {
-          setLoadingCandidates(prev => ({ ...prev, [solicitudId]: false }))
-        })
-    })
-  }, [solicitudes])
+    const refreshAll = (force: boolean) => {
+      solicitudes.forEach((solicitudItem) => {
+        void loadCandidatesForSolicitud(solicitudItem, force)
+      })
+    }
+
+    refreshAll(false)
+
+    const intervalId = setInterval(() => refreshAll(true), 45000)
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshAll(true)
+    }
+    document.addEventListener("visibilitychange", onVisible)
+
+    return () => {
+      clearInterval(intervalId)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [solicitudes, loadCandidatesForSolicitud])
 
   // Los solicitudes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
@@ -518,6 +542,38 @@ export default function SolicitudesPage() {
                     <TableCell className="whitespace-nowrap">{formatDateShort(solicitud.fecha_creacion || '')}</TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
+                        {(() => {
+                          const sid = solicitud.id.toString()
+                          const needsApproval = solicitudRequiresCoordinatorApproval(solicitud)
+                          const meta = candidatesBySolicitud[sid]
+                          const isLoadingMeta = loadingCandidates[sid]
+                          const enRevision = meta?.enRevisionCount ?? 0
+                          const canValidate = needsApproval && !isLoadingMeta && enRevision > 0
+                          const validateTitle = !needsApproval
+                            ? "Este servicio no requiere validación de candidatos"
+                            : isLoadingMeta
+                              ? "Cargando candidatos..."
+                              : enRevision === 0
+                                ? "No hay candidatos pendientes de revisión"
+                                : `Validar candidatos (${enRevision} en revisión)`
+                          return canValidate ? (
+                            <Button variant="ghost" size="sm" asChild title={validateTitle}>
+                              <Link href={`/consultor/proceso/${solicitud.id}?tab=modulo-2&coordinador=1`}>
+                                <ShieldCheck className="h-4 w-4 text-violet-600 hover:text-violet-700" />
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled
+                              title={validateTitle}
+                              className="cursor-default"
+                            >
+                              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          )
+                        })()}
                         <Button
                           variant="ghost"
                           size="sm"

@@ -19,13 +19,20 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateOnly } from "@/lib/utils"
-import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase } from "lucide-react"
+import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase, ShieldCheck } from "lucide-react"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
+import Link from "next/link"
 
 export default function AlertasPage() {
   const { user } = useAuth()
   const { showToast } = useToastNotification()
-  const { markAsRead, loadNotifications, unreadCount: notificationsUnreadCount } = useNotifications(user?.id, user?.role)
+  const {
+    notifications,
+    markAsRead,
+    markNotificationAsRead,
+    loadNotifications,
+    unreadCount: notificationsUnreadCount,
+  } = useNotifications(user?.id, user?.role)
   const [searchTerm, setSearchTerm] = useState("")
   const [serviceFilter, setServiceFilter] = useState<string>("all")
   const [consultorFilter, setConsultorFilter] = useState<string>("all")
@@ -36,9 +43,12 @@ export default function AlertasPage() {
   const hasShownToast = useRef(false)
   const hasMarkedAsRead = useRef(false)
 
+  const aprobacionAlerts = notifications.filter((n) => n.kind === "aprobacion")
+  const aprobacionNoLeidas = aprobacionAlerts.filter((n) => !n.read)
+
   // Marcar como leídas al entrar a la página (solo una vez)
   useEffect(() => {
-    if (user && !hasMarkedAsRead.current && hitosAlertas.length > 0) {
+    if (user && !hasMarkedAsRead.current && (hitosAlertas.length > 0 || aprobacionAlerts.length > 0)) {
       console.log('[ALERTAS] Marcando notificaciones como leídas al entrar a la página')
       markAsRead()
       hasMarkedAsRead.current = true
@@ -48,7 +58,7 @@ export default function AlertasPage() {
         loadNotifications()
       }, 500)
     }
-  }, [user, markAsRead, loadNotifications, hitosAlertas.length])
+  }, [user, markAsRead, loadNotifications, hitosAlertas.length, aprobacionAlerts.length])
 
   useEffect(() => {
     if (user) {
@@ -95,7 +105,19 @@ export default function AlertasPage() {
 
   // Mostrar toast cuando se carguen las alertas por primera vez
   useEffect(() => {
-    if (!loading && hitosAlertas.length > 0 && !hasShownToast.current) {
+    if (!loading && !hasShownToast.current) {
+      if (aprobacionNoLeidas.length > 0) {
+        showToast({
+          type: "info",
+          title: `${aprobacionNoLeidas.length} revisión${aprobacionNoLeidas.length !== 1 ? "es" : ""} de candidato${aprobacionNoLeidas.length !== 1 ? "s" : ""}`,
+          description: "La coordinadora resolvió candidatos. Entra al proceso desde la sección de abajo.",
+        })
+        hasShownToast.current = true
+        return
+      }
+
+      if (hitosAlertas.length === 0) return
+
       const vencidas = hitosAlertas.filter(h => h.estado === 'vencido').length
       const porVencer = hitosAlertas.filter(h => h.estado === 'por_vencer').length
       
@@ -121,7 +143,7 @@ export default function AlertasPage() {
       
       hasShownToast.current = true
     }
-  }, [loading, hitosAlertas, showToast])
+  }, [loading, hitosAlertas, aprobacionNoLeidas.length, showToast])
 
   const loadHitosData = async () => {
       if (!user) {
@@ -235,7 +257,7 @@ export default function AlertasPage() {
 
   const proximasVencer = filteredHitosAlertas.filter((h) => h.estado === 'por_vencer')
   const vencidas = filteredHitosAlertas.filter((h) => h.estado === 'vencido')
-  const unreadCount = filteredHitosAlertas.length
+  const unreadCount = notificationsUnreadCount
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -321,7 +343,9 @@ export default function AlertasPage() {
           <Bell className="h-8 w-8 text-primary" />
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Alertas y Notificaciones</h1>
-            <p className="text-muted-foreground">Gestiona hitos próximos a vencer y vencidos</p>
+            <p className="text-muted-foreground">
+              Hitos del proceso y revisiones de candidatos por la coordinadora
+            </p>
           </div>
         </div>
       </div>
@@ -365,6 +389,57 @@ export default function AlertasPage() {
           </CardContent>
         </Card>
       </div>
+
+      {user.role !== "admin" && aprobacionAlerts.length > 0 && (
+        <Card className="border-l-4 border-l-violet-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-violet-600" />
+              Revisión de candidatos
+            </CardTitle>
+            <CardDescription>
+              La coordinadora resolvió candidatos. Entra al módulo 2 del proceso para ver el resultado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {aprobacionAlerts.map((n) =>
+              n.kind === "aprobacion" ? (
+                <Card
+                  key={n.id}
+                  className={`border hover:shadow-md transition-shadow ${!n.read ? "bg-violet-50/50 dark:bg-violet-950/20" : ""}`}
+                >
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="h-5 w-5 text-violet-600 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="font-semibold text-sm">{n.titulo}</h3>
+                          {!n.read && (
+                            <Badge className="bg-violet-100 text-violet-800 shrink-0">Nueva</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{n.mensaje}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-semibold text-blue-600">Solicitud {n.id_solicitud}</span>
+                          {n.cargo && <span>· {n.cargo}</span>}
+                          {n.candidato_nombre && <span>· {n.candidato_nombre}</span>}
+                        </div>
+                        <Link
+                          href={`/consultor/proceso/${n.id_solicitud}?tab=modulo-2`}
+                          className="inline-flex text-sm font-medium text-primary hover:underline"
+                          onClick={() => markNotificationAsRead(n.id)}
+                        >
+                          Ir al proceso (Módulo 2) →
+                        </Link>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card>

@@ -20,6 +20,7 @@ import { authenticateToken, requireAdmin, requireConsultorOrAdmin } from '@/midd
 import clienteRoutes from '@/routes/clientes';
 import solicitudRoutes from '@/routes/solicitudes';
 import postulacionRoutes from '@/routes/postulaciones';
+import notificacionRoutes from '@/routes/notificaciones';
 import publicacionRoutes from '@/routes/publicaciones';
 import portalRoutes from '@/routes/portales';
 import candidatoRoutes from '@/routes/candidatos';
@@ -296,6 +297,7 @@ app.get('/api', (req, res) => {
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/solicitudes', solicitudRoutes);
 app.use('/api/postulaciones', postulacionRoutes);
+app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/publicaciones', publicacionRoutes);
 app.use('/api/portales', portalRoutes);
 app.use('/api/candidatos', candidatoRoutes);

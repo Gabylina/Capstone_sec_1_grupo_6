@@ -54,6 +54,8 @@ import EvaluacionTest from './EvaluacionTest';
 import EntrevistaTecnica from './EntrevistaTecnica';
 import ExamenMedico from './ExamenMedico';
 import BolaNieveSolicitud from './BolaNieveSolicitud';
+import AprobacionCandidatoPostulacion from './AprobacionCandidatoPostulacion';
+import NotificacionConsultor from './NotificacionConsultor';
 
 // Modelos de auditoría
 import LogCambios from './LogCambios';
@@ -300,6 +302,24 @@ EstadoClientePostulacionM5.belongsTo(Postulacion, {
 // RELACIONES DE CONTRATACIÓN
 // ===========================================
 
+// Postulacion -> Aprobación coordinadora (1:1, LL/PC/HH/HS)
+Postulacion.hasOne(AprobacionCandidatoPostulacion, {
+    foreignKey: 'id_postulacion',
+    as: 'aprobacionCoordinadora',
+});
+AprobacionCandidatoPostulacion.belongsTo(Postulacion, {
+    foreignKey: 'id_postulacion',
+    as: 'postulacion',
+});
+AprobacionCandidatoPostulacion.belongsTo(Usuario, {
+    foreignKey: 'rut_usuario_envio',
+    as: 'usuarioEnvio',
+});
+AprobacionCandidatoPostulacion.belongsTo(Usuario, {
+    foreignKey: 'rut_usuario_aprobador',
+    as: 'usuarioAprobador',
+});
+
 // Postulacion -> Contratacion (1:1)
 Postulacion.hasOne(Contratacion, {
     foreignKey: 'id_postulacion',
@@ -442,5 +462,7 @@ export {
     EntrevistaTecnica,
     ExamenMedico,
     BolaNieveSolicitud,
+    AprobacionCandidatoPostulacion,
+    NotificacionConsultor,
     LogCambios
 };

@@ -18,20 +18,20 @@ function ConsultorLayoutInner({
   const searchParams = useSearchParams()
 
   // Permitir a admin ver una solicitud en solo lectura (botón ojo en tabla admin)
-  const isAdminViewOnly =
+  const isAdminProcessAccess =
     user?.role === "admin" &&
     pathname?.match(/\/consultor\/proceso\/\d+/) &&
-    searchParams.get("viewOnly") === "1"
+    (searchParams.get("viewOnly") === "1" || searchParams.get("coordinador") === "1")
 
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
         router.push("/login")
-      } else if (user.role !== "consultor" && !isAdminViewOnly) {
+      } else if (user.role !== "consultor" && !isAdminProcessAccess) {
         router.push("/admin/solicitudes")
       }
     }
-  }, [user, isLoading, router, isAdminViewOnly])
+  }, [user, isLoading, router, isAdminProcessAccess])
 
   if (isLoading) {
     return (
@@ -44,7 +44,7 @@ function ConsultorLayoutInner({
     )
   }
 
-  if (!user || (user.role !== "consultor" && !isAdminViewOnly)) {
+  if (!user || (user.role !== "consultor" && !isAdminProcessAccess)) {
     return null
   }
 

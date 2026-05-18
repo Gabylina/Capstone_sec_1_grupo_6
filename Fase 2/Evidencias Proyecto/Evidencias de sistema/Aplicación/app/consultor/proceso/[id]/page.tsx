@@ -35,6 +35,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
   const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"
+  const coordinadorMode = searchParams.get("coordinador") === "1"
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)
@@ -130,7 +131,10 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       const tabFromUrl = urlParams.get('tab')
       
       // Si hay parámetro tab en la URL, usarlo (tiene prioridad)
-      if (tabFromUrl && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5', 'modulo-entrevista-tecnica', 'modulo-examenes-medicos', 'timeline'].includes(tabFromUrl)) {
+      const coordinadorFromUrl = urlParams.get('coordinador') === '1'
+      if (coordinadorFromUrl) {
+        setActiveTab('modulo-2')
+      } else if (tabFromUrl && ['modulo-1', 'modulo-2', 'modulo-3', 'modulo-4', 'modulo-5', 'modulo-entrevista-tecnica', 'modulo-examenes-medicos', 'timeline'].includes(tabFromUrl)) {
         setActiveTab(tabFromUrl)
       } else {
         // Si no hay parámetro tab, determinar el módulo basado en la etapa
@@ -301,7 +305,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
   }
 
   // Permitir consultor o admin en vista solo lectura (viewOnly=1)
-  if (user?.role !== "consultor" && !viewOnly) {
+  if (user?.role !== "consultor" && !viewOnly && !coordinadorMode) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -458,17 +462,31 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
   return (
     <div className="space-y-6">
-      {viewOnly && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+      {(viewOnly || coordinadorMode) && (
+        <div className={`rounded-lg border px-4 py-2 text-sm flex items-center justify-between gap-2 ${
+          coordinadorMode
+            ? "border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-950/30 text-violet-900 dark:text-violet-200"
+            : "border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200"
+        }`}>
           <div className="flex items-center gap-2">
-            <span className="font-medium">Vista solo lectura (Administrador)</span>
-            <span className="text-amber-600 dark:text-amber-400">— Puedes ver detalles, botones y estados pero no modificar.</span>
+            <span className="font-medium">
+              {coordinadorMode ? "Validación de candidatos (Coordinadora)" : "Vista solo lectura (Administrador)"}
+            </span>
+            <span className={coordinadorMode ? "text-violet-700 dark:text-violet-300" : "text-amber-600 dark:text-amber-400"}>
+              {coordinadorMode
+                ? "— Apruebe, rechace u observe los candidatos enviados a revisión."
+                : "— Puedes ver detalles, botones y estados pero no modificar."}
+            </span>
           </div>
           <Button
             onClick={() => router.back()}
             variant="ghost"
             size="sm"
-            className="h-8 gap-2 text-amber-800 hover:text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:text-amber-100 dark:hover:bg-amber-900/50"
+            className={`h-8 gap-2 ${
+              coordinadorMode
+                ? "text-violet-800 hover:bg-violet-100 dark:text-violet-200"
+                : "text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/50"
+            }`}
           >
             <ArrowLeft className="h-4 w-4" />
             Volver
@@ -585,7 +603,11 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "CA" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
                 <TabsContent value="modulo-2" className="mt-0">
-                  <ProcessModule2 process={process} readOnly={viewOnly} />
+                  <ProcessModule2
+                    process={process}
+                    readOnly={viewOnly && !coordinadorMode}
+                    coordinadorMode={coordinadorMode}
+                  />
                 </TabsContent>
               )}
 

@@ -139,6 +139,11 @@ export interface Candidate {
   // Presentation status and reason
   presentation_status?: "agregado" | "presentado" | "no_presentado" | "rechazado"
   rejection_reason?: string
+  approval_status?: "pendiente" | "en_revision" | "aprobado" | "rechazado" | "observado"
+  approval_motivo?: string
+  approval_fecha_envio?: string
+  approval_fecha_resolucion?: string
+  approval_usuario_aprobador?: string
   // Disability credential
   has_disability_credential?: boolean
   // Driving license

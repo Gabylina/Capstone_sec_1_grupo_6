@@ -1,19 +1,36 @@
 import { useState, useEffect, useCallback } from "react"
 import { getHitosAlertas, HitoAlert } from "@/lib/api-hitos"
+import { notificacionConsultorService } from "@/lib/api-notificaciones"
 
-interface Notification {
+export type HitoNotification = {
+  kind: "hito"
   id: string
-  hito: HitoAlert
   read: boolean
   created_at: string
+  hito: HitoAlert
 }
 
+export type AprobacionNotification = {
+  kind: "aprobacion"
+  id: string
+  read: boolean
+  created_at: string
+  id_notificacion: number
+  id_solicitud: number
+  titulo: string
+  mensaje: string
+  estado_aprobacion?: string
+  candidato_nombre?: string
+  cargo?: string
+}
+
+export type AppNotification = HitoNotification | AprobacionNotification
+
 export const useNotifications = (userId: string | undefined, userRole?: string) => {
-  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  // Cargar IDs de notificaciones leídas desde localStorage
   const getReadNotificationIds = useCallback((): Set<string> => {
     if (!userId) return new Set()
     try {
@@ -24,81 +41,62 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
     }
   }, [userId])
 
-  // Guardar IDs de notificaciones leídas en localStorage
-  const saveReadNotificationIds = useCallback((ids: Set<string>) => {
-    if (!userId) return
-    try {
-      localStorage.setItem(`llc_notifications_read_${userId}`, JSON.stringify([...ids]))
-    } catch (error) {
-      console.error('Error al guardar notificaciones leídas:', error)
-    }
-  }, [userId])
+  const saveReadNotificationIds = useCallback(
+    (ids: Set<string>) => {
+      if (!userId) return
+      try {
+        localStorage.setItem(`llc_notifications_read_${userId}`, JSON.stringify([...ids]))
+      } catch (error) {
+        console.error("Error al guardar notificaciones leídas:", error)
+      }
+    },
+    [userId]
+  )
 
   const loadNotifications = useCallback(async () => {
-    if (!userId && userRole !== 'admin') {
+    if (!userId && userRole !== "admin") {
       setLoading(false)
       return
     }
 
     try {
       setLoading(true)
-      const isAdmin = userRole === 'admin'
-      // Si es admin, no pasar userId para obtener todas las alertas
+      const isAdmin = userRole === "admin"
       const consultorId = isAdmin ? undefined : userId
-      
+
       const hitos = await getHitosAlertas(consultorId)
-      
       const readIds = getReadNotificationIds()
-      
-      // Aplicar la misma lógica de agrupación que en la página de alertas
-      // Agrupar por nombre_hito + id_solicitud y seleccionar el más relevante
-      const grupos = new Map<string, typeof hitos>()
-      
-      hitos.forEach(hito => {
+
+      const grupos = new Map<string, HitoAlert[]>()
+      hitos.forEach((hito) => {
         const key = `${hito.nombre_hito}-${hito.solicitud?.id_solicitud}`
-        if (!grupos.has(key)) {
-          grupos.set(key, [])
-        }
+        if (!grupos.has(key)) grupos.set(key, [])
         grupos.get(key)!.push(hito)
       })
-      
-      // Para cada grupo, seleccionar el hito apropiado según los días restantes REALES
-      // Lógica progresiva: mostrar la alerta correspondiente al tiempo actual
-      const hitosRelevantes: typeof hitos = []
-      grupos.forEach(grupo => {
+
+      const hitosRelevantes: HitoAlert[] = []
+      grupos.forEach((grupo) => {
         if (grupo.length === 1) {
           hitosRelevantes.push(grupo[0])
         } else {
-          // Si hay múltiples hitos del mismo tipo, seleccionar el apropiado progresivamente
-          // Ordenar por avisar_antes_dias (de mayor a menor)
           const ordenados = grupo.sort((a, b) => b.avisar_antes_dias - a.avisar_antes_dias)
-          
-          // Obtener los días restantes reales del hito
           const diasRestantes = Math.abs(grupo[0].dias_restantes || 0)
-          
-          // Seleccionar la alerta apropiada según los días restantes
-          // Lógica: mostrar la alerta con avisar_antes_dias más cercano a los días restantes (sin pasarse)
-          let alertaSeleccionada = ordenados[ordenados.length - 1] // Por defecto, la más urgente
-          
+          let alertaSeleccionada = ordenados[ordenados.length - 1]
           for (const hito of ordenados) {
-            // Si los días restantes son >= avisar_antes_dias, esta es la alerta apropiada
             if (diasRestantes >= hito.avisar_antes_dias) {
               alertaSeleccionada = hito
               break
             }
           }
-          
           hitosRelevantes.push(alertaSeleccionada)
         }
       })
-      
-      // Convertir hitos relevantes a notificaciones
-      const newNotifications: Notification[] = hitosRelevantes.map((hito) => {
+
+      const hitoNotifications: HitoNotification[] = hitosRelevantes.map((hito) => {
         const id = `hito-${hito.id_hito_solicitud}`
-        // Usar la fecha límite como referencia para ordenar por "actualidad"
-        // Los hitos más próximos a vencer son considerados "más actuales"
         const fechaReferencia = hito.fecha_limite || new Date().toISOString()
         return {
+          kind: "hito" as const,
           id,
           hito,
           read: readIds.has(id),
@@ -106,23 +104,36 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
         }
       })
 
-      // Ordenar por días restantes (más urgentes primero), luego por fecha
-      newNotifications.sort((a, b) => {
-        const diasA = Math.abs(a.hito.dias_restantes || 0)
-        const diasB = Math.abs(b.hito.dias_restantes || 0)
-        if (diasA !== diasB) {
-          return diasA - diasB // Más urgente primero
-        }
-        // Si tienen la misma urgencia, ordenar por fecha límite más próxima
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      })
+      let aprobacionNotifications: AprobacionNotification[] = []
+      if (!isAdmin && userId) {
+        const { items } = await notificacionConsultorService.getMis()
+        aprobacionNotifications = items.map((n) => ({
+          kind: "aprobacion" as const,
+          id: `aprob-${n.id_notificacion}`,
+          id_notificacion: n.id_notificacion,
+          id_solicitud: n.id_solicitud,
+          titulo: n.titulo,
+          mensaje: n.mensaje,
+          estado_aprobacion: n.metadata?.estado_aprobacion,
+          candidato_nombre: n.metadata?.candidato_nombre,
+          cargo: n.metadata?.cargo,
+          read: n.leida,
+          created_at:
+            n.fecha_creacion instanceof Date
+              ? n.fecha_creacion.toISOString()
+              : String(n.fecha_creacion),
+        }))
+      }
 
-      const unread = newNotifications.filter(n => !n.read).length
-      
-      setNotifications(newNotifications)
-      setUnreadCount(unread)
+      const merged: AppNotification[] = [...hitoNotifications, ...aprobacionNotifications]
+      merged.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+
+      setNotifications(merged)
+      setUnreadCount(merged.filter((n) => !n.read).length)
     } catch (error) {
-      console.error('[NOTIFICATIONS] Error al cargar notificaciones:', error)
+      console.error("[NOTIFICATIONS] Error al cargar notificaciones:", error)
       setNotifications([])
       setUnreadCount(0)
     } finally {
@@ -130,70 +141,73 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
     }
   }, [userId, userRole, getReadNotificationIds])
 
-  const markAsRead = useCallback(() => {
+  const markAsRead = useCallback(async () => {
     if (!userId) return
-    
-    // Marcar todas las notificaciones actuales como leídas
+
     const readIds = new Set<string>()
-    notifications.forEach(n => {
+    notifications.forEach((n) => {
       readIds.add(n.id)
     })
-    
     saveReadNotificationIds(readIds)
-    
-    // Actualizar estado inmediatamente
-    setNotifications(prev => {
-      const updated = prev.map(n => ({ ...n, read: true }))
-      return updated
-    })
-    setUnreadCount(0)
-  }, [userId, notifications, saveReadNotificationIds])
 
-  const markNotificationAsRead = useCallback((notificationId: string) => {
-    if (!userId) return
-    
-    const readIds = getReadNotificationIds()
-    readIds.add(notificationId)
-    saveReadNotificationIds(readIds)
-    
-    setNotifications(prev => 
-      prev.map(n => 
-        n.id === notificationId ? { ...n, read: true } : n
+    if (userRole !== "admin") {
+      try {
+        await notificacionConsultorService.marcarTodasLeidas()
+      } catch (e) {
+        console.error("Error al marcar notificaciones de aprobación:", e)
+      }
+    }
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    setUnreadCount(0)
+  }, [userId, userRole, notifications, saveReadNotificationIds])
+
+  const markNotificationAsRead = useCallback(
+    async (notificationId: string) => {
+      if (!userId) return
+
+      const target = notifications.find((n) => n.id === notificationId)
+      if (target?.kind === "aprobacion" && !target.read) {
+        try {
+          await notificacionConsultorService.marcarLeida(target.id_notificacion)
+        } catch (e) {
+          console.error("Error al marcar notificación:", e)
+        }
+      }
+
+      const readIds = getReadNotificationIds()
+      readIds.add(notificationId)
+      saveReadNotificationIds(readIds)
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
       )
-    )
-    setUnreadCount(prev => Math.max(0, prev - 1))
-  }, [userId, getReadNotificationIds, saveReadNotificationIds])
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+    },
+    [userId, notifications, getReadNotificationIds, saveReadNotificationIds]
+  )
 
   useEffect(() => {
     if (userId) {
       loadNotifications()
-      
-      // Auto-refresh: actualizar notificaciones cada 5 minutos
-      // Esto asegura que las alertas se actualicen progresivamente
       const intervalId = setInterval(() => {
         loadNotifications()
-      }, 5 * 60 * 1000) // 5 minutos
-      
-      return () => {
-        clearInterval(intervalId)
-      }
-    } else {
-      setNotifications([])
-      setUnreadCount(0)
-      setLoading(false)
+      }, 5 * 60 * 1000)
+      return () => clearInterval(intervalId)
     }
+    setNotifications([])
+    setUnreadCount(0)
+    setLoading(false)
   }, [userId, loadNotifications])
 
-  // Obtener solo las notificaciones más recientes (no leídas primero, luego por urgencia)
-  const getRecentNotifications = useCallback((limit: number = 5) => {
-    // Las notificaciones ya están ordenadas por urgencia en loadNotifications
-    // Solo necesitamos priorizar no leídas sobre leídas
-    const unread = notifications.filter(n => !n.read)
-    const read = notifications.filter(n => n.read)
-    
-    // Devolver primero las no leídas, luego las leídas, limitadas al número solicitado
-    return [...unread, ...read].slice(0, limit)
-  }, [notifications])
+  const getRecentNotifications = useCallback(
+    (limit: number = 5) => {
+      const unread = notifications.filter((n) => !n.read)
+      const read = notifications.filter((n) => n.read)
+      return [...unread, ...read].slice(0, limit)
+    },
+    [notifications]
+  )
 
   return {
     notifications,
@@ -205,4 +219,3 @@ export const useNotifications = (userId: string | undefined, userRole?: string) 
     getRecentNotifications,
   }
 }
-

@@ -52,7 +52,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle, AlertCircle } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Send } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -68,7 +68,9 @@ import { EditPublicationDialog } from "./edit-publication-dialog"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
+import { CandidateApprovalPanel } from "./candidate-approval-panel"
 import { CandidateForm } from "./candidate-form"
+import { getApprovalStatusBadgeClass } from "@/lib/approval-utils"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -173,12 +175,21 @@ function countBolaNieveDefined(state: BolaNieveFormState): number {
   return BOLA_NIEVE_ITEMS.filter((row) => isBolaNieveItemDefined(state[row.key])).length
 }
 
+const APPROVAL_STATUS_LABELS: Record<string, string> = {
+  pendiente: "Pendiente",
+  en_revision: "En revisión",
+  aprobado: "Aprobado",
+  rechazado: "Rechazado",
+  observado: "Observado",
+}
+
 interface ProcessModule2Props {
   process: Process
   readOnly?: boolean
+  coordinadorMode?: boolean
 }
 
-export function ProcessModule2({ process, readOnly = false }: ProcessModule2Props) {
+export function ProcessModule2({ process, readOnly = false, coordinadorMode = false }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
   const { showToast } = useToastNotification()
@@ -263,6 +274,7 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
   const [showCandidateDetails, setShowCandidateDetails] = useState(false)
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
+  const [approvalMotivoCandidate, setApprovalMotivoCandidate] = useState<Candidate | null>(null)
 
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
   
@@ -302,6 +314,13 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
     const t = (processAny.tipo_servicio || process.service_type || "").toString().toUpperCase()
     return t === "PC" || t === "HH" || t === "HS"
   }, [processAny.tipo_servicio, process.service_type])
+
+  const requiresApproval = useMemo(() => {
+    const t = (processAny.tipo_servicio || process.service_type || "").toString().toUpperCase()
+    return t === "PC" || t === "LL" || t === "HH" || t === "HS"
+  }, [processAny.tipo_servicio, process.service_type])
+
+  const cargoLabel = (processAny.cargo || process.position_title || "Cargo del proceso") as string
 
   const defaultBolaNieve = useMemo(
     (): BolaNieveFormState => ({
@@ -2831,6 +2850,38 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
     loadData()
   }
 
+  const handleEnviarARevision = async (candidate: Candidate) => {
+    if (!candidate.id_postulacion) return
+    const st = candidate.approval_status || "pendiente"
+    if (st === "en_revision") {
+      showToast({ type: "info", title: "En revisión", description: "Este candidato ya fue enviado a revisión." })
+      return
+    }
+    if (st === "aprobado") {
+      showToast({ type: "info", title: "Aprobado", description: "Este candidato ya está aprobado por la coordinadora." })
+      return
+    }
+    try {
+      const res = await postulacionService.enviarAprobacionRevision(candidate.id_postulacion)
+      if (!res.success) {
+        throw new Error(res.message || "No se pudo enviar a revisión")
+      }
+      showToast({
+        type: "success",
+        title: "Enviado a revisión",
+        description: "La coordinadora revisará al candidato antes de la presentación.",
+      })
+      loadData()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error al enviar a revisión"
+      showToast({
+        type: "error",
+        title: "Error",
+        description: processApiErrorMessage(msg, "No se pudo enviar el candidato a revisión."),
+      })
+    }
+  }
+
 
   const handleTogglePresentationStatus = (candidateId: string, currentStatus?: string) => {
 
@@ -3676,8 +3727,24 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
 
         <CardContent>
 
+          {coordinadorMode && requiresApproval && (
+            <CandidateApprovalPanel
+              candidates={candidates}
+              cargoLabel={cargoLabel}
+              onRefresh={loadData}
+            />
+          )}
+
+          {requiresApproval && !coordinadorMode && (
+            <Alert className="mb-4 border-violet-200 bg-violet-50/60 dark:border-violet-900 dark:bg-violet-950/30">
+              <AlertDescription className="text-violet-900 dark:text-violet-200 text-sm">
+                Los candidatos deben ser enviados a revisión y aprobados por la coordinadora antes de marcarlos como &quot;Presentado&quot;.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Alerta cuando no hay candidatos presentados */}
-          {candidates.length > 0 && !hasPresentedCandidates && (
+          {candidates.length > 0 && !hasPresentedCandidates && !coordinadorMode && (
             <Alert className="mb-4 bg-yellow-50 border-yellow-200">
               <AlertDescription className="text-yellow-800">
                 ⚠️ Para avanzar al Módulo 3, debe tener al menos un candidato con estado &quot;Presentado&quot;. 
@@ -3701,6 +3768,8 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                   <TableHead>Valoración</TableHead>
 
                   <TableHead>Estado Módulo 2</TableHead>
+
+                  {requiresApproval && <TableHead>Aprobación</TableHead>}
 
                   <TableHead>Acciones</TableHead>
 
@@ -3780,6 +3849,7 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                         </div>
 
                         {/* Botón para cambiar estado */}
+                        {!coordinadorMode && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -3789,14 +3859,58 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                         >
                           Cambiar Estado
                         </Button>
+                        )}
 
                       </div>
                     </TableCell>
+
+                    {requiresApproval && (
+                      <TableCell>
+                        <div className="flex flex-col gap-1.5">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs w-fit ${getApprovalStatusBadgeClass(candidate.approval_status)}`}
+                          >
+                            {APPROVAL_STATUS_LABELS[candidate.approval_status || "pendiente"]}
+                          </Badge>
+                          {(candidate.approval_status === "observado" ||
+                            candidate.approval_status === "rechazado") &&
+                            candidate.approval_motivo && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs w-fit"
+                                onClick={() => setApprovalMotivoCandidate(candidate)}
+                              >
+                                Ver motivo
+                              </Button>
+                            )}
+                        </div>
+                      </TableCell>
+                    )}
 
                     <TableCell>
 
                       <div className="flex items-center gap-2">
 
+                        {requiresApproval && !coordinadorMode && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEnviarARevision(candidate)}
+                            title="Enviar a revisión"
+                            disabled={
+                              readOnly ||
+                              isBlocked ||
+                              candidate.approval_status === "en_revision" ||
+                              candidate.approval_status === "aprobado" ||
+                              candidate.approval_status === "rechazado"
+                            }
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -3807,19 +3921,13 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
                           <FileText className="h-4 w-4" />
                         </Button>
                         <Button
-
                           variant="ghost"
-
                           size="sm"
-
                           onClick={() => handleEditCandidate(candidate)}
-
                           title="Editar candidato"
-                          disabled={readOnly || isBlocked}
+                          disabled={readOnly || isBlocked || coordinadorMode}
                         >
-
                           <Edit className="h-4 w-4" />
-
                         </Button>
 
                       </div>
@@ -3911,8 +4019,34 @@ export function ProcessModule2({ process, readOnly = false }: ProcessModule2Prop
         onOpenChange={setStatusDialogOpen}
         candidate={selectedCandidate}
         onSuccess={handleStatusChangeSuccess}
+        requiresCoordinatorApproval={requiresApproval}
       />
       )}
+
+      <Dialog
+        open={!!approvalMotivoCandidate}
+        onOpenChange={(open) => !open && setApprovalMotivoCandidate(null)}
+      >
+        <DialogContent className="max-w-lg w-[min(32rem,95vw)] overflow-x-hidden">
+          <DialogHeader>
+            <DialogTitle>Motivo de la coordinadora</DialogTitle>
+            <DialogDescription>
+              {approvalMotivoCandidate?.name} —{" "}
+              {approvalMotivoCandidate?.approval_status === "rechazado"
+                ? "Rechazado"
+                : "Con observaciones"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border bg-muted/40 p-4 text-sm whitespace-pre-wrap break-words max-h-[50vh] overflow-y-auto">
+            {approvalMotivoCandidate?.approval_motivo}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setApprovalMotivoCandidate(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo para buscar candidatos en el historial - NO mostrar para PP */}
       {!isPublicacionPortales && (

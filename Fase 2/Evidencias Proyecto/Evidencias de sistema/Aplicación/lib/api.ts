@@ -1217,6 +1217,38 @@ export const postulacionService = {
     });
   },
 
+  async updatePresentationStatus(
+    id: number,
+    presentation_status: string,
+    rejection_reason?: string
+  ): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${id}/estado`, {
+      method: 'PUT',
+      body: JSON.stringify({ presentation_status, rejection_reason }),
+    });
+  },
+
+  async getAprobacionesBySolicitud(idSolicitud: number): Promise<ApiResponse<{ applies: boolean; items: any[] }>> {
+    return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}/aprobaciones`);
+  },
+
+  async enviarAprobacionRevision(idPostulacion: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${idPostulacion}/aprobacion/enviar-revision`, {
+      method: 'POST',
+    });
+  },
+
+  async resolverAprobacion(
+    idPostulacion: number,
+    estado: 'aprobado' | 'rechazado' | 'observado',
+    motivo: string
+  ): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/postulaciones/${idPostulacion}/aprobacion/resolver`, {
+      method: 'PUT',
+      body: JSON.stringify({ estado, motivo }),
+    });
+  },
+
   // Subir/Actualizar CV
   async uploadCV(id: number, file: File): Promise<ApiResponse<any>> {
     try {

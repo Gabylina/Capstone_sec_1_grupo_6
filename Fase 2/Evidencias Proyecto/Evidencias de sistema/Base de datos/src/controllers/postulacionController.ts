@@ -177,6 +177,10 @@ export class PostulacionController {
                 return sendError(res, error.message, 400);
             }
 
+            if (error.message?.includes('coordinadora') || error.message?.includes('revisión') || error.message?.includes('aprobación')) {
+                return sendError(res, error.message, 403);
+            }
+
             return sendError(res, 'Error al actualizar estado', 500);
         }
     }
