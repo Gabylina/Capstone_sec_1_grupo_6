@@ -304,8 +304,10 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
   }
 
-  // Permitir consultor o admin en vista solo lectura (viewOnly=1)
-  if (user?.role !== "consultor" && !viewOnly && !coordinadorMode) {
+  const isClienteViewOnly = user?.role === "cliente" && viewOnly
+
+  // Permitir consultor, admin (viewOnly/coordinador) o cliente (viewOnly)
+  if (user?.role !== "consultor" && !viewOnly && !coordinadorMode && !isClienteViewOnly) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
@@ -470,16 +472,24 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         }`}>
           <div className="flex items-center gap-2">
             <span className="font-medium">
-              {coordinadorMode ? "Validación de candidatos (Coordinadora)" : "Vista solo lectura (Administrador)"}
+              {coordinadorMode
+                ? "Validación de candidatos (Coordinadora)"
+                : user?.role === "cliente"
+                  ? "Vista solo lectura (Cliente)"
+                  : "Vista solo lectura (Administrador)"}
             </span>
             <span className={coordinadorMode ? "text-violet-700 dark:text-violet-300" : "text-amber-600 dark:text-amber-400"}>
               {coordinadorMode
                 ? "— Apruebe, rechace u observe los candidatos enviados a revisión."
-                : "— Puedes ver detalles, botones y estados pero no modificar."}
+                : user?.role === "cliente"
+                  ? "— Consulta el avance de tu proceso sin posibilidad de edición."
+                  : "— Puedes ver detalles, botones y estados pero no modificar."}
             </span>
           </div>
           <Button
-            onClick={() => router.back()}
+            onClick={() =>
+              user?.role === "cliente" ? router.push("/cliente") : router.back()
+            }
             variant="ghost"
             size="sm"
             className={`h-8 gap-2 ${

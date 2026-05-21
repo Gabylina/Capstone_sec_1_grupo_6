@@ -48,6 +48,14 @@ const adminMenuItems = [
   },
 ]
 
+const clienteMenuItems = [
+  {
+    title: "Mis Procesos",
+    icon: Briefcase,
+    href: "/cliente",
+  },
+]
+
 const consultorMenuItems = [
   {
     title: "Mis Procesos",
@@ -80,7 +88,12 @@ export function AppSidebar() {
 
   if (!user) return null
 
-  const menuItems = user.role === "admin" ? adminMenuItems : consultorMenuItems
+  const menuItems =
+    user.role === "admin"
+      ? adminMenuItems
+      : user.role === "cliente"
+        ? clienteMenuItems
+        : consultorMenuItems
 
   return (
     <Sidebar>
@@ -103,7 +116,10 @@ export function AppSidebar() {
             </SidebarMenuItem>
           ))}
 
-          {commonMenuItems.map((item) => (
+          {(user.role === "cliente"
+            ? commonMenuItems.filter((item) => item.href === "/perfil")
+            : commonMenuItems
+          ).map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={pathname === item.href}>
                 <Link href={item.href}>

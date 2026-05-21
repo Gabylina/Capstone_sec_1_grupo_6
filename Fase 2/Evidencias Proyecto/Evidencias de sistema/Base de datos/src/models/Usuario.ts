@@ -16,6 +16,7 @@ interface UsuarioAttributes {
     contrasena_usuario: string;
     activo_usuario: boolean;
     rol_usuario: number;
+    id_cliente?: number | null;
 }
 
 // Atributos opcionales para crear
@@ -34,6 +35,7 @@ class Usuario extends Model<UsuarioAttributes, UsuarioCreationAttributes> implem
     public contrasena_usuario!: string;
     public activo_usuario!: boolean;
     public rol_usuario!: number;
+    public id_cliente?: number | null;
 
 
     // ===========================================
@@ -68,7 +70,8 @@ class Usuario extends Model<UsuarioAttributes, UsuarioCreationAttributes> implem
     public getRolString(): string {
         const roles = {
             1: 'admin',
-            2: 'consultor'
+            2: 'consultor',
+            3: 'cliente',
         };
         return roles[this.rol_usuario as keyof typeof roles] || 'desconocido';
     }
@@ -139,12 +142,9 @@ Usuario.init({
             msg: 'Este email ya está registrado'
         },
         validate: {
-            isEmail: {
-                msg: 'Debe ser un email válido'
-            },
             notEmpty: {
                 msg: 'El email es requerido'
-            }
+            },
         }
     },
 
@@ -181,11 +181,20 @@ Usuario.init({
         allowNull: false,
         validate: {
             isIn: {
-                args: [[1, 2]],
-                msg: 'El rol debe ser 1 (admin) o 2 (consultor)'
+                args: [[1, 2, 3]],
+                msg: 'El rol debe ser 1 (admin), 2 (consultor) o 3 (cliente)'
             }
         }
-    }
+    },
+
+    id_cliente: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+            model: 'cliente',
+            key: 'id_cliente',
+        },
+    },
 }, {
     // Configuración del modelo
     sequelize,
@@ -218,6 +227,25 @@ Usuario.init({
     //     }
     // }
     hooks: {
+        beforeValidate: (usuario: Usuario) => {
+            const loginId = (usuario.email_usuario || '').trim();
+            if (!loginId) {
+                throw new Error('El email es requerido');
+            }
+            if (usuario.rol_usuario === 3) {
+                if (loginId.length < 2) {
+                    throw new Error('El usuario debe tener al menos 2 caracteres');
+                }
+                if (loginId.length > 150) {
+                    throw new Error('El usuario no puede superar 150 caracteres');
+                }
+                return;
+            }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(loginId)) {
+                throw new Error('Debe ser un email válido');
+            }
+        },
         beforeCreate: async (usuario: Usuario) => {
             if (usuario.contrasena_usuario) {
             usuario.contrasena_usuario = await bcrypt.hash(usuario.contrasena_usuario, 10);

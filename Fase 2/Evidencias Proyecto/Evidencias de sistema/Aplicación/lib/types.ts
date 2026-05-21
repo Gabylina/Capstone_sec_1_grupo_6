@@ -18,7 +18,7 @@ export type CandidateStatus = "postulado" | "presentado" | "aprobado" | "rechaza
 
 export type HitoStatus = "pendiente" | "en_progreso" | "completado" | "vencido"
 
-export type UserRole = "admin" | "consultor";
+export type UserRole = "admin" | "consultor" | "cliente";
 
 export interface User {
   id: string;               // mapea rut_usuario
@@ -27,7 +27,8 @@ export interface User {
   email: string;            // mapea email_usuario
   password?: string;        // opcional, mapea contrasena_usuario
   isActive: boolean;        // mapea activo_usuario
-  role: UserRole;           // mapea rol_usuario: 1 => admin, 2 => consultor
+  role: UserRole;           // mapea rol_usuario: 1 => admin, 2 => consultor, 3 => cliente
+  id_cliente?: number | null;
 }
 
 export interface ConsultantDocument {
@@ -90,9 +91,6 @@ export interface Process {
   tiene_datos_pdf?: boolean
   id_descripcion_cargo?: number // ID de la descripción de cargo
   id_descripcioncargo?: number // ID alternativo de la descripción de cargo
-  etapa?: string // Etapa actual del proceso (ej: "Módulo 4: Evaluación Psicolaboral")
-  stage?: string // Alias alternativo de etapa
-  tipo_servicio?: string // Tipo de servicio alternativo
 }
 
 export interface Candidate {

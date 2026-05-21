@@ -16,7 +16,8 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Loader2, Eye, ShieldCheck } from "lucide-react"
+import { Loader2, Eye, ShieldCheck, FileText } from "lucide-react"
+import CVViewerDialog from "./cv-viewer-dialog"
 import type { Candidate } from "@/lib/types"
 import { postulacionService } from "@/lib/api"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
@@ -85,6 +86,8 @@ export function CandidateApprovalPanel({
   const [decision, setDecision] = useState<"aprobado" | "rechazado" | "observado">("aprobado")
   const [motivo, setMotivo] = useState("")
   const [saving, setSaving] = useState(false)
+  const [viewingCV, setViewingCV] = useState<Candidate | null>(null)
+  const [showViewCV, setShowViewCV] = useState(false)
 
   const renderStars = (rating: number) => (
     <span className="text-amber-500 text-sm">{"★".repeat(rating)}{"☆".repeat(5 - rating)}</span>
@@ -100,6 +103,21 @@ export function CandidateApprovalPanel({
     setReviewCandidate(null)
     setMotivo("")
     setSaving(false)
+    setShowViewCV(false)
+    setViewingCV(null)
+  }
+
+  const handleViewCV = (candidate: Candidate) => {
+    if (!candidate.cv_file && !candidate.id_postulacion) {
+      showToast({
+        type: "info",
+        title: "Sin CV",
+        description: "Este candidato no tiene curriculum cargado en la postulación.",
+      })
+      return
+    }
+    setViewingCV(candidate)
+    setShowViewCV(true)
   }
 
   const motivoObligatorio = decision === "rechazado" || decision === "observado"
@@ -218,10 +236,32 @@ export function CandidateApprovalPanel({
       <Dialog open={!!reviewCandidate} onOpenChange={(open) => !open && closeReview()}>
         <DialogContent className="max-w-3xl w-[min(48rem,95vw)] max-h-[90vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
-            <DialogTitle>Revisión de candidato</DialogTitle>
-            <DialogDescription>
-              {reviewCandidate?.name} — {cargoLabel}
-            </DialogDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between pr-8">
+              <div className="min-w-0">
+                <DialogTitle>Revisión de candidato</DialogTitle>
+                <DialogDescription>
+                  {reviewCandidate?.name} — {cargoLabel}
+                </DialogDescription>
+              </div>
+              {reviewCandidate && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={() => handleViewCV(reviewCandidate)}
+                  disabled={!reviewCandidate.cv_file}
+                  title={
+                    reviewCandidate.cv_file
+                      ? "Ver curriculum del candidato"
+                      : "No hay CV cargado"
+                  }
+                >
+                  <FileText className="h-4 w-4" />
+                  Ver CV
+                </Button>
+              )}
+            </div>
           </DialogHeader>
 
           {reviewCandidate && (
@@ -319,6 +359,15 @@ export function CandidateApprovalPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CVViewerDialog
+        candidate={viewingCV}
+        isOpen={showViewCV}
+        onClose={() => {
+          setShowViewCV(false)
+          setViewingCV(null)
+        }}
+      />
     </>
   )
 }

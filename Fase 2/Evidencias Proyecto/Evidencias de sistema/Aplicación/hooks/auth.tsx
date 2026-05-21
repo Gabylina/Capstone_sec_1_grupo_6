@@ -56,7 +56,13 @@ const login = async (email: string, password: string): Promise<boolean> => {
       lastName: data.data.usuario.apellido,
       email: email, // Usar el email del login
       isActive: data.data.usuario.activo,
-      role: data.data.usuario.rol === "admin" ? "admin" : "consultor"
+      role:
+        data.data.usuario.rol === "admin"
+          ? "admin"
+          : data.data.usuario.rol === "cliente"
+            ? "cliente"
+            : "consultor",
+      id_cliente: data.data.usuario.id_cliente ?? null,
     };
 
     setUser(loggedUser)

@@ -174,11 +174,16 @@ export function AppHeader() {
         <div className="flex flex-1 items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-semibold">
-              {user.role === "admin" ? "Panel de Administración" : "Panel de Consultor"}
+              {user.role === "admin"
+                ? "Panel de Administración"
+                : user.role === "cliente"
+                  ? "Portal Cliente"
+                  : "Panel de Consultor"}
             </h1>
           </div>
 
           <div className="flex items-center gap-2">
+            {user.role !== "cliente" && (
             <div className="relative" data-notifications-container>
               <Button
                 variant="outline"
@@ -242,6 +247,7 @@ export function AppHeader() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>

@@ -18,13 +18,18 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight, KeyRound, UserPlus } from "lucide-react"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
 import { clientService, comunaService, regionService, apiUtils } from "@/lib/api"
 import type { Client, ClientContact, Comuna, Region } from "@/lib/types"
 import { useFormValidation, validationSchemas, validateClientContacts } from "@/hooks/useFormValidation"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { useClientes } from "@/hooks/useClientes"
+import {
+  ClientPortalAccessDialog,
+  type PortalAccessIntent,
+} from "@/components/admin/client-portal-access-dialog"
+import { clientePortalService } from "@/lib/api-cliente-portal"
 
 export default function ClientesPage() {
   const { showToast } = useToastNotification()
@@ -145,6 +150,38 @@ export default function ClientesPage() {
   // Estado para confirmación de eliminación
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<string | null>(null)
+  const [credencialByClientId, setCredencialByClientId] = useState<Record<string, boolean>>({})
+  const [portalDialogOpen, setPortalDialogOpen] = useState(false)
+  const [portalDialogClient, setPortalDialogClient] = useState<Client | null>(null)
+  const [portalDialogIntent, setPortalDialogIntent] = useState<"generate" | "manage">("manage")
+
+  useEffect(() => {
+    if (!clients.length) {
+      setCredencialByClientId({})
+      return
+    }
+    const ids = clients.map((c) => parseInt(c.id, 10)).filter((n) => !Number.isNaN(n))
+    clientePortalService
+      .getCredencialesStatus(ids)
+      .then((status) => {
+        const map: Record<string, boolean> = {}
+        for (const [id, has] of Object.entries(status)) {
+          map[String(id)] = !!has
+        }
+        setCredencialByClientId(map)
+      })
+      .catch(() => {})
+  }, [clients])
+
+  const openPortalAccessDialog = (client: Client, intent: PortalAccessIntent) => {
+    setPortalDialogClient(client)
+    setPortalDialogIntent(intent)
+    setPortalDialogOpen(true)
+  }
+
+  const handlePortalCredentialChange = (idCliente: number, hasCredential: boolean) => {
+    setCredencialByClientId((prev) => ({ ...prev, [String(idCliente)]: hasCredential }))
+  }
 
   // Los clientes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 
@@ -899,15 +936,34 @@ export default function ClientesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => openEditDialog(client)}
                             >
                               <Edit className="h-4 w-4 mr-1" />
                               Editar
-                          </Button>
+                            </Button>
+                            {credencialByClientId[client.id] ? (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => openPortalAccessDialog(client, "manage")}
+                              >
+                                <KeyRound className="h-4 w-4 mr-1" />
+                                Credenciales
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => openPortalAccessDialog(client, "generate")}
+                              >
+                                <UserPlus className="h-4 w-4 mr-1" />
+                                Generar usuario
+                              </Button>
+                            )}
                           </div>
                     </TableCell>
                   </TableRow>
@@ -1214,6 +1270,7 @@ export default function ClientesPage() {
                 </Card>
               ))}
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
@@ -1233,7 +1290,13 @@ export default function ClientesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Alertas */}
+      <ClientPortalAccessDialog
+        client={portalDialogClient}
+        open={portalDialogOpen}
+        intent={portalDialogIntent}
+        onOpenChange={setPortalDialogOpen}
+        onCredentialChange={handlePortalCredentialChange}
+      />
 
       {/* Confirmación de eliminación */}
       <CustomAlertDialog

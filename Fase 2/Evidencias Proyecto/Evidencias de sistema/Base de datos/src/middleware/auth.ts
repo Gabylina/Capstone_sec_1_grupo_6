@@ -13,6 +13,7 @@ declare global {
         email: string;
         role: UserRole;
         status: string;
+        id_cliente?: number | null;
       };
     }
   }
@@ -97,3 +98,5 @@ export const requireAdmin = requireRole(['admin']);
  * Middleware para verificar si es consultor o admin
  */
 export const requireConsultorOrAdmin = requireRole(['consultor', 'admin']);
+
+export const requireCliente = requireRole(['cliente']);

@@ -119,10 +119,11 @@ export class AprobacionCandidatoService {
 
             const row = await this.getOrCreate(idPostulacion, transaction);
             if (row.estado === 'en_revision') {
-                throw new Error('El candidato ya está en revisión');
+                await transaction.commit();
+                return this.formatRow(row);
             }
             if (row.estado === 'aprobado') {
-                throw new Error('El candidato ya fue aprobado');
+                throw new Error('El candidato ya fue aprobado por la coordinadora');
             }
 
             await row.update(

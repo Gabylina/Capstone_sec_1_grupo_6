@@ -2,7 +2,7 @@
 // TIPOS BÁSICOS DEL SISTEMA
 // ===========================================
 
-export type UserRole = 'admin' | 'consultor';
+export type UserRole = 'admin' | 'consultor' | 'cliente';
 
 export type ServiceType = 
   | 'proceso_completo'

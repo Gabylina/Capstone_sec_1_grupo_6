@@ -275,6 +275,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [approvalMotivoCandidate, setApprovalMotivoCandidate] = useState<Candidate | null>(null)
+  const [sendingRevisionPostulacionId, setSendingRevisionPostulacionId] = useState<number | null>(null)
 
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
   
@@ -2852,33 +2853,47 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
   const handleEnviarARevision = async (candidate: Candidate) => {
     if (!candidate.id_postulacion) return
+    const idPost = candidate.id_postulacion
     const st = candidate.approval_status || "pendiente"
     if (st === "en_revision") {
-      showToast({ type: "info", title: "En revisión", description: "Este candidato ya fue enviado a revisión." })
+      showToast({ type: "info", title: "En revisión", description: "Este candidato ya fue enviado a revisión en este proceso." })
       return
     }
     if (st === "aprobado") {
       showToast({ type: "info", title: "Aprobado", description: "Este candidato ya está aprobado por la coordinadora." })
       return
     }
+    if (sendingRevisionPostulacionId === idPost) return
+
+    setSendingRevisionPostulacionId(idPost)
     try {
-      const res = await postulacionService.enviarAprobacionRevision(candidate.id_postulacion)
+      const res = await postulacionService.enviarAprobacionRevision(idPost)
       if (!res.success) {
         throw new Error(res.message || "No se pudo enviar a revisión")
       }
+      const yaEstaba =
+        typeof res.message === "string" && res.message.toLowerCase().includes("ya")
       showToast({
-        type: "success",
-        title: "Enviado a revisión",
-        description: "La coordinadora revisará al candidato antes de la presentación.",
+        type: yaEstaba ? "info" : "success",
+        title: yaEstaba ? "Ya en revisión" : "Enviado a revisión",
+        description: yaEstaba
+          ? "Este candidato ya estaba pendiente de revisión en esta solicitud."
+          : "La coordinadora revisará al candidato antes de la presentación.",
       })
-      loadData()
+      await loadData()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al enviar a revisión"
+      const yaEnRevision = msg.toLowerCase().includes("ya está en revisión")
       showToast({
-        type: "error",
-        title: "Error",
-        description: processApiErrorMessage(msg, "No se pudo enviar el candidato a revisión."),
+        type: yaEnRevision ? "info" : "error",
+        title: yaEnRevision ? "Ya en revisión" : "Error",
+        description: yaEnRevision
+          ? "Este candidato ya fue enviado a revisión en este proceso. La aprobación es por solicitud, no se comparte entre procesos distintos."
+          : processApiErrorMessage(msg, "No se pudo enviar el candidato a revisión."),
       })
+      if (yaEnRevision) await loadData()
+    } finally {
+      setSendingRevisionPostulacionId(null)
     }
   }
 
@@ -3848,18 +3863,22 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                           )}
                         </div>
 
-                        {/* Botón para cambiar estado */}
-                        {!coordinadorMode && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenStatusDialog(candidate)}
-                          className="text-xs h-7"
-                          disabled={readOnly || isBlocked}
-                        >
-                          Cambiar Estado
-                        </Button>
-                        )}
+                        {/* Botón para cambiar estado (oculto mientras espera o tras decisión de coordinadora) */}
+                        {!coordinadorMode &&
+                          (!requiresApproval ||
+                            !["en_revision", "rechazado", "observado"].includes(
+                              candidate.approval_status || ""
+                            )) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenStatusDialog(candidate)}
+                              className="text-xs h-7"
+                              disabled={readOnly || isBlocked}
+                            >
+                              Cambiar Estado
+                            </Button>
+                          )}
 
                       </div>
                     </TableCell>
@@ -3905,10 +3924,15 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                               isBlocked ||
                               candidate.approval_status === "en_revision" ||
                               candidate.approval_status === "aprobado" ||
-                              candidate.approval_status === "rechazado"
+                              candidate.approval_status === "rechazado" ||
+                              sendingRevisionPostulacionId === candidate.id_postulacion
                             }
                           >
-                            <Send className="h-4 w-4" />
+                            {sendingRevisionPostulacionId === candidate.id_postulacion ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4" />
+                            )}
                           </Button>
                         )}
                         <Button

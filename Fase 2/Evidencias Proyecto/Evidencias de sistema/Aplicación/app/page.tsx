@@ -14,6 +14,8 @@ export default function HomePage() {
         // Redirect based on user role directly to specific pages
         if (user.role === "admin") {
           router.push("/admin/solicitudes")
+        } else if (user.role === "cliente") {
+          router.push("/cliente")
         } else {
           router.push("/consultor")
         }

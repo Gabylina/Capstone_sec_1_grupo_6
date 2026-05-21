@@ -16,12 +16,15 @@ interface LoginResponse {
     apellido: string,
     rol: string;
     activo: boolean;
+    id_cliente?: number | null;
   };
 }
 
 export const loginUser = async ({ email, password }: LoginPayload): Promise<LoginResponse> => {
-  // Buscar usuario por email
-  const usuario = await Usuario.findOne({ where: { email_usuario: email } });
+  const loginId = email.trim();
+  const usuario = await Usuario.findOne({
+    where: { email_usuario: loginId },
+  });
   if (!usuario) throw new Error('Credenciales incorrectas');
 
   // Verificar si está activo
@@ -49,7 +52,8 @@ export const loginUser = async ({ email, password }: LoginPayload): Promise<Logi
       id: usuario.rut_usuario,
       email: usuario.email_usuario,
       role: usuario.getRolString(),
-      status: usuario.activo_usuario ? 'habilitado' : 'deshabilitado'
+      status: usuario.activo_usuario ? 'habilitado' : 'deshabilitado',
+      id_cliente: usuario.id_cliente ?? null,
     },
     config.jwt.secret as Secret,
     signOptions
@@ -62,7 +66,8 @@ export const loginUser = async ({ email, password }: LoginPayload): Promise<Logi
       nombre: usuario.getNombre(),
       apellido: usuario.getApellido(),
       rol: usuario.getRolString(),
-      activo: usuario.isActive()
+      activo: usuario.isActive(),
+      id_cliente: usuario.id_cliente ?? null,
     }
   };
 };
@@ -124,7 +129,8 @@ export const refreshToken = async (oldToken: string): Promise<LoginResponse> => 
       id: usuario.rut_usuario,
       email: usuario.email_usuario,
       role: usuario.getRolString(),
-      status: usuario.activo_usuario ? 'habilitado' : 'deshabilitado'
+      status: usuario.activo_usuario ? 'habilitado' : 'deshabilitado',
+      id_cliente: usuario.id_cliente ?? null,
     };
 
     const newToken = jwt.sign(tokenPayload, config.jwt.secret as Secret, signOptions);
@@ -136,7 +142,8 @@ export const refreshToken = async (oldToken: string): Promise<LoginResponse> => 
         nombre: usuario.getNombre(),
         apellido: usuario.getApellido(),
         rol: usuario.getRolString(),
-        activo: usuario.isActive()
+        activo: usuario.isActive(),
+        id_cliente: usuario.id_cliente ?? null,
       }
     };
   } catch (error: any) {

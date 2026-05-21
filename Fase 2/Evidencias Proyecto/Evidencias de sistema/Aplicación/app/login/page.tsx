@@ -24,6 +24,8 @@ export default function LoginPage() {
     if (!isLoading && user) {
       if (user.role === "admin") {
         router.push("/admin/solicitudes")
+      } else if (user.role === "cliente") {
+        router.push("/cliente")
       } else {
         router.push("/consultor")
       }
@@ -66,14 +68,15 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Correo electrónico</Label>
+              <Label htmlFor="email">Usuario o correo electrónico</Label>
               <Input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
+                placeholder="tu@email.com o nombre de empresa"
                 required
+                autoComplete="username"
               />
             </div>
             <div className="space-y-2">

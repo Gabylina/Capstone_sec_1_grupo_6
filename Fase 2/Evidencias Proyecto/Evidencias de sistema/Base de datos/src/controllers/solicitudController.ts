@@ -91,6 +91,23 @@ export class SolicitudController {
                 return sendError(res, 'ID de solicitud inválido', 400);
             }
             
+            if (req.user?.role === 'cliente') {
+                const { ClientePortalService } = await import('@/services/clientePortalService');
+                const idCliente =
+                    (req.user as any).id_cliente ||
+                    (await ClientePortalService.getIdClienteForUsuario(req.user.id));
+                if (!idCliente) {
+                    return sendError(res, 'Usuario cliente sin empresa asociada', 403);
+                }
+                const owns = await ClientePortalService.assertSolicitudBelongsToCliente(
+                    solicitudId,
+                    idCliente
+                );
+                if (!owns) {
+                    return sendError(res, 'No tiene permiso para ver este proceso', 403);
+                }
+            }
+
             const solicitud = await SolicitudService.getSolicitudById(solicitudId);
 
             if (!solicitud) {
