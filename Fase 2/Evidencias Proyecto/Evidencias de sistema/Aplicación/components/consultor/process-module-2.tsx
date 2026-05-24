@@ -52,7 +52,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Send } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Send, Eye } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -69,6 +69,7 @@ import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
 import { CandidateStatusDialog } from "./candidate-status-dialog"
 import { CandidateApprovalPanel } from "./candidate-approval-panel"
+import { CandidateReviewDetail } from "./candidate-review-detail"
 import { CandidateForm } from "./candidate-form"
 import { getApprovalStatusBadgeClass } from "@/lib/approval-utils"
 
@@ -275,6 +276,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [approvalMotivoCandidate, setApprovalMotivoCandidate] = useState<Candidate | null>(null)
+  const [viewDataCandidate, setViewDataCandidate] = useState<Candidate | null>(null)
   const [sendingRevisionPostulacionId, setSendingRevisionPostulacionId] = useState<number | null>(null)
 
   const [currentStep, setCurrentStep] = useState<"basic" | "education" | "experience" | "portal_responses">("basic")
@@ -3936,6 +3938,16 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                           </Button>
                         )}
                         <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setViewDataCandidate(candidate)}
+                          title="Ver datos del candidato"
+                          className="text-xs h-7 gap-1"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver datos del candidato
+                        </Button>
+                        <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleViewCV(candidate)}
@@ -4046,6 +4058,28 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
         requiresCoordinatorApproval={requiresApproval}
       />
       )}
+
+      <Dialog
+        open={!!viewDataCandidate}
+        onOpenChange={(open) => !open && setViewDataCandidate(null)}
+      >
+        <DialogContent className="max-w-3xl w-[min(48rem,95vw)] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Datos del candidato</DialogTitle>
+            <DialogDescription>
+              {viewDataCandidate?.name} — {cargoLabel}
+            </DialogDescription>
+          </DialogHeader>
+          {viewDataCandidate && (
+            <CandidateReviewDetail candidate={viewDataCandidate} cargoLabel={cargoLabel} />
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setViewDataCandidate(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={!!approvalMotivoCandidate}

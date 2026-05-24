@@ -7,7 +7,7 @@ import { getHitosBySolicitud } from "@/lib/api-hitos"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatDate, getStatusColor } from "@/lib/utils"
+import { formatDate, getStatusColor, getSolicitudEstadoBadgeClass } from "@/lib/utils"
 import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2, Globe, X, ArrowLeft } from "lucide-react"
 import { ProcessTimeline } from "@/components/consultor/process-timeline"
 import { ProcessModule1 } from "@/components/consultor/process-module-1"
@@ -528,7 +528,16 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline">{serviceTypeLabels[process.tipo_servicio] || process.tipo_servicio_nombre}</Badge>
-          <Badge className={getStatusColor(process.status)}>{process.estado_solicitud || processStatusLabels[process.status]}</Badge>
+          <Badge
+            variant="outline"
+            className={
+              isClienteViewOnly
+                ? getSolicitudEstadoBadgeClass(process.estado_solicitud || processStatusLabels[process.status])
+                : getStatusColor(process.status)
+            }
+          >
+            {process.estado_solicitud || processStatusLabels[process.status]}
+          </Badge>
         </div>
       </div>
 

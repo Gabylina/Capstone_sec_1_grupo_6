@@ -41,6 +41,8 @@ export interface ClientePortalResumen {
 
   por_tipo: Array<{ codigo: string; nombre: string; cantidad: number }>
 
+  estados_disponibles?: string[]
+
 }
 
 
@@ -111,6 +113,8 @@ export const clientePortalService = {
 
     service_type?: string
 
+    estado?: string
+
     fecha_desde?: string
 
     fecha_hasta?: string
@@ -124,6 +128,8 @@ export const clientePortalService = {
     const q = new URLSearchParams()
 
     if (params.service_type && params.service_type !== "all") q.set("service_type", params.service_type)
+
+    if (params.estado && params.estado !== "all") q.set("estado", params.estado)
 
     if (params.fecha_desde) q.set("fecha_desde", params.fecha_desde)
 

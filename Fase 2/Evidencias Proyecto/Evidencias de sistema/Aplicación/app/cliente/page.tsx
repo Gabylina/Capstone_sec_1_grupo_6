@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Building2, Briefcase, Eye, Loader2, Filter } from "lucide-react"
-import { formatDateShort } from "@/lib/utils"
+import { formatDateShort, getSolicitudEstadoBadgeClass } from "@/lib/utils"
 import {
   clientePortalService,
   type ClientePortalResumen,
@@ -24,6 +24,7 @@ export default function ClientePortalPage() {
   const [items, setItems] = useState<ClientePortalSolicitudItem[]>([])
   const [loading, setLoading] = useState(true)
   const [serviceFilter, setServiceFilter] = useState("all")
+  const [estadoFilter, setEstadoFilter] = useState("all")
   const [fechaDesde, setFechaDesde] = useState("")
   const [fechaHasta, setFechaHasta] = useState("")
 
@@ -34,6 +35,7 @@ export default function ClientePortalPage() {
         clientePortalService.getResumen(),
         clientePortalService.listSolicitudes({
           service_type: serviceFilter,
+          estado: estadoFilter,
           fecha_desde: fechaDesde || undefined,
           fecha_hasta: fechaHasta || undefined,
         }),
@@ -72,20 +74,20 @@ export default function ClientePortalPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+        <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Procesos totales</CardTitle>
+            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Procesos totales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{resumen?.total_procesos ?? "—"}</div>
+            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{resumen?.total_procesos ?? "—"}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Procesos activos</CardTitle>
+            <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Procesos activos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{resumen?.procesos_activos ?? "—"}</div>
+            <div className="text-2xl font-bold text-green-700 dark:text-green-300">{resumen?.procesos_activos ?? "—"}</div>
           </CardContent>
         </Card>
       </div>
@@ -106,8 +108,14 @@ export default function ClientePortalPage() {
               <TableBody>
                 {resumen.por_tipo.map((row) => (
                   <TableRow key={row.codigo}>
-                    <TableCell>{row.nombre}</TableCell>
-                    <TableCell className="text-right font-medium">{row.cantidad}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-indigo-50 text-indigo-900 border-indigo-300">
+                        {row.nombre}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge className="bg-indigo-600 hover:bg-indigo-600">{row.cantidad}</Badge>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -124,7 +132,7 @@ export default function ClientePortalPage() {
             <Filter className="h-5 w-5" />
             Detalle de procesos
           </CardTitle>
-          <CardDescription>Filtre por fecha o tipo de servicio</CardDescription>
+          <CardDescription>Filtre por fecha, tipo de servicio o estado</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-4 items-end">
@@ -147,6 +155,22 @@ export default function ClientePortalPage() {
                   {resumen?.por_tipo?.map((t) => (
                     <SelectItem key={t.codigo} value={t.codigo}>
                       {t.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Estado</Label>
+              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {(resumen?.estados_disponibles ?? []).map((estado) => (
+                    <SelectItem key={estado} value={estado}>
+                      {estado}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -182,7 +206,9 @@ export default function ClientePortalPage() {
                     <TableCell>{row.fecha_solicitud ? formatDateShort(row.fecha_solicitud) : "—"}</TableCell>
                     <TableCell>{row.consultor}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{row.estado_solicitud || "—"}</Badge>
+                      <Badge variant="outline" className={getSolicitudEstadoBadgeClass(row.estado_solicitud)}>
+                        {row.estado_solicitud || "—"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <Button variant="ghost" size="sm" asChild title="Ver proceso">

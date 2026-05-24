@@ -984,6 +984,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                             size="sm" 
                             variant="outline"
                             onClick={() => openContractDialog(candidate)}
+                            disabled={readOnly}
                           >
                             {contractedCandidate ? "Editar" : "Gestionar"}
                           </Button>
@@ -1113,6 +1114,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm" 
                           variant="outline"
                           className="border-green-300 text-green-700 hover:bg-green-100"
+                          disabled={readOnly}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
@@ -1126,6 +1128,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm" 
                           variant="outline"
                           className="border-red-300 text-red-700 hover:bg-red-100"
+                          disabled={readOnly}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
@@ -1150,6 +1153,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm"
                           variant="ghost"
                           className="text-green-700 hover:text-green-800 hover:bg-green-100"
+                          disabled={readOnly}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
@@ -1197,6 +1201,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm" 
                           variant="ghost"
                           className="text-orange-700 hover:text-orange-800 hover:bg-orange-100"
+                          disabled={readOnly}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")

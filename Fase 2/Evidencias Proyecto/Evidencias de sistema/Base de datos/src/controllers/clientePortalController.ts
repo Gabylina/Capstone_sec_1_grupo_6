@@ -27,6 +27,7 @@ export class ClientePortalController {
             if (!idCliente) return sendError(res, 'Acceso solo para usuarios cliente', 403);
             const {
                 service_type,
+                estado,
                 fecha_desde,
                 fecha_hasta,
                 page,
@@ -34,6 +35,7 @@ export class ClientePortalController {
             } = req.query;
             const data = await ClientePortalService.listSolicitudes(idCliente, {
                 service_type: service_type as string | undefined,
+                estado: estado as string | undefined,
                 fecha_desde: fecha_desde as string | undefined,
                 fecha_hasta: fecha_hasta as string | undefined,
                 page: page ? parseInt(String(page), 10) : 1,

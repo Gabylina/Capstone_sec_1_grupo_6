@@ -125,6 +125,27 @@ export function getStatusColor(status: string): string {
   return statusColors[status] || "bg-gray-100 text-gray-800"
 }
 
+/** Clases para badges de estado de solicitud (vista cliente / listados) */
+export function getSolicitudEstadoBadgeClass(estado?: string | null): string {
+  if (!estado?.trim()) return "border-gray-300 bg-gray-100 text-gray-800"
+  const n = estado
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+  if (n.includes("cerrad") || n.includes("complet")) {
+    return "border-green-400 bg-green-100 text-green-900 font-medium"
+  }
+  if (n.includes("cancel")) return "border-red-400 bg-red-100 text-red-900 font-medium"
+  if (n.includes("congel")) return "border-orange-400 bg-orange-100 text-orange-950 font-medium"
+  if (n.includes("abiert") || n.includes("iniciad") || n.includes("progres")) {
+    return "border-blue-400 bg-blue-100 text-blue-900 font-medium"
+  }
+  if (n.includes("cierre") && n.includes("extraordin")) {
+    return "border-purple-400 bg-purple-100 text-purple-900 font-medium"
+  }
+  return "border-slate-300 bg-slate-100 text-slate-800"
+}
+
 export function calculateDaysUntilDue(dueDate: string): number {
   const due = new Date(dueDate)
   const now = new Date()

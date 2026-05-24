@@ -2599,16 +2599,16 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                             <div className="min-w-0">
                               <p className="text-sm font-medium">Estado Entrevista</p>
                               <Badge
-                                variant={
+                                variant="outline"
+                                className={`text-xs font-medium ${
                                   candidateInterview?.interview_status === "Realizada"
-                                    ? "default"
+                                    ? "bg-green-100 text-green-900 border-green-400"
                                     : candidateInterview?.interview_status === "Programada"
-                                      ? "secondary"
+                                      ? "bg-blue-100 text-blue-900 border-blue-400"
                                       : candidateInterview?.interview_status === "Cancelada"
-                                        ? "destructive"
-                                        : "outline"
-                                }
-                                className="text-xs"
+                                        ? "bg-red-100 text-red-900 border-red-400"
+                                        : "bg-gray-100 text-gray-700 border-gray-300"
+                                }`}
                               >
                                 {candidateInterview?.interview_status === "Programada" && "Programada"}
                                 {candidateInterview?.interview_status === "Realizada" && "Realizada"}
@@ -2919,7 +2919,11 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
 
                         {/* Botones de acción - Siempre visibles */}
                         <div className="flex flex-wrap gap-3 pt-4 border-t">
-                          <Button onClick={() => openInterviewDialog(candidate)} size="sm">
+                          <Button
+                            onClick={() => openInterviewDialog(candidate)}
+                            size="sm"
+                            disabled={readOnly}
+                          >
                             <Calendar className="mr-2 h-4 w-4" />
                             Editar Estado de Entrevista
                           </Button>

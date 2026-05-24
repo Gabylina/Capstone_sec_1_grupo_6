@@ -52,18 +52,22 @@ export class ClientePortalService {
         ).length;
 
         const porTipoMap = new Map<string, { codigo: string; nombre: string; cantidad: number }>();
+        const estadosSet = new Set<string>();
         for (const s of solicitudes) {
             const codigo = s.tipo_servicio || s.service_type || 'OTRO';
             const nombre = s.tipo_servicio_nombre || codigo;
             const prev = porTipoMap.get(codigo);
             if (prev) prev.cantidad += 1;
             else porTipoMap.set(codigo, { codigo, nombre, cantidad: 1 });
+            const estado = String(s.estado_solicitud || '').trim();
+            if (estado) estadosSet.add(estado);
         }
 
         return {
             total_procesos: total,
             procesos_activos: activos,
             por_tipo: [...porTipoMap.values()].sort((a, b) => b.cantidad - a.cantidad),
+            estados_disponibles: [...estadosSet].sort((a, b) => a.localeCompare(b, 'es')),
         };
     }
 
@@ -71,6 +75,7 @@ export class ClientePortalService {
         idCliente: number,
         opts: {
             service_type?: string;
+            estado?: string;
             fecha_desde?: string;
             fecha_hasta?: string;
             page?: number;
@@ -109,6 +114,12 @@ export class ClientePortalService {
                 const f = s.fecha_creacion || s.fecha_ingreso_solicitud;
                 return f && new Date(f) <= hasta;
             });
+        }
+        if (opts.estado && opts.estado !== 'all') {
+            const estadoFiltro = opts.estado.trim().toLowerCase();
+            items = items.filter(
+                (s) => String(s.estado_solicitud || '').trim().toLowerCase() === estadoFiltro
+            );
         }
 
         const total = items.length;
