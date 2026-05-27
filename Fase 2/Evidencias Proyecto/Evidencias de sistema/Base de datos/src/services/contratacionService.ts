@@ -206,7 +206,7 @@ export class ContratacionService {
     /**
      * Registrar encuesta de satisfacción
      */
-    static async registrarEncuesta(id: number, encuesta: string) {
+    static async registrarEncuesta(id: number, encuesta: string | Record<string, unknown>) {
         const transaction: Transaction = await sequelize.transaction();
 
         try {
@@ -215,8 +215,20 @@ export class ContratacionService {
                 throw new Error('Contratación no encontrada');
             }
 
+            let payload: string;
+            if (typeof encuesta === 'string') {
+                payload = encuesta.trim();
+            } else {
+                const { buildEncuestaSatisfaccionJson } = await import('@/utils/encuestaSatisfaccion');
+                payload = buildEncuestaSatisfaccionJson({
+                    calidad: Number(encuesta.calidad),
+                    tiempo: Number(encuesta.tiempo),
+                    apoyo: Number(encuesta.apoyo ?? encuesta.sensacion_apoyo),
+                });
+            }
+
             await contratacion.update({
-                encuesta_satisfaccion: encuesta
+                encuesta_satisfaccion: payload
             }, { transaction });
 
             await transaction.commit();

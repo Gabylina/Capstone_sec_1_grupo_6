@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Building2, Briefcase, Eye, Loader2, Filter } from "lucide-react"
+import { Building2, Eye, Loader2, Filter, ChevronLeft, ChevronRight } from "lucide-react"
 import { formatDateShort, getSolicitudEstadoBadgeClass } from "@/lib/utils"
 import {
   clientePortalService,
@@ -27,26 +27,44 @@ export default function ClientePortalPage() {
   const [estadoFilter, setEstadoFilter] = useState("all")
   const [fechaDesde, setFechaDesde] = useState("")
   const [fechaHasta, setFechaHasta] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalProcesses, setTotalProcesses] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
-  const loadData = async () => {
-    setLoading(true)
+  const loadResumen = async () => {
     try {
-      const [res, list] = await Promise.all([
-        clientePortalService.getResumen(),
-        clientePortalService.listSolicitudes({
-          service_type: serviceFilter,
-          estado: estadoFilter,
-          fecha_desde: fechaDesde || undefined,
-          fecha_hasta: fechaHasta || undefined,
-        }),
-      ])
+      const res = await clientePortalService.getResumen()
       setResumen(res)
-      setItems(list.items)
     } catch (e: unknown) {
       showToast({
         type: "error",
         title: "Error",
-        description: e instanceof Error ? e.message : "No se pudieron cargar los datos",
+        description: e instanceof Error ? e.message : "No se pudo cargar el resumen",
+      })
+    }
+  }
+
+  const loadProcesses = async (page: number, size: number = pageSize) => {
+    setLoading(true)
+    try {
+      const list = await clientePortalService.listSolicitudes({
+        service_type: serviceFilter,
+        estado: estadoFilter,
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+        page,
+        limit: size,
+      })
+      setItems(list.items)
+      setTotalProcesses(list.pagination.total)
+      setTotalPages(Math.max(1, list.pagination.totalPages))
+      setCurrentPage(list.pagination.page)
+    } catch (e: unknown) {
+      showToast({
+        type: "error",
+        title: "Error",
+        description: e instanceof Error ? e.message : "No se pudieron cargar los procesos",
       })
     } finally {
       setLoading(false)
@@ -54,11 +72,28 @@ export default function ClientePortalPage() {
   }
 
   useEffect(() => {
-    loadData()
+    void loadResumen()
+    void loadProcesses(1, pageSize)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const applyFilters = () => {
-    loadData()
+    setCurrentPage(1)
+    void loadProcesses(1, pageSize)
+  }
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) return
+    void loadProcesses(page, pageSize)
+  }
+
+  const nextPage = () => goToPage(currentPage + 1)
+  const prevPage = () => goToPage(currentPage - 1)
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size)
+    setCurrentPage(1)
+    void loadProcesses(1, size)
   }
 
   return (
@@ -224,6 +259,91 @@ export default function ClientePortalPage() {
           )}
         </CardContent>
       </Card>
+
+      {totalProcesses > 0 && (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="cliente-pageSize">Filas por página:</Label>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(value) => handlePageSizeChange(parseInt(value, 10))}
+                  >
+                    <SelectTrigger id="cliente-pageSize" className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Mostrando {(currentPage - 1) * pageSize + 1} a{" "}
+                  {Math.min(currentPage * pageSize, totalProcesses)} de {totalProcesses} procesos
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={prevPage}
+                  disabled={loading || currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        type="button"
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => goToPage(pageNum)}
+                        disabled={loading}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    )
+                  })}
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={nextPage}
+                  disabled={loading || currentPage === totalPages}
+                >
+                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

@@ -89,10 +89,12 @@ export default function PerfilPage() {
     confirmPassword: "",
   })
 
+  const isCliente = user?.role === "cliente"
+
   // Cargar estadísticas del consultor
   useEffect(() => {
     const loadConsultorStats = async () => {
-      if (!user) return
+      if (!user || user.role === "cliente") return
       
       try {
         setIsLoadingStats(true)
@@ -262,142 +264,138 @@ export default function PerfilPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Mi Perfil</h1>
-          <p className="text-muted-foreground">Consulta tu información personal y configuración de cuenta</p>
+          <p className="text-muted-foreground">
+            {isCliente
+              ? "Configuración de tu cuenta de acceso al portal"
+              : "Consulta tu información personal y configuración de cuenta"}
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Profile Card */}
-        <Card className="md:col-span-1">
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="h-24 w-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold">
-                {`${user.firstName} ${user.lastName}`.charAt(0)}
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold">{`${user.firstName} ${user.lastName}`}</h2>
-                <p className="text-muted-foreground capitalize">{user.role}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {!isCliente && (
+        <>
+          <div className="grid gap-6 md:grid-cols-3">
+            <Card className="md:col-span-1">
+              <CardContent className="pt-6">
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="h-24 w-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold">
+                    {`${user.firstName} ${user.lastName}`.charAt(0)}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">{`${user.firstName} ${user.lastName}`}</h2>
+                    <p className="text-muted-foreground capitalize">{user.role}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Profile Information */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Información Personal</CardTitle>
-            <CardDescription>Tu información de contacto y datos personales</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre Completo</Label>
-                <Input
-                  id="name"
-                  value={`${user.firstName} ${user.lastName}`}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="rut">RUT</Label>
-                <Input
-                  id="rut"
-                  value={user.id}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Correo Electrónico</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={user.email}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Rol</Label>
-                <Input
-                  id="role"
-                  value={user.role === "admin" ? "Administrador" : "Consultor"}
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Estado</Label>
-                <Input
-                  id="status"
-                  value={user.isActive ? "Activo" : "Inactivo"}
-                  disabled
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>Información Personal</CardTitle>
+                <CardDescription>Tu información de contacto y datos personales</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nombre Completo</Label>
+                    <Input
+                      id="name"
+                      value={`${user.firstName} ${user.lastName}`}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rut">RUT</Label>
+                    <Input id="rut" value={user.id} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Correo Electrónico</Label>
+                    <Input id="email" type="email" value={user.email} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Rol</Label>
+                    <Input
+                      id="role"
+                      value={user.role === "admin" ? "Administrador" : "Consultor"}
+                      disabled
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Estado</Label>
+                    <Input
+                      id="status"
+                      value={user.isActive ? "Activo" : "Inactivo"}
+                      disabled
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Estadísticas del Consultor */}
-      <div className="grid gap-6 md:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Total Procesos</p>
-                <p className="text-2xl font-bold">
-                  {isLoadingStats ? "..." : consultorStats.totalProcesos}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Procesos Activos</p>
-                <p className="text-2xl font-bold">
-                  {isLoadingStats ? "..." : consultorStats.procesosActivos}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Procesos Completados</p>
-                <p className="text-2xl font-bold">
-                  {isLoadingStats ? "..." : consultorStats.procesosCompletados}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Última Actividad</p>
-                <p className="text-sm text-muted-foreground">
-                  {isLoadingStats ? "..." : 
-                    consultorStats.ultimaActividad ? 
-                    new Date(consultorStats.ultimaActividad).toLocaleDateString() : 
-                    "Sin actividad"
-                  }
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <div className="grid gap-6 md:grid-cols-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Total Procesos</p>
+                    <p className="text-2xl font-bold">
+                      {isLoadingStats ? "..." : consultorStats.totalProcesos}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Procesos Activos</p>
+                    <p className="text-2xl font-bold">
+                      {isLoadingStats ? "..." : consultorStats.procesosActivos}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Procesos Completados</p>
+                    <p className="text-2xl font-bold">
+                      {isLoadingStats ? "..." : consultorStats.procesosCompletados}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Última Actividad</p>
+                    <p className="text-sm text-muted-foreground">
+                      {isLoadingStats
+                        ? "..."
+                        : consultorStats.ultimaActividad
+                          ? new Date(consultorStats.ultimaActividad).toLocaleDateString()
+                          : "Sin actividad"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
       {/* Account Settings */}
       <Card>

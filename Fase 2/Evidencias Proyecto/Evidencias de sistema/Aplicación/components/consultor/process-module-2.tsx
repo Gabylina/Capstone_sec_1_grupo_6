@@ -3187,6 +3187,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
         </Card>
       )}
 
+      {!readOnly && (
       <Card>
 
         <CardHeader>
@@ -3250,6 +3251,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
         </CardContent>
 
       </Card>
+      )}
 
 
 

@@ -408,7 +408,16 @@ export default class EstadoClienteM5Service {
                 observations: contratacionMap.get(estadoData.id_postulacion)?.observaciones_contratacion || 
                     estado.comentario_modulo5_cliente || '',
                 // Estado del informe desde la evaluación psicolaboral
-                estado_informe: evaluacionMap.get(estadoData.id_postulacion)?.estado_informe || null
+                estado_informe: evaluacionMap.get(estadoData.id_postulacion)?.estado_informe || null,
+                id_contratacion: (() => {
+                    const contratacion = contratacionMap.get(estadoData.id_postulacion);
+                    return contratacion?.id_contratacion ?? null;
+                })(),
+                encuesta_respondida: (() => {
+                    const contratacion = contratacionMap.get(estadoData.id_postulacion);
+                    if (!contratacion?.encuesta_satisfaccion) return false;
+                    return contratacion.encuesta_satisfaccion.trim().length > 0;
+                })(),
             };
         });
         
