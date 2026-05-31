@@ -1,0 +1,18 @@
+﻿LLConsulting smoke test - 2026-05-31 19:34:09
+BaseUrl: http://localhost:3001
+Pasaron: 14 | Fallaron: 0 | Avisos: 0
+
+[OK] Token obtenido - Login OK (546 ms)
+[OK] Campos stats extendidos - total=30, en_progreso=20 (377 ms)
+[OK] Tiempo stats <= 3000ms - 377 ms
+[OK] Paginacion - total=131 (1579 ms)
+[OK] Tipos de servicio - 10 tipos (210 ms)
+[OK] Resumen batch - ids=269, keys=269 (363 ms)
+[OK] Detalle solicitud - id_descripcion_cargo=238 (423 ms)
+[OK] Campo tiene_datos_pdf - tiene_datos_pdf=True
+[OK] Candidatos optimized - 1 candidatos (1274 ms)
+[OK] HEAD PDF - http://localhost:3001/api/descripciones-cargo/238/pdf (195 ms)
+[OK] Consistencia flag vs PDF - 
+[OK] GET Excel metadata - 214 ms
+[OK] GET /api/solicitudes/reportes/estadisticas - 672 ms
+[OK] GET /api/solicitudes/reportes/carga-operativa - 222 ms

@@ -14,7 +14,7 @@
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "seed": "sequelize-cli db:seed:all",
     "seed:undo": "sequelize-cli db:seed:undo:all",
-    "install:triggers": "ts-node -r tsconfig-paths/register src/scripts/installLogTriggers.ts"
+    "smoke:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-test-optimizaciones.ps1 -BaseUrl http://localhost:3001"
   },
   "keywords": [
     "nodejs",

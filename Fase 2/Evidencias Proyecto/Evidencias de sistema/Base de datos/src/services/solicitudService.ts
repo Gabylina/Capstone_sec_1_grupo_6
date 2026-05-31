@@ -43,6 +43,19 @@ export class SolicitudService {
         return normalized === 'true' || normalized === 't' || normalized === '1';
     }
 
+    /** Lee tiene_datos_pdf desde instancia Sequelize (literal SQL) o objeto plano. */
+    private static resolveTieneDatosPdf(descripcionCargo: any): boolean {
+        if (!descripcionCargo) return false;
+        let raw: unknown;
+        if (typeof descripcionCargo.get === 'function') {
+            raw = descripcionCargo.get('tiene_datos_pdf');
+        }
+        if (raw === undefined) {
+            raw = descripcionCargo.dataValues?.tiene_datos_pdf ?? descripcionCargo.tiene_datos_pdf;
+        }
+        return SolicitudService.coerceTieneDatosPdf(raw);
+    }
+
     /**
      * Obtener el estado actual (más reciente) por solicitud en una sola query.
      * Reemplaza las múltiples cargas de EstadoSolicitudHist con una consulta eficiente DISTINCT ON.
@@ -1557,7 +1570,7 @@ export class SolicitudService {
             fecha_ingreso_solicitud: solicitud.fecha_ingreso_solicitud,
             fecha_cierre: fechaCierre,
             datos_excel: descripcionCargo?.datos_excel || null,
-            tiene_datos_pdf: SolicitudService.coerceTieneDatosPdf((descripcionCargo as any)?.tiene_datos_pdf),
+            tiene_datos_pdf: SolicitudService.resolveTieneDatosPdf(descripcionCargo),
             
             // Información detallada (para compatibilidad con otros componentes)
             client_id: cliente?.id_cliente.toString() || '',
@@ -1616,7 +1629,7 @@ export class SolicitudService {
                 descripcion_cargo: descripcionCargo.descripcion_cargo,
                 requisitos_y_condiciones: descripcionCargo.requisitos_y_condiciones,
                 num_vacante: descripcionCargo.num_vacante,
-                tiene_datos_pdf: SolicitudService.coerceTieneDatosPdf((descripcionCargo as any).tiene_datos_pdf),
+                tiene_datos_pdf: SolicitudService.resolveTieneDatosPdf(descripcionCargo),
                 cargo: cargo ? {
                     id_cargo: cargo.id_cargo,
                     nombre_cargo: cargo.nombre_cargo
