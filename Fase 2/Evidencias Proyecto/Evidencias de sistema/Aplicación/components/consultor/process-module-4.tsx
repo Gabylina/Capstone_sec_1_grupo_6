@@ -123,9 +123,10 @@ interface CandidateReport {
 interface ProcessModule4Props {
   process: Process
   readOnly?: boolean
+  clientViewOnly?: boolean
 }
 
-function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Props) {
+function ProcessModule4Component({ process, readOnly = false, clientViewOnly = false }: ProcessModule4Props) {
   const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -265,7 +266,9 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
           try {
             const evaluation = await getEvaluationByCandidate(candidate)
             if (evaluation) {
-              evaluationsData[candidate.id] = evaluation
+              evaluationsData[candidate.id] = clientViewOnly
+                ? { ...evaluation, tests: [] }
+                : evaluation
               
               // También actualizar candidateInterviews para la visualización
               interviewsData[candidate.id] = {
@@ -290,8 +293,8 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                 report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
               }
               
-              // Cargar tests de la evaluación
-              if (evaluation.tests && evaluation.tests.length > 0) {
+              // Cargar tests de la evaluación (no disponible para vista cliente)
+              if (!clientViewOnly && evaluation.tests && evaluation.tests.length > 0) {
                 testsData[candidate.id] = evaluation.tests.map((test: any, idx: number) => ({
                   id: test.id_test_psicolaboral ? String(test.id_test_psicolaboral) : `test_${candidate.id}_${idx}_${Date.now()}`,
                   test_name: test.nombre_test_psicolaboral,
@@ -308,10 +311,12 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
         setCandidateTests(testsData)
         setCandidateReports(reportsData)
 
-        // Cargar tests disponibles
-        const { testPsicolaboralService } = await import('@/lib/api')
-        const testsResponse = await testPsicolaboralService.getAll()
-        setAvailableTests(testsResponse.data || [])
+        // Cargar tests disponibles (solo consultor/admin)
+        if (!clientViewOnly) {
+          const { testPsicolaboralService } = await import('@/lib/api')
+          const testsResponse = await testPsicolaboralService.getAll()
+          setAvailableTests(testsResponse.data || [])
+        }
 
         // Cargar referencias laborales para cada candidato
         for (const candidate of candidatesToShow) {
@@ -324,7 +329,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
       }
     }
     loadData()
-  }, [process.id, process.service_type])
+  }, [process.id, process.service_type, clientViewOnly])
 
   // Cargar estado del proceso y estados disponibles para finalización (solo ES y TS)
   useEffect(() => {
@@ -2571,7 +2576,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div className={`grid grid-cols-1 md:grid-cols-2 ${clientViewOnly ? "lg:grid-cols-4" : "lg:grid-cols-5"} gap-4`}>
                           <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                             <Calendar className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             <div className="min-w-0 flex-1">
@@ -2649,6 +2654,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                           </div>
 
 
+                          {!clientViewOnly && (
                           <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                             <CheckCircle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                             <div className="min-w-0">
@@ -2656,6 +2662,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                               <p className="text-sm text-muted-foreground">{candidateTestsList.length} realizados</p>
                             </div>
                           </div>
+                          )}
 
                           <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                             <Building className="h-5 w-5 text-muted-foreground flex-shrink-0" />
@@ -2842,8 +2849,8 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                           </div>
                         )}
 
-                        {/* Tests Realizados - Dentro de información detallada */}
-                        {candidateTestsList.length > 0 && (
+                        {/* Tests Realizados - no visible para cliente */}
+                        {!clientViewOnly && candidateTestsList.length > 0 && (
                           <div className="ml-4 border-l-2 border-muted pl-4">
                           <Collapsible>
                             <CollapsibleTrigger
@@ -2927,7 +2934,7 @@ function ProcessModule4Component({ process, readOnly = false }: ProcessModule4Pr
                             <Calendar className="mr-2 h-4 w-4" />
                             Editar Estado de Entrevista
                           </Button>
-                          {(() => {
+                          {!clientViewOnly && (() => {
                             const hasEvaluation = !!evaluations[candidate.id]
                             return (
                               <Tooltip>

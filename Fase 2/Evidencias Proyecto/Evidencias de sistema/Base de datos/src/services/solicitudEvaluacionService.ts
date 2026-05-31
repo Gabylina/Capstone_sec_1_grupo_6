@@ -555,6 +555,7 @@ export class SolicitudEvaluacionService {
                 success: true,
                 data: {
                     solicitud_id: solicitudId,
+                    id_descripcion_cargo: (solicitud as any).descripcionCargo?.id_descripcioncargo || null,
                     candidatos_creados: candidatosCreados.length,
                     postulaciones_creadas: postulacionesCreadas.length,
                     candidatos_ids: candidatosCreados,

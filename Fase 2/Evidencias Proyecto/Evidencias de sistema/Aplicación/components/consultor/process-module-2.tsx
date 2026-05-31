@@ -188,9 +188,10 @@ interface ProcessModule2Props {
   process: Process
   readOnly?: boolean
   coordinadorMode?: boolean
+  clientViewOnly?: boolean
 }
 
-export function ProcessModule2({ process, readOnly = false, coordinadorMode = false }: ProcessModule2Props) {
+export function ProcessModule2({ process, readOnly = false, coordinadorMode = false, clientViewOnly = false }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
   const { showToast } = useToastNotification()
@@ -3129,6 +3130,113 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
   // Verificar si es tipo de servicio PP (Publicación Portales) - solo muestra publicaciones
   const isPublicacionPortales = (processAny.tipo_servicio === "PP" || process.service_type === "PP")
 
+  if (clientViewOnly) {
+    if (isLoading) {
+      return (
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="py-8 flex items-center justify-center gap-2 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Cargando candidatos...
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
+
+    if (isPublicacionPortales) {
+      return (
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Este tipo de servicio no registra candidatos en el Módulo 2.
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
+
+    const renderPresentationStatus = (candidate: Candidate) => (
+      <div className="flex items-center gap-2">
+        {candidate.presentation_status === "agregado" && (
+          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+            <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+            Agregado
+          </Badge>
+        )}
+        {candidate.presentation_status === "presentado" && (
+          <Badge variant="default" className="text-xs bg-green-600">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+            Presentado
+          </Badge>
+        )}
+        {candidate.presentation_status === "rechazado" && (
+          <Badge variant="destructive" className="text-xs">
+            <span className="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+            Rechazado
+          </Badge>
+        )}
+        {candidate.presentation_status === "no_presentado" && (
+          <Badge variant="secondary" className="text-xs">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full mr-1"></span>
+            No Presentado
+          </Badge>
+        )}
+        {!candidate.presentation_status && (
+          <Badge variant="outline" className="text-xs">
+            <span className="w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+            Sin Estado
+          </Badge>
+        )}
+      </div>
+    )
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Candidatos ({candidates.length})</CardTitle>
+            <CardDescription>Candidatos registrados en el proceso (solo lectura).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {candidates.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">No hay candidatos registrados</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Portal Origen</TableHead>
+                    <TableHead>Valoración</TableHead>
+                    <TableHead>Estado Módulo 2</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {candidates.map((candidate) => (
+                    <TableRow
+                      key={candidate.id}
+                      className={candidate.status === "rechazado" ? "bg-red-50/50 border-l-4 border-l-red-400" : ""}
+                    >
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{candidate.name}</p>
+                          <p className="text-sm text-muted-foreground">{candidate.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{candidate.source_portal || "No especificado"}</TableCell>
+                      <TableCell>{renderStars(candidate.consultant_rating, candidate.id, false)}</TableCell>
+                      <TableCell>{renderPresentationStatus(candidate)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
 
     <div className="space-y-6">
@@ -3499,41 +3607,52 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                 </p>
                 {BOLA_NIEVE_ITEMS.map((row) => {
                   const itemValue = bolaNieve[row.key]
+                  const detalle = (bolaNieve[row.detKey] || "").trim()
                   const isDefined = isBolaNieveItemDefined(itemValue)
                   return (
                   <div
                     key={row.key}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-transparent bg-muted/20 px-2 py-2 hover:border-amber-200/80 dark:hover:border-amber-800/60"
+                    className="rounded-md border border-transparent bg-muted/20 px-3 py-2.5 hover:border-amber-200/80 dark:hover:border-amber-800/60"
                   >
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                      {isDefined && (
-                        <CheckCircle className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
-                      )}
-                      <span className="text-sm font-medium leading-snug">{row.label}</span>
-                      <Badge
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        {isDefined && (
+                          <CheckCircle className="h-4 w-4 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
+                        )}
+                        <span className="text-sm font-medium leading-snug">{row.label}</span>
+                        <Badge
+                          variant="outline"
+                          className={
+                            !isDefined
+                              ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                              : itemValue === true
+                                ? "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200"
+                                : "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+                          }
+                        >
+                          {!isDefined ? "Pendiente" : itemValue === true ? "Logrado" : "No logrado"}
+                        </Badge>
+                      </div>
+                      <Button
+                        type="button"
                         variant="outline"
-                        className={
-                          !isDefined
-                            ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                            : itemValue === true
-                              ? "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200"
-                              : "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
-                        }
+                        size="sm"
+                        className="shrink-0 gap-1.5"
+                        onClick={() => openBolaNieveItem(row.key)}
+                        disabled={readOnly || isBlocked || bolaNieveSaving}
                       >
-                        {!isDefined ? "Pendiente" : itemValue === true ? "Logrado" : "No logrado"}
-                      </Badge>
+                        <Settings className="h-3.5 w-3.5" />
+                        Gestionar
+                      </Button>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 gap-1.5"
-                      onClick={() => openBolaNieveItem(row.key)}
-                      disabled={readOnly || isBlocked || bolaNieveSaving}
-                    >
-                      <Settings className="h-3.5 w-3.5" />
-                      Gestionar
-                    </Button>
+                    {isDefined && (
+                      <div className="mt-2 pl-6 border-l-2 border-amber-200/80 dark:border-amber-800/50">
+                        <p className="text-xs font-medium text-muted-foreground mb-0.5">Detalle</p>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words leading-relaxed">
+                          {detalle || "Sin detalle registrado."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   )
                 })}
@@ -3548,7 +3667,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
             }}
           >
             <DialogContent
-              className="sm:max-w-md"
+              className="sm:max-w-md w-full overflow-hidden"
               onPointerDownOutside={(e) => {
                 if (bolaNieveSaving) e.preventDefault()
               }}
@@ -3564,7 +3683,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                       Indica si la acción fue lograda o no y opcionalmente agrega un detalle.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-2">
+                  <div className="space-y-4 py-2 min-w-0">
                     <div className="grid grid-cols-2 gap-3">
                       <Button
                         type="button"
@@ -3595,7 +3714,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                         <span className="text-sm font-medium">No logrado</span>
                       </Button>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 min-w-0">
                       <Label htmlFor="bn-item-detalle">Detalle</Label>
                       <Textarea
                         id="bn-item-detalle"
@@ -3606,7 +3725,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                         }
                         disabled={readOnly || isBlocked || bolaNieveSaving}
                         rows={4}
-                        className="text-sm"
+                        className="text-sm min-w-0 max-w-full field-sizing-fixed resize-y break-words overflow-x-hidden"
                       />
                     </div>
                   </div>

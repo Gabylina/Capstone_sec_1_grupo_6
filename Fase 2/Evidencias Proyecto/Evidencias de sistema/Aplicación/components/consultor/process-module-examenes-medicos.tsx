@@ -35,6 +35,7 @@ export interface ExamenItem {
 interface ProcessModuleExamenesMedicosProps {
   process: Process
   readOnly?: boolean
+  clientViewOnly?: boolean
   onAdvance?: () => void
 }
 
@@ -46,7 +47,7 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdvance }: ProcessModuleExamenesMedicosProps) {
+export function ProcessModuleExamenesMedicos({ process, readOnly = false, clientViewOnly = false, onAdvance }: ProcessModuleExamenesMedicosProps) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAdvancing, setIsAdvancing] = useState(false)
@@ -109,7 +110,7 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
               id: `db-${ex.id_examen_medico}`,
               id_examen_medico: ex.id_examen_medico,
               nombre: ex.nombre_documento || "",
-              detalle: ex.detalle ?? "",
+              detalle: clientViewOnly ? undefined : (ex.detalle ?? ""),
               file: null,
               estado: (ex.estado_aprobacion || "pendiente") as ExamenItem["estado"],
             })
@@ -517,11 +518,91 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, onAdva
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold mb-2">Módulo Exámenes Médicos</h2>
-          <p className="text-muted-foreground">Carga de documentos y control de aprobación</p>
+          <p className="text-muted-foreground">
+            {clientViewOnly ? "Seguimiento de candidatos en etapa de exámenes médicos" : "Carga de documentos y control de aprobación"}
+          </p>
         </div>
         <Card>
           <CardContent className="flex items-center justify-center py-12">
             <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const estadoLabel = (estado: ExamenItem["estado"]) => {
+    if (estado === "aprobado") return "Aprobado"
+    if (estado === "rechazado") return "Rechazado"
+    return "Pendiente"
+  }
+
+  if (clientViewOnly) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Módulo Exámenes Médicos</h2>
+          <p className="text-muted-foreground">
+            Estado de los exámenes médicos por candidato. Los documentos adjuntos no están disponibles en el portal del cliente.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Exámenes por candidato
+            </CardTitle>
+            <CardDescription>
+              Nombre y estado de cada examen registrado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {candidates.length === 0 ? (
+              <p className="text-muted-foreground py-4">No hay candidatos en esta etapa.</p>
+            ) : (
+              <div className="space-y-6">
+                {candidates.map((c) => {
+                  const id = String((c as any).id_candidato ?? (c as any).id ?? c)
+                  const nombre = getNombreCandidato(c)
+                  const examenes = examenesPorCandidato[id] || []
+                  return (
+                    <div key={id} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="font-semibold">{nombre}</span>
+                      </div>
+                      {examenes.length === 0 ? (
+                        <p className="text-sm text-muted-foreground pl-6">Sin exámenes registrados</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Nombre del examen</TableHead>
+                              <TableHead>Estado</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {examenes.map((ex) => (
+                              <TableRow key={ex.id}>
+                                <TableCell className="font-medium">
+                                  {ex.nombre || "Sin nombre"}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={estadoColor(ex.estado)}>
+                                    {estadoLabel(ex.estado)}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

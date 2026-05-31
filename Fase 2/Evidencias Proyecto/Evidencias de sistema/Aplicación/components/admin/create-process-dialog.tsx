@@ -581,6 +581,42 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
     await Promise.all(uploadPromises)
   }
 
+  const resolveDescripcionCargoId = (
+    responseData: any,
+  ): number | null => {
+    const fromResponse =
+      responseData?.id_descripcion_cargo || responseData?.id_descripcioncargo
+    if (fromResponse && Number(fromResponse) > 0) return Number(fromResponse)
+
+    if (isEditMode && solicitudToEdit) {
+      const fromEdit =
+        solicitudToEdit.id_descripcion_cargo || solicitudToEdit.id_descripcioncargo
+      if (fromEdit && Number(fromEdit) > 0) return Number(fromEdit)
+    }
+    return null
+  }
+
+  const uploadDescripcionCargoArchivos = async (descripcionCargoId: number | null) => {
+    if (!descripcionCargoId) {
+      if (formData.pdf_file || formData.excel_file) {
+        throw new Error("No se encontró la descripción de cargo para adjuntar PDF o Excel")
+      }
+      return
+    }
+
+    if (formData.pdf_file) {
+      await descripcionCargoService.uploadPdf(descripcionCargoId, formData.pdf_file)
+    }
+
+    if (formData.excel_file) {
+      const excelData = await processExcelFile(formData.excel_file)
+      const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
+      if (!excelResponse.success) {
+        throw new Error(excelResponse.message || "Error al guardar los datos del Excel")
+      }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -812,6 +848,35 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       }
 
       if (response.success) {
+        const descripcionCargoId = resolveDescripcionCargoId(response.data)
+
+        if (formData.pdf_file || formData.excel_file) {
+          try {
+            showToast({
+              type: "info",
+              title: "Procesando",
+              description: formData.excel_file
+                ? "Guardando PDF y/o Excel de descripción de cargo..."
+                : "Guardando PDF de descripción de cargo...",
+            })
+            await uploadDescripcionCargoArchivos(descripcionCargoId)
+          } catch (archivoError: any) {
+            console.error("Error al subir archivos de descripción de cargo:", archivoError)
+            const errorMsg = processApiErrorMessage(
+              archivoError.message,
+              "Error al guardar PDF o Excel de descripción de cargo",
+            )
+            showToast({
+              type: "error",
+              title: "Error en archivos",
+              description:
+                (isEditMode ? "Solicitud actualizada" : "Solicitud creada") +
+                ", pero hubo un problema con los archivos: " +
+                errorMsg,
+            })
+          }
+        }
+
         // Para evaluación, ya se creó/actualizó todo en la transacción atómica
         if (isEvaluationProcess && !isEditMode) {
           // Creación con candidatos - subir CVs si hay
@@ -904,70 +969,13 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
           onOpenChange(false)
           onSuccess?.() // Recargar datos
         } else {
-          // Si hay descripción de cargo, subir primero el PDF (si existe)
-          const descripcionCargoId = response.data.id_descripcion_cargo
-          if (descripcionCargoId && formData.pdf_file) {
-            try {
-              await descripcionCargoService.uploadPdf(descripcionCargoId, formData.pdf_file)
-            } catch (pdfError: any) {
-              console.error('Error al subir PDF de descripción de cargo:', pdfError)
-              const errorMsg = processApiErrorMessage(pdfError.message, 'Error al subir el PDF de la descripción de cargo')
-              showToast({
-                type: "error",
-                title: "Error al subir PDF",
-                description: (isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un problema al subir el PDF: ' + errorMsg,
-              })
-            }
-          }
-
-          // Si hay archivo Excel, procesarlo y enviarlo
-          if (formData.excel_file) {
-            try {
-              showToast({
-                type: "info",
-                title: "Procesando",
-                description: "Procesando archivo Excel...",
-              })
-              const excelData = await processExcelFile(formData.excel_file)
-
-              if (descripcionCargoId) {
-                const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
-                
-                if (excelResponse.success) {
-                  showToast({
-                    type: "success",
-                    title: "¡Éxito!",
-                    description: isEditMode ? 'Solicitud y datos de Excel actualizados exitosamente' : 'Solicitud y datos de Excel guardados exitosamente',
-                  })
-                  onOpenChange(false)
-                  onSuccess?.() // Recargar datos
-                } else {
-                  const errorMsg = processApiErrorMessage(excelResponse.message, isEditMode ? 'Error al guardar los datos del Excel' : 'Error al guardar los datos del Excel')
-                  showToast({
-                    type: "error",
-                    title: "Error",
-                    description: isEditMode ? `Solicitud actualizada, pero ${errorMsg}` : `Solicitud creada, pero ${errorMsg}`,
-                  })
-                }
-              }
-            } catch (excelError: any) {
-              console.error('Error processing Excel:', excelError)
-              const errorMsg = processApiErrorMessage(excelError.message, 'Error al procesar el archivo Excel')
-              showToast({
-                type: "error",
-                title: "Error",
-                description: (isEditMode ? 'Solicitud actualizada' : 'Solicitud creada') + ', pero hubo un error al procesar el Excel: ' + errorMsg,
-              })
-            }
-          } else {
-            showToast({
-              type: "success",
-              title: "¡Éxito!",
-              description: isEditMode ? 'Solicitud actualizada exitosamente' : 'Solicitud creada exitosamente',
-            })
-            onOpenChange(false)
-            onSuccess?.() // Recargar datos
-          }
+          showToast({
+            type: "success",
+            title: "¡Éxito!",
+            description: isEditMode ? "Solicitud actualizada exitosamente" : "Solicitud creada exitosamente",
+          })
+          onOpenChange(false)
+          onSuccess?.() // Recargar datos
         }
         
     // Reset form
@@ -1706,7 +1714,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             {!(isEvaluationProcess && formData.position_title === "Sin cargo") && (
             <ValidatedTextarea
               id="description"
-              label="Descripción"
+              label="Descripción del cargo"
               value={formData.description}
               onChange={(value) => {
                 setFormData({ ...formData, description: value })
@@ -1720,21 +1728,19 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             />
           )}
 
-          {!isEvaluationProcess && (
           <ValidatedTextarea
             id="requirements"
-            label="Requisitos"
+            label="Requisitos y condiciones"
             value={formData.requirements}
             onChange={(value) => {
               setFormData({ ...formData, requirements: value })
               validateSpecificField('requirements', value)
             }}
-              placeholder="Requisitos y condiciones (opcional)"
+            placeholder="Requisitos y condiciones (opcional)"
             error={typeof validationErrors.requirements === 'string' ? validationErrors.requirements : undefined}
             maxLength={500}
             showCharCount
           />
-          )}
 
           <div className="grid grid-cols-2 gap-4">
             {!isEvaluationProcess && (

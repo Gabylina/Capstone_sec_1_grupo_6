@@ -76,9 +76,10 @@ const processApiErrorMessage = (errorMessage: string | undefined | null, default
 interface ProcessModule3Props {
   process: Process
   readOnly?: boolean
+  clientViewOnly?: boolean
 }
 
-export function ProcessModule3({ process, readOnly = false }: ProcessModule3Props) {
+export function ProcessModule3({ process, readOnly = false, clientViewOnly = false }: ProcessModule3Props) {
   const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
@@ -987,13 +988,13 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12"></TableHead>
+                    {!clientViewOnly && <TableHead className="w-12"></TableHead>}
                     <TableHead>Candidato</TableHead>
                     <TableHead>Fecha Envío</TableHead>
                     <TableHead>Respuesta Cliente</TableHead>
                     <TableHead>Fecha Feedback Cliente</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead className="w-32">Acciones</TableHead>
+                    {!clientViewOnly && <TableHead className="w-32">Acciones</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1001,6 +1002,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
                     return (
                       <Fragment key={candidate.id}>
                         <TableRow key={`row-${candidate.id}`}>
+                        {!clientViewOnly && (
                         <TableCell>
                           <Collapsible>
                             <CollapsibleTrigger
@@ -1016,6 +1018,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
                             </CollapsibleTrigger>
                           </Collapsible>
                         </TableCell>
+                        )}
                         <TableCell>
                           <div>
                             <p className="font-medium">{candidate.name}</p>
@@ -1062,6 +1065,7 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
                             {candidateStatusLabels[candidate.status as keyof typeof candidateStatusLabels]}
                           </Badge>
                         </TableCell>
+                        {!clientViewOnly && (
                         <TableCell>
                           <Button
                             onClick={() => handleOpenUpdateModal(candidate)}
@@ -1082,8 +1086,9 @@ export function ProcessModule3({ process, readOnly = false }: ProcessModule3Prop
                             )}
                           </Button>
                         </TableCell>
+                        )}
                       </TableRow>
-                      {expandedCandidate === candidate.id && (
+                      {!clientViewOnly && expandedCandidate === candidate.id && (
                         <TableRow key={`expanded-${candidate.id}`}>
                           <TableCell colSpan={7} className="bg-muted/30">
                             <Collapsible open={expandedCandidate === candidate.id}>

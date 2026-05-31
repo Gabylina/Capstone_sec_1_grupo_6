@@ -237,13 +237,16 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
   // Load Excel data if available
   useEffect(() => {
     const loadExcelData = async () => {
-      // Verificar si existe datos_excel directamente en el proceso
       if (process.datos_excel) {
         setExcelData(process.datos_excel)
         return
       }
 
-      // Si no, intentar cargar desde la API
+      if (descripcionCargo?.datos_excel && Object.keys(descripcionCargo.datos_excel).length > 0) {
+        setExcelData(descripcionCargo.datos_excel)
+        return
+      }
+
       const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
 
       if (descripcionCargoId && descripcionCargoId > 0) {
@@ -269,10 +272,17 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
       }
     }
     loadExcelData()
-  }, [process.id_descripcion_cargo, process.id_descripcioncargo, process.datos_excel])
+  }, [
+    process.id_descripcion_cargo,
+    process.id_descripcioncargo,
+    process.datos_excel,
+    descripcionCargo?.datos_excel,
+  ])
 
   const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
-  const hasPdf = !!(descripcionCargo && descripcionCargo.tiene_datos_pdf)
+  const hasPdf =
+    !!(descripcionCargo?.tiene_datos_pdf) ||
+    !!(process as any).tiene_datos_pdf
   const pdfUrl = hasPdf && descripcionCargoId ? descripcionCargoService.getPdfUrl(descripcionCargoId) : null
 
   // For evaluation processes - track current candidate in accordion
@@ -2731,9 +2741,8 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
         </CardContent>
       </Card>
 
-      {/* Descripción de cargo (PDF + Excel) - solo visualización, PDF se sube al crear la solicitud */}
-      {!isEvaluationProcess && (
-        <Card>
+      {/* Descripción de cargo (PDF + Excel) - visible en todos los tipos de servicio */}
+      <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileIcon className="h-5 w-5" />
@@ -2845,8 +2854,6 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
             )}
           </CardContent>
         </Card>
-      )}
-
 
       {/* Client Contact Information */}
       <Card>

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Building2, Eye, Loader2, Filter, ChevronLeft, ChevronRight } from "lucide-react"
-import { formatDateShort, getSolicitudEstadoBadgeClass } from "@/lib/utils"
+import { formatDateShort, getSolicitudEstadoBadgeClass, serviceTypeLabels } from "@/lib/utils"
 import {
   clientePortalService,
   type ClientePortalResumen,
@@ -228,6 +228,7 @@ export default function ClientePortalPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Proceso</TableHead>
+                  <TableHead>Tipo de servicio</TableHead>
                   <TableHead>Fecha solicitud</TableHead>
                   <TableHead>Consultor a cargo</TableHead>
                   <TableHead>Estado</TableHead>
@@ -238,6 +239,13 @@ export default function ClientePortalPage() {
                 {items.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.proceso}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {row.tipo_servicio
+                          ? serviceTypeLabels[row.tipo_servicio] || row.tipo_servicio_nombre || row.tipo_servicio
+                          : row.tipo_servicio_nombre || "—"}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{row.fecha_solicitud ? formatDateShort(row.fecha_solicitud) : "—"}</TableCell>
                     <TableCell>{row.consultor}</TableCell>
                     <TableCell>

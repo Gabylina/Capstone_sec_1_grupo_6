@@ -617,7 +617,11 @@ export default function ProcessPage({ params }: ProcessPageProps) {
 
             <div className="p-6">
               <TabsContent value="modulo-1" className="mt-0">
-                <ProcessModule1 process={process} descripcionCargo={descripcionCargo} readOnly={viewOnly} />
+                <ProcessModule1
+                  process={process}
+                  descripcionCargo={descripcionCargo}
+                  readOnly={viewOnly}
+                />
               </TabsContent>
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "CA" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
@@ -626,13 +630,14 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                     process={process}
                     readOnly={viewOnly && !coordinadorMode}
                     coordinadorMode={coordinadorMode}
+                    clientViewOnly={isClienteViewOnly}
                   />
                 </TabsContent>
               )}
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "CA" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
                 <TabsContent value="modulo-3" className="mt-0">
-                  <ProcessModule3 process={process} readOnly={viewOnly} />
+                  <ProcessModule3 process={process} readOnly={viewOnly} clientViewOnly={isClienteViewOnly} />
                 </TabsContent>
               )}
 
@@ -642,14 +647,19 @@ export default function ProcessPage({ params }: ProcessPageProps) {
                     <ProcessModuleEntrevistaTecnica process={process} readOnly={viewOnly} onAdvance={loadProcessData} />
                   </TabsContent>
                   <TabsContent value="modulo-examenes-medicos" className="mt-0">
-                    <ProcessModuleExamenesMedicos process={process} readOnly={viewOnly} onAdvance={loadProcessData} />
+                    <ProcessModuleExamenesMedicos
+                      process={process}
+                      readOnly={viewOnly}
+                      clientViewOnly={isClienteViewOnly}
+                      onAdvance={loadProcessData}
+                    />
                   </TabsContent>
                 </>
               )}
 
               {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES" || process.tipo_servicio === "EP") && (
                 <TabsContent value="modulo-4" className="mt-0">
-                  <ProcessModule4 process={process} readOnly={viewOnly} />
+                  <ProcessModule4 process={process} readOnly={viewOnly} clientViewOnly={isClienteViewOnly} />
                 </TabsContent>
               )}
 
