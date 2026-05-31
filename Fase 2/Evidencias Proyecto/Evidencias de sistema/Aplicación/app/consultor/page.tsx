@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import type { KeyboardEvent } from "react"
 import { useAuth } from "@/hooks/auth"
 import { useConsultorProcesses } from "@/hooks/useConsultorProcesses"
-import { solicitudService, getCandidatesByProcess } from "@/lib/api"
+import { solicitudService, getCandidatesSummaryBatch } from "@/lib/api"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -135,44 +135,58 @@ export default function ConsultorPage() {
     refreshData
   } = useConsultorProcesses(user?.id)
 
-  // Cargar primer candidato (por fecha de ingreso) por proceso para procesos visibles
-  const loadCandidatesForProcess = async (processId: string) => {
-    if (loadingCandidates[processId] || candidatesByProcess[processId] !== undefined) return
-    setLoadingCandidates((prev) => ({ ...prev, [processId]: true }))
-    try {
-      const candidates = await getCandidatesByProcess(processId)
-      if (candidates && candidates.length > 0) {
-        setCandidateCountByProcess((prev) => ({ ...prev, [processId]: candidates.length }))
-        const sorted = [...candidates].sort((a: any, b: any) => {
-          const dateA = a.fecha_postulacion || a.created_at || a.fecha_creacion || 0
-          const dateB = b.fecha_postulacion || b.created_at || b.fecha_creacion || 0
-          return new Date(dateA).getTime() - new Date(dateB).getTime()
-        })
-        const first = sorted[0]
-        const nombre = first.nombre || first.nombre_candidato || ""
-        const apellido = first.primer_apellido || first.primer_apellido_candidato || ""
-        setCandidatesByProcess((prev) => ({
-          ...prev,
-          [processId]: nombre || apellido ? { nombre, apellido } : null,
-        }))
-      } else {
-        setCandidateCountByProcess((prev) => ({ ...prev, [processId]: 0 }))
-        setCandidatesByProcess((prev) => ({ ...prev, [processId]: null }))
-      }
-    } catch {
-      setCandidateCountByProcess((prev) => ({ ...prev, [processId]: 0 }))
-      setCandidatesByProcess((prev) => ({ ...prev, [processId]: null }))
-    } finally {
-      setLoadingCandidates((prev) => ({ ...prev, [processId]: false }))
-    }
-  }
-
+  // Cargar resumen de candidatos en batch para procesos visibles
   useEffect(() => {
     const allIds = [
       ...pendingProcesses.map((p) => p.id),
       ...otherProcesses.map((p) => p.id),
     ]
-    allIds.forEach((id) => loadCandidatesForProcess(id))
+    if (allIds.length === 0) return
+
+    let cancelled = false
+    setLoadingCandidates((prev) => {
+      const next = { ...prev }
+      allIds.forEach((id) => { next[id] = true })
+      return next
+    })
+
+    getCandidatesSummaryBatch(allIds).then((batch) => {
+      if (cancelled) return
+
+      const counts: Record<string, number> = {}
+      const names: Record<string, { nombre: string; apellido: string } | null> = {}
+
+      allIds.forEach((id) => {
+        const summary = batch[id] ?? batch[String(parseInt(id, 10))]
+        if (summary && summary.total > 0) {
+          counts[id] = summary.total
+          names[id] = summary.nombre || summary.apellido
+            ? { nombre: summary.nombre, apellido: summary.apellido }
+            : null
+        } else {
+          counts[id] = 0
+          names[id] = null
+        }
+      })
+
+      setCandidateCountByProcess((prev) => ({ ...prev, ...counts }))
+      setCandidatesByProcess((prev) => ({ ...prev, ...names }))
+    }).catch(() => {
+      if (cancelled) return
+      allIds.forEach((id) => {
+        setCandidateCountByProcess((prev) => ({ ...prev, [id]: 0 }))
+        setCandidatesByProcess((prev) => ({ ...prev, [id]: null }))
+      })
+    }).finally(() => {
+      if (cancelled) return
+      setLoadingCandidates((prev) => {
+        const next = { ...prev }
+        allIds.forEach((id) => { next[id] = false })
+        return next
+      })
+    })
+
+    return () => { cancelled = true }
   }, [pendingProcesses, otherProcesses])
   
   // Detectar si hay filtros aplicados

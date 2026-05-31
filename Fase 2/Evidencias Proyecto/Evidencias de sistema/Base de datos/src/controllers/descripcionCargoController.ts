@@ -3,6 +3,7 @@ import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { DescripcionCargoService } from '@/services/descripcionCargoService';
 import { handleMulterError } from '@/config/multer';
+import path from 'path';
 
 /**
  * Controlador para gestión de Descripciones de Cargo
@@ -196,8 +197,17 @@ export class DescripcionCargoController {
                 return sendError(res, 'No se proporcionó ningún archivo', 400);
             }
 
-            // Solo permitir PDF explícitamente en este endpoint
-            if (req.file.mimetype !== 'application/pdf') {
+            const fileExtension = path.extname(req.file.originalname).toLowerCase();
+            const isPdf =
+                fileExtension === '.pdf' &&
+                (
+                    req.file.mimetype === 'application/pdf' ||
+                    req.file.mimetype === 'application/x-pdf' ||
+                    req.file.mimetype === 'application/octet-stream' ||
+                    !req.file.mimetype
+                );
+
+            if (!isPdf) {
                 return sendError(res, 'Solo se permiten archivos PDF', 400);
             }
 

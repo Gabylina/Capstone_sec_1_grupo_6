@@ -12,7 +12,7 @@ import Link from "next/link"
 import { formatDateShort, getStatusColor } from "@/lib/utils"
 import { CreateProcessDialog } from "@/components/admin/create-process-dialog"
 import { UploadExcelDialog } from "@/components/admin/upload-excel-dialog"
-import { solicitudService, getCandidatesByProcess, clientService } from "@/lib/api"
+import { solicitudService, getCandidatesSummaryBatch, clientService } from "@/lib/api"
 import { solicitudRequiresCoordinatorApproval, countCandidatesEnRevision } from "@/lib/approval-utils"
 import { useSolicitudes } from "@/hooks/useSolicitudes"
 import { Label } from "@/components/ui/label"
@@ -272,34 +272,64 @@ export default function SolicitudesPage() {
     }
   }
 
-  const loadCandidatesForSolicitud = useCallback(
-    async (solicitudItem: Solicitud, force = false) => {
-      const solicitudId = solicitudItem.id.toString()
-      if (!force && loadingCandidatesRef.current.has(solicitudId)) return
+  const loadCandidatesForSolicitudes = useCallback(
+    async (items: Solicitud[], force = false) => {
+      if (items.length === 0) return
 
-      loadingCandidatesRef.current.add(solicitudId)
-      const needsApproval = solicitudRequiresCoordinatorApproval(solicitudItem)
-      setLoadingCandidates((prev) => ({ ...prev, [solicitudId]: true }))
+      const toLoad = items.filter((item) => {
+        const id = item.id.toString()
+        return force || !loadingCandidatesRef.current.has(id)
+      })
+      if (toLoad.length === 0) return
+
+      toLoad.forEach((item) => loadingCandidatesRef.current.add(item.id.toString()))
+      setLoadingCandidates((prev) => {
+        const next = { ...prev }
+        toLoad.forEach((item) => { next[item.id.toString()] = true })
+        return next
+      })
 
       try {
-        const candidates = await getCandidatesByProcess(solicitudId)
-        applyCandidatesMeta(solicitudId, candidates || [], needsApproval)
+        const batch = await getCandidatesSummaryBatch(toLoad.map((s) => s.id.toString()))
+
+        toLoad.forEach((solicitudItem) => {
+          const solicitudId = solicitudItem.id.toString()
+          const needsApproval = solicitudRequiresCoordinatorApproval(solicitudItem)
+          const summary = batch[solicitudId] ?? batch[String(solicitudItem.id)]
+
+          if (!summary || summary.total === 0) {
+            if (needsApproval) {
+              applyCandidatesMeta(solicitudId, [], needsApproval)
+            } else {
+              setCandidatesBySolicitud((prev) => ({ ...prev, [solicitudId]: null }))
+            }
+            return
+          }
+
+          const pseudoCandidates: Array<Record<string, unknown>> = [{
+            nombre: summary.nombre,
+            nombre_candidato: summary.nombre,
+            primer_apellido: summary.apellido,
+            primer_apellido_candidato: summary.apellido,
+          }]
+
+          if (needsApproval && summary.en_revision_count > 0) {
+            for (let i = 0; i < summary.en_revision_count; i++) {
+              pseudoCandidates.push({ approval_status: "en_revision" })
+            }
+          }
+
+          applyCandidatesMeta(solicitudId, pseudoCandidates, needsApproval)
+        })
       } catch (error) {
-        console.error(`Error al cargar candidatos para solicitud ${solicitudId}:`, error)
-        if (needsApproval) {
-          setCandidatesBySolicitud((prev) => ({
-            ...prev,
-            [solicitudId]: prev[solicitudId] ?? {
-              nombre: "",
-              apellido: "",
-              enRevisionCount: 0,
-              requiresApproval: true,
-            },
-          }))
-        }
+        console.error("Error al cargar resumen de candidatos:", error)
       } finally {
-        loadingCandidatesRef.current.delete(solicitudId)
-        setLoadingCandidates((prev) => ({ ...prev, [solicitudId]: false }))
+        toLoad.forEach((item) => loadingCandidatesRef.current.delete(item.id.toString()))
+        setLoadingCandidates((prev) => {
+          const next = { ...prev }
+          toLoad.forEach((item) => { next[item.id.toString()] = false })
+          return next
+        })
       }
     },
     [applyCandidatesMeta]
@@ -317,22 +347,24 @@ export default function SolicitudesPage() {
     }).catch(() => setClientes([]))
   }, [])
 
-  // Cargar y refrescar candidatos (estado de validación) para cada solicitud visible
+  // Cargar y refrescar candidatos (solo solicitudes visibles; polling solo para aprobaciones)
   useEffect(() => {
     if (solicitudes.length === 0) return
 
-    const refreshAll = (force: boolean) => {
-      solicitudes.forEach((solicitudItem) => {
-        void loadCandidatesForSolicitud(solicitudItem, force)
-      })
-    }
+    void loadCandidatesForSolicitudes(solicitudes, false)
 
-    refreshAll(false)
+    const needsPolling = solicitudes.some(solicitudRequiresCoordinatorApproval)
+    if (!needsPolling) return
 
-    const intervalId = setInterval(() => refreshAll(true), 45000)
+    const approvalItems = () => solicitudes.filter(solicitudRequiresCoordinatorApproval)
+    const intervalId = setInterval(() => {
+      void loadCandidatesForSolicitudes(approvalItems(), true)
+    }, 120000)
 
     const onVisible = () => {
-      if (document.visibilityState === "visible") refreshAll(true)
+      if (document.visibilityState === "visible") {
+        void loadCandidatesForSolicitudes(approvalItems(), true)
+      }
     }
     document.addEventListener("visibilitychange", onVisible)
 
@@ -340,7 +372,7 @@ export default function SolicitudesPage() {
       clearInterval(intervalId)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [solicitudes, loadCandidatesForSolicitud])
+  }, [solicitudes, loadCandidatesForSolicitudes])
 
   // Los solicitudes ya vienen filtrados del servidor, no necesitamos filtrar en el cliente
 

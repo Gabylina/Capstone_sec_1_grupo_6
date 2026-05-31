@@ -72,6 +72,7 @@ import { CandidateApprovalPanel } from "./candidate-approval-panel"
 import { CandidateReviewDetail } from "./candidate-review-detail"
 import { CandidateForm } from "./candidate-form"
 import { getApprovalStatusBadgeClass } from "@/lib/approval-utils"
+import { EncuestaSatisfaccionPanel } from "./encuesta-satisfaccion-panel"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -4408,6 +4409,8 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
           </DialogContent>
         </Dialog>
       )}
+
+      <EncuestaSatisfaccionPanel process={process} modulo={2} readOnly={readOnly} />
     </div>
 
   )

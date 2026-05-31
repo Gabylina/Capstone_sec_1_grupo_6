@@ -169,6 +169,8 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
   })
   const [excelData, setExcelData] = useState<any>(null)
   const [loadingExcel, setLoadingExcel] = useState(false)
+  const [pdfAvailable, setPdfAvailable] = useState<boolean | null>(null)
+  const [checkingPdf, setCheckingPdf] = useState(false)
   const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
   const [loadingEstados, setLoadingEstados] = useState(false)
   const [showStatusChange, setShowStatusChange] = useState(false)
@@ -280,10 +282,50 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
   ])
 
   const descripcionCargoId = process.id_descripcion_cargo || process.id_descripcioncargo
-  const hasPdf =
-    !!(descripcionCargo?.tiene_datos_pdf) ||
-    !!(process as any).tiene_datos_pdf
-  const pdfUrl = hasPdf && descripcionCargoId ? descripcionCargoService.getPdfUrl(descripcionCargoId) : null
+
+  useEffect(() => {
+    if (!descripcionCargoId || descripcionCargoId <= 0) {
+      setPdfAvailable(false)
+      return
+    }
+
+    const flaggedPdf =
+      !!(descripcionCargo?.tiene_datos_pdf) ||
+      !!(process as any).tiene_datos_pdf ||
+      !!(process as any).descripcion_cargo?.tiene_datos_pdf
+
+    if (flaggedPdf) {
+      setPdfAvailable(true)
+      return
+    }
+
+    let cancelled = false
+    setCheckingPdf(true)
+
+    fetch(descripcionCargoService.getPdfUrl(descripcionCargoId), { method: 'HEAD' })
+      .then((response) => {
+        if (!cancelled) setPdfAvailable(response.ok)
+      })
+      .catch(() => {
+        if (!cancelled) setPdfAvailable(false)
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingPdf(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    descripcionCargoId,
+    descripcionCargo?.tiene_datos_pdf,
+    (process as any).tiene_datos_pdf,
+    (process as any).descripcion_cargo?.tiene_datos_pdf,
+  ])
+
+  const pdfUrl = pdfAvailable && descripcionCargoId
+    ? descripcionCargoService.getPdfUrl(descripcionCargoId)
+    : null
 
   // For evaluation processes - track current candidate in accordion
   const [currentCandidateId, setCurrentCandidateId] = useState<string | null>(null)
@@ -2770,15 +2812,19 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
                   variant="outline"
                   size="sm"
                   className="gap-2"
-                  disabled={!pdfUrl}
+                  disabled={!pdfUrl || checkingPdf}
                   onClick={() => {
                     if (pdfUrl) {
                       window.open(pdfUrl, "_blank", "noopener,noreferrer")
                     }
                   }}
                 >
-                  <Eye className="h-4 w-4" />
-                  Ver PDF
+                  {checkingPdf ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  {checkingPdf ? "Verificando..." : "Ver PDF"}
                 </Button>
               </div>
             </div>

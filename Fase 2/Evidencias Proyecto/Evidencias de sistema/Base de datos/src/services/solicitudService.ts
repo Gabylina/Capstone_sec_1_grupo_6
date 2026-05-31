@@ -35,6 +35,14 @@ import { FechasLaborales } from '@/utils/fechasLaborales';
 export class SolicitudService {
     private static readonly DUE_SOON_THRESHOLD_DAYS = 7;
 
+    /** Normaliza el flag tiene_datos_pdf (PostgreSQL puede devolver boolean, 0/1 o 't'/'f'). */
+    private static coerceTieneDatosPdf(value: unknown): boolean {
+        if (value === true || value === 1) return true;
+        if (value === false || value === 0 || value == null) return false;
+        const normalized = String(value).toLowerCase().trim();
+        return normalized === 'true' || normalized === 't' || normalized === '1';
+    }
+
     /**
      * Obtener el estado actual (más reciente) por solicitud en una sola query.
      * Reemplaza las múltiples cargas de EstadoSolicitudHist con una consulta eficiente DISTINCT ON.
@@ -253,8 +261,88 @@ export class SolicitudService {
     }
 
     /**
+     * IDs de solicitudes que coinciden con filtros base (sin filtro de estado).
+     * Query ligera: solo id_solicitud, sin historial ni transformaciones.
+     */
+    private static async getMatchingSolicitudIds(
+        search: string = "",
+        service_type?: string,
+        consultor_id?: string,
+        cliente_id?: string
+    ): Promise<number[]> {
+        const andConditions: any[] = [];
+
+        if (search) {
+            andConditions.push({
+                [Op.or]: [
+                    { '$descripcionCargo.cargo.nombre_cargo$': { [Op.iLike]: `%${search}%` } },
+                    { '$contacto.cliente.nombre_cliente$': { [Op.iLike]: `%${search}%` } },
+                    { '$usuario.nombre_usuario$': { [Op.iLike]: `%${search}%` } },
+                    { '$contacto.nombre_contacto$': { [Op.iLike]: `%${search}%` } }
+                ]
+            });
+        }
+
+        if (service_type) {
+            if (service_type.length <= 5) {
+                andConditions.push({ codigo_servicio: service_type });
+            } else {
+                andConditions.push({ '$tipoServicio.nombre_servicio$': service_type });
+            }
+        }
+
+        if (consultor_id) {
+            andConditions.push({ rut_usuario: consultor_id });
+        }
+
+        const idClienteFilter = cliente_id ? (parseInt(cliente_id, 10) || undefined) : undefined;
+        const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
+
+        const includes: any[] = [];
+        if (idClienteFilter != null || search) {
+            includes.push({
+                model: Contacto,
+                as: 'contacto',
+                attributes: [],
+                where: idClienteFilter != null ? { id_cliente: idClienteFilter } : undefined,
+                required: idClienteFilter != null,
+                include: search ? [{ model: Cliente, as: 'cliente', attributes: [] }] : undefined
+            });
+        }
+        if (search) {
+            includes.push({
+                model: DescripcionCargo,
+                as: 'descripcionCargo',
+                attributes: [],
+                include: [{ model: Cargo, as: 'cargo', attributes: [] }]
+            });
+            includes.push({
+                model: Usuario,
+                as: 'usuario',
+                attributes: []
+            });
+        }
+        if (service_type && service_type.length > 5) {
+            includes.push({
+                model: TipoServicio,
+                as: 'tipoServicio',
+                attributes: []
+            });
+        }
+
+        const rows = await Solicitud.findAll({
+            where,
+            attributes: ['id_solicitud'],
+            include: includes,
+            subQuery: false
+        });
+
+        return [...new Set(rows.map((r: any) => r.id_solicitud as number))];
+    }
+
+    /**
      * Obtener estadísticas (contadores) aplicando los mismos filtros que getSolicitudes.
-     * Usado para que los contadores de la vista admin reflejen búsqueda, estado y tipo de servicio.
+     * Usa una query ligera de IDs + mapa de estados (sin cargar hasta 100k solicitudes completas).
      */
     static async getFilteredStats(
         search: string = "",
@@ -262,14 +350,60 @@ export class SolicitudService {
         service_type?: string,
         consultor_id?: string,
         cliente_id?: string
-    ): Promise<{ total: number; en_progreso: number; completadas: number; pendientes: number }> {
-        const result = await this.getSolicitudes(1, 100000, search, status, service_type, consultor_id, undefined, "fecha", "DESC", cliente_id);
-        const solicitudes = result.solicitudes as any[];
-        const total = solicitudes.length;
-        const pendientes = solicitudes.filter((s: any) => s.estado_solicitud === "Creado").length;
-        const en_progreso = solicitudes.filter((s: any) => s.estado_solicitud === "En Progreso").length;
-        const completadas = solicitudes.filter((s: any) => s.estado_solicitud === "Cerrado").length;
-        return { total, en_progreso, completadas, pendientes };
+    ): Promise<{
+        total: number;
+        en_progreso: number;
+        completadas: number;
+        pendientes: number;
+        congelados: number;
+        cancelados: number;
+        cierre_extraordinario: number;
+    }> {
+        const estadoMapping: Record<string, string> = {
+            creado: 'Creado',
+            en_progreso: 'En Progreso',
+            cerrado: 'Cerrado',
+            congelado: 'Congelado',
+            cancelado: 'Cancelado',
+            cierre_extraordinario: 'Cierre Extraordinario'
+        };
+
+        const [estadoPorSolicitud, matchingIds] = await Promise.all([
+            this.getEstadoActualPorSolicitud(),
+            this.getMatchingSolicitudIds(search, service_type, consultor_id, cliente_id)
+        ]);
+
+        const counters = {
+            total: 0,
+            pendientes: 0,
+            en_progreso: 0,
+            completadas: 0,
+            congelados: 0,
+            cancelados: 0,
+            cierre_extraordinario: 0
+        };
+
+        const estadoToCounter: Record<string, keyof typeof counters> = {
+            'Creado': 'pendientes',
+            'En Progreso': 'en_progreso',
+            'Cerrado': 'completadas',
+            'Congelado': 'congelados',
+            'Cancelado': 'cancelados',
+            'Cierre Extraordinario': 'cierre_extraordinario'
+        };
+
+        const statusFilterName = status ? estadoMapping[status] : undefined;
+
+        for (const id of matchingIds) {
+            const estado = estadoPorSolicitud.get(id) || 'Creado';
+            if (statusFilterName && estado !== statusFilterName) continue;
+
+            counters.total++;
+            const counterKey = estadoToCounter[estado];
+            if (counterKey) counters[counterKey]++;
+        }
+
+        return counters;
     }
 
     /**
@@ -366,146 +500,122 @@ export class SolicitudService {
     }
 
     /**
-     * Verificar y actualizar etapa si hay candidatos en módulo 5
+     * Includes estándar para detalle de solicitud (sin cargar el BLOB del PDF).
      */
-    private static async verificarYActualizarEtapaModulo5(idSolicitud: number, codigoServicio: string) {
-        // Solo verificar para servicios PC (Proceso Completo)
+    private static getSolicitudDetailIncludes() {
+        return [
+            {
+                model: Contacto,
+                as: 'contacto',
+                include: [
+                    { model: Cliente, as: 'cliente' },
+                    { model: Comuna, as: 'comuna' },
+                ],
+            },
+            { model: TipoServicio, as: 'tipoServicio' },
+            {
+                model: DescripcionCargo,
+                as: 'descripcionCargo',
+                attributes: {
+                    exclude: ['datos_pdf'],
+                    include: [[sequelize.literal('("descripcionCargo"."datos_pdf" IS NOT NULL)'), 'tiene_datos_pdf']],
+                },
+                include: [
+                    { model: Cargo, as: 'cargo' },
+                    { model: Comuna, as: 'comuna' },
+                ],
+            },
+            {
+                model: Usuario,
+                as: 'usuario',
+                attributes: ['rut_usuario', 'nombre_usuario', 'email_usuario'],
+            },
+            { model: EtapaSolicitud, as: 'etapaSolicitud' },
+            {
+                model: EstadoSolicitudHist,
+                as: 'historialEstados',
+                include: [{ model: EstadoSolicitud, as: 'estado' }],
+                limit: 1,
+                order: [['fecha_cambio_estado_solicitud', 'DESC']],
+            },
+        ] as any;
+    }
+
+    /**
+     * Verificar y actualizar etapa si hay candidatos en módulo 5.
+     * @returns true si la etapa fue modificada
+     */
+    private static async verificarYActualizarEtapaModulo5(idSolicitud: number, codigoServicio: string): Promise<boolean> {
         if (codigoServicio !== 'PC') {
-            return;
+            return false;
         }
 
         try {
-            // Verificar si hay postulaciones con candidatos en módulo 5
             const postulaciones = await Postulacion.findAll({
                 where: { id_solicitud: idSolicitud },
-                attributes: ['id_postulacion']
+                attributes: ['id_postulacion'],
             });
 
             if (postulaciones.length === 0) {
-                return;
+                return false;
             }
 
-            const idsPostulaciones = postulaciones.map(p => p.id_postulacion);
+            const idsPostulaciones = postulaciones.map((p) => p.id_postulacion);
 
-            // Verificar si hay alguna postulación con estado en módulo 5
             const candidatosEnModulo5 = await EstadoClientePostulacionM5.findOne({
                 where: {
-                    id_postulacion: { [Op.in]: idsPostulaciones }
-                }
+                    id_postulacion: { [Op.in]: idsPostulaciones },
+                },
             });
 
-            if (candidatosEnModulo5) {
-                // Buscar la etapa "Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral"
-                const etapaModulo5 = await EtapaSolicitud.findOne({
-                    where: { nombre_etapa: 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral' }
-                });
+            if (!candidatosEnModulo5) {
+                return false;
+            }
 
-                if (etapaModulo5) {
-                    const solicitud = await Solicitud.findByPk(idSolicitud);
-                    if (solicitud && solicitud.id_etapa_solicitud !== etapaModulo5.id_etapa_solicitud) {
-                        // Actualizar la etapa solo si es diferente
-                        await solicitud.update({
-                            id_etapa_solicitud: etapaModulo5.id_etapa_solicitud
-                        });
-                        console.log(`✅ Etapa actualizada automáticamente a Módulo 5 para solicitud ${idSolicitud}`);
-                    }
-                }
+            const etapaModulo5 = await EtapaSolicitud.findOne({
+                where: { nombre_etapa: 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral' },
+            });
+
+            if (!etapaModulo5) {
+                return false;
+            }
+
+            const solicitud = await Solicitud.findByPk(idSolicitud);
+            if (solicitud && solicitud.id_etapa_solicitud !== etapaModulo5.id_etapa_solicitud) {
+                await solicitud.update({
+                    id_etapa_solicitud: etapaModulo5.id_etapa_solicitud,
+                });
+                console.log(`✅ Etapa actualizada automáticamente a Módulo 5 para solicitud ${idSolicitud}`);
+                return true;
             }
         } catch (error) {
             console.error('Error al verificar/actualizar etapa módulo 5:', error);
-            // No lanzar error, solo registrar
         }
+        return false;
     }
 
     /**
      * Obtener una solicitud por ID
      */
     static async getSolicitudById(id: number) {
-        const solicitud = await Solicitud.findByPk(id, {
-            include: [
-                {
-                    model: Contacto,
-                    as: 'contacto',
-                    include: [
-                        { model: Cliente, as: 'cliente' },
-                        { model: Comuna, as: 'comuna' }
-                    ]
-                },
-                { model: TipoServicio, as: 'tipoServicio' },
-                {
-                    model: DescripcionCargo,
-                    as: 'descripcionCargo',
-                    include: [
-                        { model: Cargo, as: 'cargo' },
-                        { model: Comuna, as: 'comuna' }
-                    ]
-                },
-                {
-                    model: Usuario,
-                    as: 'usuario',
-                    attributes: ['rut_usuario', 'nombre_usuario', 'email_usuario']
-                },
-                { model: EtapaSolicitud, as: 'etapaSolicitud' },
-                {
-                    model: EstadoSolicitudHist,
-                    as: 'historialEstados',
-                    include: [{
-                        model: EstadoSolicitud,
-                        as: 'estado'
-                    }],
-                    limit: 1,
-                    order: [['fecha_cambio_estado_solicitud', 'DESC']]
-                }
-            ]
-        });
+        const includes = SolicitudService.getSolicitudDetailIncludes();
+
+        let solicitud = await Solicitud.findByPk(id, { include: includes });
 
         if (!solicitud) {
             return null;
         }
 
-        // Verificar y actualizar etapa si hay candidatos en módulo 5
-        await this.verificarYActualizarEtapaModulo5(id, solicitud.codigo_servicio);
+        const etapaActualizada = await this.verificarYActualizarEtapaModulo5(id, solicitud.codigo_servicio);
 
-        // Recargar la solicitud para obtener la etapa actualizada
-        const solicitudActualizada = await Solicitud.findByPk(id, {
-            include: [
-                {
-                    model: Contacto,
-                    as: 'contacto',
-                    include: [
-                        { model: Cliente, as: 'cliente' },
-                        { model: Comuna, as: 'comuna' }
-                    ]
-                },
-                { model: TipoServicio, as: 'tipoServicio' },
-                {
-                    model: DescripcionCargo,
-                    as: 'descripcionCargo',
-                    include: [
-                        { model: Cargo, as: 'cargo' },
-                        { model: Comuna, as: 'comuna' }
-                    ]
-                },
-                {
-                    model: Usuario,
-                    as: 'usuario',
-                    attributes: ['rut_usuario', 'nombre_usuario', 'email_usuario']
-                },
-                { model: EtapaSolicitud, as: 'etapaSolicitud' },
-                {
-                    model: EstadoSolicitudHist,
-                    as: 'historialEstados',
-                    include: [{
-                        model: EstadoSolicitud,
-                        as: 'estado'
-                    }],
-                    limit: 1,
-                    order: [['fecha_cambio_estado_solicitud', 'DESC']]
-                }
-            ]
-        });
+        if (etapaActualizada) {
+            solicitud = await Solicitud.findByPk(id, { include: includes });
+            if (!solicitud) {
+                return null;
+            }
+        }
 
-        return this.transformSolicitud(solicitudActualizada);
+        return this.transformSolicitud(solicitud);
     }
 
     /**
@@ -1447,6 +1557,7 @@ export class SolicitudService {
             fecha_ingreso_solicitud: solicitud.fecha_ingreso_solicitud,
             fecha_cierre: fechaCierre,
             datos_excel: descripcionCargo?.datos_excel || null,
+            tiene_datos_pdf: SolicitudService.coerceTieneDatosPdf((descripcionCargo as any)?.tiene_datos_pdf),
             
             // Información detallada (para compatibilidad con otros componentes)
             client_id: cliente?.id_cliente.toString() || '',
@@ -1505,6 +1616,7 @@ export class SolicitudService {
                 descripcion_cargo: descripcionCargo.descripcion_cargo,
                 requisitos_y_condiciones: descripcionCargo.requisitos_y_condiciones,
                 num_vacante: descripcionCargo.num_vacante,
+                tiene_datos_pdf: SolicitudService.coerceTieneDatosPdf((descripcionCargo as any).tiene_datos_pdf),
                 cargo: cargo ? {
                     id_cargo: cargo.id_cargo,
                     nombre_cargo: cargo.nombre_cargo

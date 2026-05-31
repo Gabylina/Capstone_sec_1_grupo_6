@@ -228,8 +228,7 @@ export function useSolicitudes() {
     prevClientFilter.current = clientFilter
 
     const timeoutId = setTimeout(() => {
-      fetchSolicitudes()
-      fetchFilteredStats()
+      void Promise.all([fetchSolicitudes(), fetchFilteredStats()])
     }, searchTerm ? 300 : 0)
 
     return () => clearTimeout(timeoutId)

@@ -2,11 +2,11 @@
 
 import { use, useState, useEffect } from "react"
 import { useAuth } from "@/hooks/auth"
-import { solicitudService, descripcionCargoService, getCandidatesByProcess, copiarPlantillasASolicitud } from "@/lib/api"
+import { solicitudService, getCandidatesByProcess, copiarPlantillasASolicitud } from "@/lib/api"
 import { getHitosBySolicitud } from "@/lib/api-hitos"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs } from "@/components/ui/tabs"
 import { formatDate, getStatusColor, getSolicitudEstadoBadgeClass } from "@/lib/utils"
 import { Building2, User, Calendar, Target, FileText, Users, CheckCircle, Clock, AlertTriangle, Loader2, Globe, X, ArrowLeft } from "lucide-react"
 import { ProcessTimeline } from "@/components/consultor/process-timeline"
@@ -144,96 +144,66 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
   }, [process, isLoading])
 
-  // Recargar verificación de candidatos con estado de informe cuando cambie el proceso o el tab activo
+  // Recargar verificación M5 solo al entrar al módulo 4 (PC en etapa evaluación)
   useEffect(() => {
-    if (process && !isLoading) {
-      const serviceType = process.tipo_servicio || process.service_type
-      const currentStage = process.etapa || process.stage
-      if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
-        checkCandidatesWithReportStatus(parseInt(id))
-      } else {
-        setHasCandidatesWithReportStatus(false)
+    if (!process || isLoading || activeTab !== "modulo-4") return
+    const serviceType = process.tipo_servicio || process.service_type
+    const currentStage = process.etapa || process.stage
+    if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+      checkCandidatesWithReportStatus(parseInt(id))
+    }
+  }, [activeTab, process, isLoading, id])
+
+  const mapHitosToFrontend = (hitosData: any[], processId: number, serviceTypeForHitos: string): Hito[] =>
+    hitosData.map((hito: any) => {
+      let status: Hito['status'] = 'pendiente'
+      if (hito.fecha_cumplimiento) status = 'completado'
+      else if (serviceTypeForHitos === 'SC') {
+        status = hito.fecha_base ? 'en_progreso' : 'pendiente'
+      } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) {
+        status = 'vencido'
+      } else if (hito.fecha_base && hito.fecha_limite) {
+        status = 'en_progreso'
+      }
+      return {
+        id: hito.id_hito_solicitud.toString(),
+        process_id: processId.toString(),
+        name: hito.nombre_hito,
+        description: hito.descripcion || '',
+        start_trigger: hito.tipo_ancla || '',
+        duration_days: hito.duracion_dias || 0,
+        anticipation_days: hito.avisar_antes_dias || 0,
+        status,
+        start_date: hito.fecha_base ? new Date(hito.fecha_base).toISOString() : undefined,
+        due_date: hito.fecha_limite ? new Date(hito.fecha_limite).toISOString() : undefined,
+        completed_date: hito.fecha_cumplimiento ? new Date(hito.fecha_cumplimiento).toISOString() : undefined,
+      }
+    })
+
+  const loadHitos = async (processId: number, codigoServicio?: string) => {
+    let hitosData = await getHitosBySolicitud(processId)
+    if (hitosData.length === 0 && codigoServicio) {
+      try {
+        const copyRes = await copiarPlantillasASolicitud(processId)
+        if (copyRes.success) {
+          hitosData = await getHitosBySolicitud(processId)
+        }
+      } catch {
+        // Sin plantillas para el servicio
       }
     }
-  }, [process, activeTab, isLoading, id])
+    return hitosData
+  }
 
-  const loadProcessData = async () => {
-    try {
-      setIsLoading(true)
-      setFirstCandidateName(null)
+  const loadSecondaryData = async (processId: number, data: any) => {
+    const serviceType = data.tipo_servicio || data.service_type
+    const currentStage = data.etapa || data.stage
 
-      // Validar que el ID sea un número válido
-      const processId = parseInt(id)
-      if (isNaN(processId)) {
-        console.error('ID de proceso inválido:', id)
-        toast.error("El proceso solicitado no es válido. Por favor verifica la URL e intenta nuevamente.")
-        notFound()
-        return
-      }
-      
-      const response = await solicitudService.getById(processId)
-      
-      if (response.success && response.data) {
-        setProcess(response.data)
-        
-        // Cargar descripción de cargo si existe
-        if (response.data.id_descripcion_cargo) {
-          const dcResponse = await descripcionCargoService.getById(response.data.id_descripcion_cargo)
-          if (dcResponse.success) {
-            setDescripcionCargo(dcResponse.data)
-          }
-        }
-
-        // Cargar hitos del proceso (línea de tiempo)
-        let hitosData = await getHitosBySolicitud(processId)
-        // Si no hay hitos, intentar generarlos desde plantillas (procesos antiguos o sin hitos)
-        if (hitosData.length === 0 && response.data.codigo_servicio) {
-          try {
-            const copyRes = await copiarPlantillasASolicitud(processId)
-            if (copyRes.success) {
-              hitosData = await getHitosBySolicitud(processId)
-            }
-          } catch {
-            // Si falla (ej. sin plantillas para el servicio), se mantiene lista vacía
-          }
-        }
-        const serviceTypeForHitos = response.data.tipo_servicio || response.data.service_type
-        const mapHitosToFrontend = (data: typeof hitosData): Hito[] =>
-          data.map((hito: any) => {
-            let status: Hito['status'] = 'pendiente'
-            if (hito.fecha_cumplimiento) status = 'completado'
-            else if (serviceTypeForHitos === 'SC') {
-              // San Cristóbal: no usar vencido (plazos no son fijos), solo en progreso o pendiente
-              status = hito.fecha_base ? 'en_progreso' : 'pendiente'
-            } else if (hito.estado === 'vencido' || (hito.fecha_limite && new Date(hito.fecha_limite) < new Date())) status = 'vencido'
-            else if (hito.fecha_base && hito.fecha_limite) status = 'en_progreso'
-            return {
-              id: hito.id_hito_solicitud.toString(),
-              process_id: processId.toString(),
-              name: hito.nombre_hito,
-              description: hito.descripcion || '',
-              start_trigger: hito.tipo_ancla || '',
-              duration_days: hito.duracion_dias || 0,
-              anticipation_days: hito.avisar_antes_dias || 0,
-              status,
-              start_date: hito.fecha_base ? new Date(hito.fecha_base).toISOString() : undefined,
-              due_date: hito.fecha_limite ? new Date(hito.fecha_limite).toISOString() : undefined,
-              completed_date: hito.fecha_cumplimiento ? new Date(hito.fecha_cumplimiento).toISOString() : undefined,
-            }
-          })
-        setHitos(mapHitosToFrontend(hitosData))
-
-        // Verificar si hay candidatos con estado de informe definido (solo para procesos PC)
-        const serviceType = response.data.tipo_servicio || response.data.service_type
-        const currentStage = response.data.etapa || response.data.stage
-        if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
-          await checkCandidatesWithReportStatus(processId)
-        } else {
-          setHasCandidatesWithReportStatus(false)
-        }
-
-        // Primer candidato (por fecha) para mostrar en el encabezado: Nombre Apellido - Cargo
-        const candidates = await getCandidatesByProcess(String(processId))
+    const tasks: Promise<void>[] = [
+      loadHitos(processId, data.codigo_servicio).then((hitosData) => {
+        setHitos(mapHitosToFrontend(hitosData, processId, serviceType))
+      }),
+      getCandidatesByProcess(String(processId)).then((candidates) => {
         if (candidates && candidates.length > 0) {
           const sorted = [...candidates].sort((a: any, b: any) => {
             const dateA = a.fecha_postulacion || a.created_at || a.fecha_creacion || 0
@@ -248,6 +218,55 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         } else {
           setFirstCandidateName(null)
         }
+      }),
+    ]
+
+    if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+      tasks.push(checkCandidatesWithReportStatus(processId))
+    } else {
+      setHasCandidatesWithReportStatus(false)
+    }
+
+    await Promise.allSettled(tasks)
+  }
+
+  const loadProcessData = async () => {
+    try {
+      setIsLoading(true)
+      setFirstCandidateName(null)
+
+      const processId = parseInt(id)
+      if (isNaN(processId)) {
+        console.error('ID de proceso inválido:', id)
+        toast.error("El proceso solicitado no es válido. Por favor verifica la URL e intenta nuevamente.")
+        notFound()
+        return
+      }
+
+      const response = await solicitudService.getById(processId)
+
+      if (response.success && response.data) {
+        const data = response.data
+        setProcess(data)
+
+        const dc = data.descripcion_cargo
+        if (dc) {
+          setDescripcionCargo({
+            ...dc,
+            id_descripcioncargo: dc.id_descripcioncargo || data.id_descripcion_cargo,
+            datos_excel: data.datos_excel ?? dc.datos_excel,
+            tiene_datos_pdf: dc.tiene_datos_pdf ?? data.tiene_datos_pdf ?? false,
+          })
+        } else if (data.id_descripcion_cargo) {
+          setDescripcionCargo({
+            id_descripcioncargo: data.id_descripcion_cargo,
+            datos_excel: data.datos_excel,
+            tiene_datos_pdf: data.tiene_datos_pdf ?? false,
+          })
+        }
+
+        setIsLoading(false)
+        void loadSecondaryData(processId, data)
       } else {
         toast.error("No se pudo cargar la información del proceso. Por favor recarga la página.")
         notFound()
@@ -275,28 +294,26 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         return
       }
 
-      // Verificar si hay al menos un candidato con estado de informe definido
-      let hasReportStatus = false
-      for (const candidate of candidatesToCheck) {
-        try {
-          const evaluationResponse = await evaluacionPsicolaboralService.getByPostulacion(Number(candidate.id_postulacion))
-          const evaluation = evaluationResponse.data?.[0]
-          
-          if (evaluation && evaluation.estado_informe) {
-            const estadoInforme = evaluation.estado_informe
-            // Solo avanzan los que tienen estado: Recomendable, No recomendable, o Recomendable con observaciones
-            if (estadoInforme === "Recomendable" || 
-                estadoInforme === "No recomendable" || 
-                estadoInforme === "Recomendable con observaciones") {
-              hasReportStatus = true
-              break
-            }
-          }
-        } catch (error) {
-          console.error(`Error al verificar evaluación para candidato ${candidate.id}:`, error)
-        }
-      }
-      
+      // Verificar evaluaciones en paralelo
+      const evaluationResponses = await Promise.all(
+        candidatesToCheck.map((candidate: any) =>
+          evaluacionPsicolaboralService
+            .getByPostulacion(Number(candidate.id_postulacion))
+            .catch(() => null)
+        )
+      )
+
+      const hasReportStatus = evaluationResponses.some((evaluationResponse) => {
+        const evaluation = evaluationResponse?.data?.[0]
+        if (!evaluation?.estado_informe) return false
+        const estadoInforme = evaluation.estado_informe
+        return (
+          estadoInforme === "Recomendable" ||
+          estadoInforme === "No recomendable" ||
+          estadoInforme === "Recomendable con observaciones"
+        )
+      })
+
       setHasCandidatesWithReportStatus(hasReportStatus)
     } catch (error) {
       console.error("Error al verificar candidatos con estado de informe:", error)
@@ -384,7 +401,7 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       modules.push({ id: "modulo-3", label: "Presentación de Candidatos", icon: Target, enabled: caStagesAfterM3.includes(currentStage), isActive: activeTab === "modulo-3" })
       modules.push({ id: "modulo-entrevista-tecnica", label: "Entrevista Técnica", icon: Calendar, enabled: currentStage === "Módulo Entrevista Técnica" || caStagesAfterEntrevista.includes(currentStage), isActive: activeTab === "modulo-entrevista-tecnica" })
       modules.push({ id: "modulo-examenes-medicos", label: "Exámenes Médicos", icon: FileText, enabled: currentStage === "Módulo Exámenes Médicos" || caStagesAfterExamenes.includes(currentStage), isActive: activeTab === "modulo-examenes-medicos" })
-    } else if (serviceType === "PC" || serviceType === "LL" || serviceType === "FI" || serviceType === "HH") {
+    } else if (serviceType === "PC" || serviceType === "LL" || serviceType === "FI" || serviceType === "HH" || serviceType === "TR") {
       modules.push({ 
         id: "modulo-2", 
         label: "Publicación y Registro de Candidatos", 
@@ -616,62 +633,76 @@ export default function ProcessPage({ params }: ProcessPageProps) {
             </div>
 
             <div className="p-6">
-              <TabsContent value="modulo-1" className="mt-0">
+              {activeTab === "modulo-1" && (
                 <ProcessModule1
                   process={process}
                   descripcionCargo={descripcionCargo}
                   readOnly={viewOnly}
                 />
-              </TabsContent>
+              )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "CA" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH" || process.tipo_servicio === "PP") && (
-                <TabsContent value="modulo-2" className="mt-0">
+              {activeTab === "modulo-2" &&
+                (process.tipo_servicio === "PC" ||
+                  process.tipo_servicio === "SC" ||
+                  process.tipo_servicio === "CA" ||
+                  process.tipo_servicio === "LL" ||
+                  process.tipo_servicio === "FI" ||
+                  process.tipo_servicio === "HH" ||
+                  process.tipo_servicio === "TR" ||
+                  process.tipo_servicio === "PP") && (
                   <ProcessModule2
                     process={process}
                     readOnly={viewOnly && !coordinadorMode}
                     coordinadorMode={coordinadorMode}
                     clientViewOnly={isClienteViewOnly}
                   />
-                </TabsContent>
-              )}
+                )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "CA" || process.tipo_servicio === "LL" || process.tipo_servicio === "FI" || process.tipo_servicio === "HH") && (
-                <TabsContent value="modulo-3" className="mt-0">
+              {activeTab === "modulo-3" &&
+                (process.tipo_servicio === "PC" ||
+                  process.tipo_servicio === "SC" ||
+                  process.tipo_servicio === "CA" ||
+                  process.tipo_servicio === "LL" ||
+                  process.tipo_servicio === "FI" ||
+                  process.tipo_servicio === "HH" ||
+                  process.tipo_servicio === "TR") && (
                   <ProcessModule3 process={process} readOnly={viewOnly} clientViewOnly={isClienteViewOnly} />
-                </TabsContent>
-              )}
+                )}
 
-              {(process.tipo_servicio === "SC" || process.tipo_servicio === "CA") && (
-                <>
-                  <TabsContent value="modulo-entrevista-tecnica" className="mt-0">
-                    <ProcessModuleEntrevistaTecnica process={process} readOnly={viewOnly} onAdvance={loadProcessData} />
-                  </TabsContent>
-                  <TabsContent value="modulo-examenes-medicos" className="mt-0">
-                    <ProcessModuleExamenesMedicos
-                      process={process}
-                      readOnly={viewOnly}
-                      clientViewOnly={isClienteViewOnly}
-                      onAdvance={loadProcessData}
-                    />
-                  </TabsContent>
-                </>
-              )}
+              {activeTab === "modulo-entrevista-tecnica" &&
+                (process.tipo_servicio === "SC" || process.tipo_servicio === "CA") && (
+                  <ProcessModuleEntrevistaTecnica process={process} readOnly={viewOnly} onAdvance={loadProcessData} />
+                )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "TS" || process.tipo_servicio === "ES" || process.tipo_servicio === "EP") && (
-                <TabsContent value="modulo-4" className="mt-0">
+              {activeTab === "modulo-examenes-medicos" &&
+                (process.tipo_servicio === "SC" || process.tipo_servicio === "CA") && (
+                  <ProcessModuleExamenesMedicos
+                    process={process}
+                    readOnly={viewOnly}
+                    clientViewOnly={isClienteViewOnly}
+                    onAdvance={loadProcessData}
+                  />
+                )}
+
+              {activeTab === "modulo-4" &&
+                (process.tipo_servicio === "PC" ||
+                  process.tipo_servicio === "SC" ||
+                  process.tipo_servicio === "TS" ||
+                  process.tipo_servicio === "ES" ||
+                  process.tipo_servicio === "EP") && (
                   <ProcessModule4 process={process} readOnly={viewOnly} clientViewOnly={isClienteViewOnly} />
-                </TabsContent>
-              )}
+                )}
 
-              {(process.tipo_servicio === "PC" || process.tipo_servicio === "SC" || process.tipo_servicio === "CA") && (
-                <TabsContent value="modulo-5" className="mt-0">
+              {activeTab === "modulo-5" &&
+                (process.tipo_servicio === "PC" ||
+                  process.tipo_servicio === "SC" ||
+                  process.tipo_servicio === "CA") && (
                   <ProcessModule5 process={process} readOnly={viewOnly} />
-                </TabsContent>
-              )}
+                )}
 
-              <TabsContent value="timeline" className="mt-0">
+              {activeTab === "timeline" && (
                 <ProcessTimeline process={process} hitos={hitos} readOnly={viewOnly} />
-              </TabsContent>
+              )}
             </div>
           </Tabs>
         </CardContent>

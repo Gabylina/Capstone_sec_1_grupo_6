@@ -25,6 +25,7 @@ import { evaluacionPsicolaboralService, referenciaLaboralService, estadoClienteM
 import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
+import { EncuestaSatisfaccionPanel } from "@/components/consultor/encuesta-satisfaccion-panel"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 import {
@@ -262,7 +263,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
         const testsData: { [candidateId: string]: any[] } = {}
         const reportsData: { [candidateId: string]: CandidateReport } = {}
         
-        for (const candidate of candidatesToShow) {
+        await Promise.all(candidatesToShow.map(async (candidate) => {
           try {
             const evaluation = await getEvaluationByCandidate(candidate)
             if (evaluation) {
@@ -270,13 +271,11 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                 ? { ...evaluation, tests: [] }
                 : evaluation
               
-              // También actualizar candidateInterviews para la visualización
               interviewsData[candidate.id] = {
                 interview_date: evaluation.fecha_evaluacion ? new Date(evaluation.fecha_evaluacion) : null,
                 interview_status: evaluation.estado_evaluacion,
               }
               
-              // Mapear estado_informe a report_status para candidateReports
               let reportStatus: "recomendable" | "no_recomendable" | "recomendable_con_observaciones" | null = null
               if (evaluation.estado_informe === "Recomendable") {
                 reportStatus = "recomendable"
@@ -293,7 +292,6 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                 report_sent_date: evaluation.fecha_envio_informe ? new Date(evaluation.fecha_envio_informe).toISOString().split('T')[0] : undefined
               }
               
-              // Cargar tests de la evaluación (no disponible para vista cliente)
               if (!clientViewOnly && evaluation.tests && evaluation.tests.length > 0) {
                 testsData[candidate.id] = evaluation.tests.map((test: any, idx: number) => ({
                   id: test.id_test_psicolaboral ? String(test.id_test_psicolaboral) : `test_${candidate.id}_${idx}_${Date.now()}`,
@@ -305,7 +303,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
           } catch (error) {
             console.error(`Error al cargar evaluación para candidato ${candidate.id}:`, error)
           }
-        }
+        }))
         setEvaluations(evaluationsData)
         setCandidateInterviews(interviewsData)
         setCandidateTests(testsData)
@@ -318,10 +316,9 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
           setAvailableTests(testsResponse.data || [])
         }
 
-        // Cargar referencias laborales para cada candidato
-        for (const candidate of candidatesToShow) {
-          await loadReferencesForCandidate(Number(candidate.id))
-        }
+        await Promise.all(candidatesToShow.map((candidate) =>
+          loadReferencesForCandidate(Number(candidate.id))
+        ))
       } catch (error) {
         console.error('Error al cargar candidatos:', error)
       } finally {
@@ -4092,6 +4089,8 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
           </DialogContent>
         </Dialog>
       )}
+
+      <EncuestaSatisfaccionPanel process={process} modulo={4} readOnly={readOnly} />
     </div>
   )
 }

@@ -11,6 +11,33 @@ import { handleMulterError } from '@/config/multer';
 
 export class PostulacionController {
     /**
+     * GET /api/postulaciones/resumen-batch?ids=1,2,3
+     * Resumen ligero de candidatos por solicitud (listas consultor/admin)
+     */
+    static async getResumenBatch(req: Request, res: Response): Promise<Response> {
+        try {
+            const idsParam = (req.query.ids as string) || '';
+            const ids = idsParam
+                .split(',')
+                .map((s) => parseInt(s.trim(), 10))
+                .filter((n) => !isNaN(n) && n > 0);
+
+            if (ids.length === 0) {
+                return sendSuccess(res, {}, 'Resumen obtenido');
+            }
+            if (ids.length > 100) {
+                return sendError(res, 'Máximo 100 solicitudes por lote', 400);
+            }
+
+            const data = await PostulacionService.getResumenBatch(ids);
+            return sendSuccess(res, data, 'Resumen obtenido exitosamente');
+        } catch (error) {
+            Logger.error('Error al obtener resumen batch:', error);
+            return sendError(res, 'Error al obtener resumen', 500);
+        }
+    }
+
+    /**
      * GET /api/postulaciones/solicitud/:idSolicitud
      * Obtener todas las postulaciones de una solicitud
      */

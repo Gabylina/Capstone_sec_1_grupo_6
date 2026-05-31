@@ -12,6 +12,9 @@ const router = Router();
  */
 
 // Rutas públicas de lectura (GET)
+// Resumen batch para listas (consultor/admin)
+router.get('/resumen-batch', PostulacionController.getResumenBatch);
+
 // Obtener postulaciones por solicitud
 router.get('/solicitud/:idSolicitud', PostulacionController.getBySolicitud);
 

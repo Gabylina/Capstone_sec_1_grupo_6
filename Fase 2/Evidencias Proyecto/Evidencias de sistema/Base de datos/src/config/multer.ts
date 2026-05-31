@@ -8,18 +8,26 @@ import path from 'path';
 // Configuración de almacenamiento en memoria (para guardar en BD)
 const storage = multer.memoryStorage();
 
-// Filtro de archivos - solo PDF, DOC y DOCX
-const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowedMimes = [
-        'application/pdf',
-        'application/msword', // .doc
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
-    ];
+const isAllowedPdf = (mimetype: string, fileExtension: string) =>
+    fileExtension === '.pdf' &&
+    (
+        mimetype === 'application/pdf' ||
+        mimetype === 'application/x-pdf' ||
+        mimetype === 'application/octet-stream' ||
+        mimetype === '' ||
+        !mimetype
+    );
 
-    const allowedExtensions = ['.pdf', '.doc', '.docx'];
+const isAllowedDoc = (mimetype: string, fileExtension: string) =>
+    (fileExtension === '.doc' && mimetype === 'application/msword') ||
+    (fileExtension === '.docx' &&
+        mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+
+// Filtro de archivos - PDF, DOC y DOCX
+const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const fileExtension = path.extname(file.originalname).toLowerCase();
 
-    if (allowedMimes.includes(file.mimetype) && allowedExtensions.includes(fileExtension)) {
+    if (isAllowedPdf(file.mimetype, fileExtension) || isAllowedDoc(file.mimetype, fileExtension)) {
         cb(null, true);
     } else {
         cb(new Error('Solo se permiten archivos PDF, DOC o DOCX'));

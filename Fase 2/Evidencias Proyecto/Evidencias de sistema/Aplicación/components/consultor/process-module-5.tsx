@@ -18,13 +18,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { getCandidatesByProcess, estadoClienteM5Service, solicitudService } from "@/lib/api"
-import { satisfaccionClienteService } from "@/lib/api-satisfaccion-cliente"
 import { formatDate, isProcessBlocked } from "@/lib/utils"
-import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, Star, XCircle, Pencil, Loader2 } from "lucide-react"
+import { ArrowLeft, CheckCircle, User, Calendar, MessageSquare, XCircle, Pencil, Loader2 } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { useAuth } from "@/hooks/auth"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { EncuestaSatisfaccionPanel } from "./encuesta-satisfaccion-panel"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
@@ -280,70 +280,6 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
   const [contratacionAction, setContratacionAction] = useState<"contratado" | "no_contratado">("contratado")
   const [isSavingContratacion, setIsSavingContratacion] = useState(false)
   const [isSavingContract, setIsSavingContract] = useState(false)
-  const [showEncuestaDialog, setShowEncuestaDialog] = useState(false)
-  const [encuestaCandidate, setEncuestaCandidate] = useState<ContractedCandidate | null>(null)
-  const [encuestaForm, setEncuestaForm] = useState({ calidad: "3", tiempo: "3", apoyo: "3" })
-  const [isSavingEncuesta, setIsSavingEncuesta] = useState(false)
-
-  const openEncuestaDialog = (candidate: ContractedCandidate) => {
-    setEncuestaCandidate(candidate)
-    setEncuestaForm({ calidad: "3", tiempo: "3", apoyo: "3" })
-    setShowEncuestaDialog(true)
-  }
-
-  const handleEncuestaSubmit = async () => {
-    if (!encuestaCandidate?.id_contratacion) {
-      showToast({
-        type: "error",
-        title: "Error",
-        description: "No se encontró el registro de contratación para esta encuesta.",
-      })
-      return
-    }
-    const calidad = Number(encuestaForm.calidad)
-    const tiempo = Number(encuestaForm.tiempo)
-    const apoyo = Number(encuestaForm.apoyo)
-    if ([calidad, tiempo, apoyo].some((n) => Number.isNaN(n) || n < 1 || n > 5)) {
-      showToast({
-        type: "error",
-        title: "Validación",
-        description: "Cada dimensión debe ser una nota entre 1 y 5.",
-      })
-      return
-    }
-    setIsSavingEncuesta(true)
-    try {
-      const res = await satisfaccionClienteService.registrarEncuesta(encuestaCandidate.id_contratacion, {
-        calidad,
-        tiempo,
-        apoyo,
-      })
-      if (res.success) {
-        showToast({
-          type: "success",
-          title: "Encuesta registrada",
-          description: "La satisfacción del cliente fue guardada correctamente.",
-        })
-        setShowEncuestaDialog(false)
-        setEncuestaCandidate(null)
-        await reloadData()
-      } else {
-        showToast({
-          type: "error",
-          title: "Error",
-          description: res.message || "No se pudo registrar la encuesta.",
-        })
-      }
-    } catch {
-      showToast({
-        type: "error",
-        title: "Error",
-        description: "Error de conexión al registrar la encuesta.",
-      })
-    } finally {
-      setIsSavingEncuesta(false)
-    }
-  }
 
   const handleContractSubmit = async () => {
     if (!selectedCandidate) return
@@ -952,7 +888,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
       {isBlocked && canEditEncuesta && (
         <p className="text-sm text-muted-foreground rounded-md border border-dashed p-3 bg-muted/40">
           El proceso está finalizado, pero aún puede registrar la{" "}
-          <strong>encuesta de satisfacción</strong> en cada candidato contratado pendiente.
+          <strong>encuesta de satisfacción</strong> en la sección al final del módulo.
         </p>
       )}
 
@@ -1148,17 +1084,6 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                         )}
                       </div>
                     </div>
-                    {candidate.satisfaction_survey_pending && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!canEditEncuesta}
-                        onClick={() => openEncuestaDialog(candidate)}
-                      >
-                        <Star className="mr-2 h-4 w-4" />
-                        Encuesta de Satisfacción
-                      </Button>
-                    )}
                     {candidate.contratacion_status === "contratado" && candidate.encuesta_respondida && (
                       <Badge variant="secondary" className="text-xs">
                         Encuesta respondida
@@ -1844,61 +1769,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showEncuestaDialog} onOpenChange={setShowEncuestaDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Encuesta de satisfacción</DialogTitle>
-            <DialogDescription>
-              {encuestaCandidate?.name
-                ? `Registre la percepción del cliente sobre el servicio para ${encuestaCandidate.name} (escala 1 a 5).`
-                : "Calidad, tiempo y sensación de apoyo / expertise."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            {(
-              [
-                { key: "calidad" as const, label: "Calidad del servicio" },
-                { key: "tiempo" as const, label: "Tiempo de respuesta / gestión" },
-                { key: "apoyo" as const, label: "Sensación de apoyo / expertise" },
-              ] as const
-            ).map(({ key, label }) => (
-              <div key={key} className="grid gap-2">
-                <Label htmlFor={`encuesta-${key}`}>{label}</Label>
-                <Select
-                  value={encuestaForm[key]}
-                  onValueChange={(v) => setEncuestaForm((prev) => ({ ...prev, [key]: v }))}
-                >
-                  <SelectTrigger id={`encuesta-${key}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n} — {n === 1 ? "Muy bajo" : n === 5 ? "Excelente" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEncuestaDialog(false)} disabled={isSavingEncuesta}>
-              Cancelar
-            </Button>
-            <Button onClick={handleEncuestaSubmit} disabled={!canEditEncuesta || isSavingEncuesta}>
-              {isSavingEncuesta ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                "Guardar encuesta"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EncuestaSatisfaccionPanel process={process} modulo={5} readOnly={readOnly} onEncuestaSaved={reloadData} />
     </div>
   )
 }

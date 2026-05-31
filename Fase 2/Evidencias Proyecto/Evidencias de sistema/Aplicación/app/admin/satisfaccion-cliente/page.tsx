@@ -29,9 +29,10 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts"
-import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, Loader2, Star, XCircle } from "lucide-react"
-import type { EstadoEncuestaProceso } from "@/lib/api-satisfaccion-cliente"
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, FilterX, Loader2, Star, XCircle } from "lucide-react"
+import { Label } from "@/components/ui/label"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
+import { getTabEncuesta } from "@/lib/encuesta-modulo-config"
 
 const DIMENSION_COLORS = ["#2563eb", "#16a34a", "#d97706"]
 const PAGE_SIZE = 5
@@ -130,42 +131,21 @@ function formatNota(value: number | null | undefined) {
   return `${value.toFixed(2)} / 5`
 }
 
-function estadoProcesoBadge(estado: EstadoEncuestaProceso) {
-  switch (estado) {
-    case "respondida":
-      return (
-        <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-100">
-          Encuesta respondida
-        </Badge>
-      )
-    case "parcial":
-      return (
-        <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">
-          Respuesta parcial
-        </Badge>
-      )
-    default:
-      return (
-        <Badge variant="outline" className="text-orange-700 border-orange-300">
-          Sin respuesta
-        </Badge>
-      )
-  }
-}
-
 export default function SatisfaccionClientePage() {
   const { showToast } = useToastNotification()
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
 
   const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const [clienteFilter, setClienteFilter] = useState<string>("all")
+  const [consultorFilter, setConsultorFilter] = useState<string>("all")
   const [data, setData] = useState<SatisfaccionDashboard | null>(null)
   const [serviceTypes, setServiceTypes] = useState<Array<{ codigo: string; nombre: string }>>([])
+  const [clientes, setClientes] = useState<Array<{ id_cliente: number; nombre: string }>>([])
+  const [consultores, setConsultores] = useState<Array<{ rut_usuario: string; nombre: string }>>([])
   const [loading, setLoading] = useState(true)
   const [procesosTab, setProcesosTab] = useState("todos")
   const [procesosPage, setProcesosPage] = useState(1)
-  const [detalleTab, setDetalleTab] = useState("detalle-todos")
-  const [detallePage, setDetallePage] = useState(1)
 
   useEffect(() => {
     let cancelled = false
@@ -173,12 +153,18 @@ export default function SatisfaccionClientePage() {
     async function loadDashboard() {
       setLoading(true)
       try {
-        const res = await satisfaccionClienteService.getDashboard(serviceFilter)
+        const res = await satisfaccionClienteService.getDashboard({
+          service_type: serviceFilter,
+          cliente_id: clienteFilter,
+          consultor_id: consultorFilter,
+        })
         if (cancelled) return
 
         if (res.success && res.data) {
           setData(res.data)
           setServiceTypes(res.data.tipos_servicio)
+          setClientes(res.data.clientes_disponibles ?? [])
+          setConsultores(res.data.consultores_disponibles ?? [])
         } else {
           showToastRef.current({
             type: "error",
@@ -204,7 +190,7 @@ export default function SatisfaccionClientePage() {
     return () => {
       cancelled = true
     }
-  }, [serviceFilter])
+  }, [serviceFilter, clienteFilter, consultorFilter])
 
   const dimensionChartData = useMemo(
     () =>
@@ -241,61 +227,106 @@ export default function SatisfaccionClientePage() {
       ? Math.round((resumen.respondidas / resumen.total_encuestas) * 100)
       : 0
 
-  const procesos = data?.procesos_encuesta ?? []
-  const detalle = data?.detalle_encuestas ?? []
-  const procesosRespondidos = procesos.filter((p) => p.estado === "respondida")
-  const procesosPendientes = procesos.filter((p) => p.estado === "pendiente" || p.estado === "parcial")
-  const detalleRespondidas = detalle.filter((d) => d.respondida)
-  const detallePendientes = detalle.filter((d) => !d.respondida)
+  const encuestas = data?.detalle_encuestas ?? []
+  const encuestasRespondidas = encuestas.filter((d) => d.respondida)
+  const encuestasPendientes = encuestas.filter((d) => !d.respondida)
 
-  const procesosLista = useMemo(() => {
-    if (procesosTab === "respondidas") return procesosRespondidos
-    if (procesosTab === "pendientes") return procesosPendientes
-    return procesos
-  }, [procesosTab, procesos, procesosRespondidos, procesosPendientes])
+  const encuestasLista = useMemo(() => {
+    if (procesosTab === "respondidas") return encuestasRespondidas
+    if (procesosTab === "pendientes") return encuestasPendientes
+    return encuestas
+  }, [procesosTab, encuestas, encuestasRespondidas, encuestasPendientes])
 
-  const detalleLista = useMemo(() => {
-    if (detalleTab === "detalle-ok") return detalleRespondidas
-    if (detalleTab === "detalle-pend") return detallePendientes
-    return detalle
-  }, [detalleTab, detalle, detalleRespondidas, detallePendientes])
-
-  const procesosPaginated = useMemo(
-    () => paginate(procesosLista, procesosPage),
-    [procesosLista, procesosPage]
+  const encuestasPaginated = useMemo(
+    () => paginate(encuestasLista, procesosPage),
+    [encuestasLista, procesosPage]
   )
 
-  const detallePaginated = useMemo(
-    () => paginate(detalleLista, detallePage),
-    [detalleLista, detallePage]
-  )
+  const hasActiveFilters =
+    serviceFilter !== "all" || clienteFilter !== "all" || consultorFilter !== "all"
+
+  const clearFilters = () => {
+    setServiceFilter("all")
+    setClienteFilter("all")
+    setConsultorFilter("all")
+    setProcesosPage(1)
+  }
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Satisfacción Cliente</h1>
-          <p className="text-muted-foreground mt-1">
-            Medición y monitoreo de la satisfacción con el servicio recibido (escala 1 a 5).
-          </p>
-        </div>
-        <div className="flex items-center gap-2 min-w-[220px]">
-          <span className="text-sm text-muted-foreground whitespace-nowrap">Filtro por servicio</span>
-          <Select value={serviceFilter} onValueChange={setServiceFilter}>
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los servicios</SelectItem>
-              {serviceTypes.map((t) => (
-                <SelectItem key={t.codigo} value={t.codigo}>
-                  {t.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Satisfacción Cliente</h1>
+        <p className="text-muted-foreground mt-1">
+          Medición y monitoreo de la satisfacción con el servicio recibido (escala 1 a 5).
+        </p>
       </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+              <div className="space-y-2">
+                <Label htmlFor="filtro-servicio">Servicio</Label>
+                <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                  <SelectTrigger id="filtro-servicio" className="w-full">
+                    <SelectValue placeholder="Todos los servicios" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los servicios</SelectItem>
+                    {serviceTypes.map((t) => (
+                      <SelectItem key={t.codigo} value={t.codigo}>
+                        {t.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filtro-cliente">Cliente</Label>
+                <Select value={clienteFilter} onValueChange={setClienteFilter}>
+                  <SelectTrigger id="filtro-cliente" className="w-full">
+                    <SelectValue placeholder="Todos los clientes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los clientes</SelectItem>
+                    {clientes.map((c) => (
+                      <SelectItem key={c.id_cliente} value={String(c.id_cliente)}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="filtro-consultor">Consultor</Label>
+                <Select value={consultorFilter} onValueChange={setConsultorFilter}>
+                  <SelectTrigger id="filtro-consultor" className="w-full">
+                    <SelectValue placeholder="Todos los consultores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los consultores</SelectItem>
+                    {consultores.map((c) => (
+                      <SelectItem key={c.rut_usuario} value={c.rut_usuario}>
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters || loading}
+              className="w-full xl:w-auto shrink-0"
+            >
+              <FilterX className="mr-2 h-4 w-4" />
+              Borrar filtros
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {loading && !data ? (
         <div className="flex items-center justify-center py-24">
@@ -362,13 +393,13 @@ export default function SatisfaccionClientePage() {
             <CardHeader>
               <CardTitle>Encuestas por proceso</CardTitle>
               <CardDescription>
-                Procesos con encuesta respondida, pendiente o parcial (varias contrataciones en el mismo proceso).
+                Encuestas de satisfacción por contratación finalizada en cada proceso.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {procesos.length === 0 ? (
+              {encuestas.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
-                  No hay procesos con contrataciones finalizadas para mostrar.
+                  No hay encuestas de contrataciones finalizadas para mostrar.
                 </p>
               ) : (
                 <Tabs
@@ -380,12 +411,12 @@ export default function SatisfaccionClientePage() {
                   className="w-full"
                 >
                   <TabsList className="mb-4 flex flex-wrap h-auto gap-1">
-                    <TabsTrigger value="todos">Todos ({procesos.length})</TabsTrigger>
+                    <TabsTrigger value="todos">Todas ({encuestas.length})</TabsTrigger>
                     <TabsTrigger value="respondidas">
-                      Respondidas ({procesosRespondidos.length})
+                      Respondidas ({encuestasRespondidas.length})
                     </TabsTrigger>
                     <TabsTrigger value="pendientes">
-                      Sin respuesta / parcial ({procesosPendientes.length})
+                      Sin respuesta ({encuestasPendientes.length})
                     </TabsTrigger>
                   </TabsList>
 
@@ -395,47 +426,51 @@ export default function SatisfaccionClientePage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Proceso</TableHead>
-                            <TableHead>Cliente</TableHead>
+                            <TableHead>Candidato</TableHead>
+                            <TableHead>Consultor</TableHead>
                             <TableHead>Servicio</TableHead>
-                            <TableHead className="text-center">Encuestas</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead className="text-right">Nota prom.</TableHead>
+                            <TableHead className="text-right">Nota</TableHead>
                             <TableHead className="w-[100px]" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {procesosLista.length === 0 ? (
+                          {encuestasLista.length === 0 ? (
                             <TableRow>
                               <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                                No hay procesos en esta categoría.
+                                No hay encuestas en esta categoría.
                               </TableCell>
                             </TableRow>
                           ) : (
-                            procesosPaginated.items.map((p) => (
-                              <TableRow key={p.id_solicitud}>
+                            encuestasPaginated.items.map((d) => (
+                              <TableRow key={d.id_contratacion}>
                                 <TableCell className="font-medium">
-                                  <div>{p.proceso}</div>
-                                  <span className="text-xs text-muted-foreground">ID #{p.id_solicitud}</span>
+                                  <div>{d.proceso}</div>
+                                  <div className="text-sm text-muted-foreground">{d.cliente}</div>
+                                  <span className="text-xs text-muted-foreground">ID #{d.id_solicitud}</span>
                                 </TableCell>
-                                <TableCell>{p.cliente}</TableCell>
-                                <TableCell>{p.servicio}</TableCell>
-                                <TableCell className="text-center text-sm">
-                                  <span className="text-green-700">{p.respondidas}</span>
-                                  <span className="text-muted-foreground"> / </span>
-                                  <span>{p.total_encuestas}</span>
-                                  {p.sin_respuesta > 0 && (
-                                    <div className="text-xs text-orange-600">
-                                      {p.sin_respuesta} pendiente{p.sin_respuesta !== 1 ? "s" : ""}
-                                    </div>
+                                <TableCell>{d.candidato}</TableCell>
+                                <TableCell>{d.consultor || "Sin asignar"}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{d.codigo_servicio}</Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {d.respondida ? (
+                                    <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-100">
+                                      Respondida
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-orange-700 border-orange-300">
+                                      Sin respuesta
+                                    </Badge>
                                   )}
                                 </TableCell>
-                                <TableCell>{estadoProcesoBadge(p.estado)}</TableCell>
-                                <TableCell className="text-right">{formatNota(p.nota_promedio)}</TableCell>
+                                <TableCell className="text-right">{formatNota(d.nota_total)}</TableCell>
                                 <TableCell>
                                   <Button variant="ghost" size="sm" asChild>
                                     <Link
-                                      href={`/consultor/proceso/${p.id_solicitud}?viewOnly=1&tab=modulo-5`}
-                                      title="Registrar encuesta (Módulo 5)"
+                                      href={`/consultor/proceso/${d.id_solicitud}?viewOnly=1&tab=${getTabEncuesta(d.codigo_servicio) || "modulo-5"}`}
+                                      title={`Registrar encuesta (${getTabEncuesta(d.codigo_servicio) || "modulo-5"})`}
                                     >
                                       <ExternalLink className="h-4 w-4" />
                                     </Link>
@@ -449,90 +484,8 @@ export default function SatisfaccionClientePage() {
                     </div>
                     <TablePagination
                       currentPage={procesosPage}
-                      totalItems={procesosLista.length}
+                      totalItems={encuestasLista.length}
                       onPageChange={setProcesosPage}
-                    />
-                  </TabsContent>
-                </Tabs>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Detalle por contratación</CardTitle>
-              <CardDescription>
-                Cada fila es una encuesta asociada a un candidato contratado dentro del proceso.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {detalle.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">Sin registros de encuesta.</p>
-              ) : (
-                <Tabs
-                  value={detalleTab}
-                  onValueChange={(v) => {
-                    setDetalleTab(v)
-                    setDetallePage(1)
-                  }}
-                  className="w-full"
-                >
-                  <TabsList className="mb-4 flex flex-wrap h-auto gap-1">
-                    <TabsTrigger value="detalle-todos">Todas ({detalle.length})</TabsTrigger>
-                    <TabsTrigger value="detalle-ok">Respondidas ({detalleRespondidas.length})</TabsTrigger>
-                    <TabsTrigger value="detalle-pend">Pendientes ({detallePendientes.length})</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value={detalleTab}>
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Proceso</TableHead>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Candidato</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead className="text-right">Nota</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {detalleLista.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                                Sin registros.
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            detallePaginated.items.map((d) => (
-                              <TableRow key={d.id_contratacion}>
-                                <TableCell>
-                                  <div className="font-medium">{d.proceso}</div>
-                                  <span className="text-xs text-muted-foreground">#{d.id_solicitud}</span>
-                                </TableCell>
-                                <TableCell>{d.cliente}</TableCell>
-                                <TableCell>{d.candidato}</TableCell>
-                                <TableCell>
-                                  {d.respondida ? (
-                                    <Badge className="bg-green-100 text-green-800 border-green-300 hover:bg-green-100">
-                                      Respondida
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-orange-700 border-orange-300">
-                                      Sin respuesta
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right">{formatNota(d.nota_total)}</TableCell>
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <TablePagination
-                      currentPage={detallePage}
-                      totalItems={detalleLista.length}
-                      onPageChange={setDetallePage}
                     />
                   </TabsContent>
                 </Tabs>

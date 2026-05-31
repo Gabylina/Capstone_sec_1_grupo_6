@@ -351,16 +351,16 @@ export const descripcionCargoService = {
 
     const data = await response.json();
 
-    if (!response.ok) {
+    if (!response.ok || data.success === false) {
       throw new Error(data.message || `Error ${response.status}: ${response.statusText}`);
     }
 
     return data;
   },
 
-  // Obtener URL para visualizar el PDF (se sirve directamente desde el backend)
+  // Obtener URL para visualizar el PDF (misma base que el resto de la API)
   getPdfUrl(id: number): string {
-    return `/api/descripciones-cargo/${id}/pdf`;
+    return `${API_BASE_URL}/api/descripciones-cargo/${id}/pdf`;
   },
 
   // Eliminar descripción de cargo
@@ -1097,6 +1097,20 @@ export const postulacionService = {
     return apiRequest(`/api/postulaciones/solicitud/${idSolicitud}/optimized`);
   },
 
+  // Resumen batch para listas (consultor/admin)
+  async getResumenBatch(ids: number[]): Promise<ApiResponse<Record<string, {
+    total: number;
+    nombre: string;
+    apellido: string;
+    en_revision_count: number;
+  }>>> {
+    if (ids.length === 0) {
+      return { success: true, data: {}, message: 'Sin solicitudes' };
+    }
+    const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+    return apiRequest(`/api/postulaciones/resumen-batch?ids=${unique.join(',')}`);
+  },
+
   // Crear postulación (con CV opcional)
   async create(data: {
     id_candidato: number;
@@ -1464,9 +1478,15 @@ export const publicacionService = {
 // FUNCIONES HELPER PARA OBTENER DATOS POR PROCESO
 // ===========================================
 
-export async function getCandidatesByProcess(processId: string): Promise<any[]> {
+export async function getCandidatesByProcess(
+  processId: string,
+  options?: { full?: boolean }
+): Promise<any[]> {
   try {
-    const response = await postulacionService.getBySolicitud(parseInt(processId));
+    const id = parseInt(processId, 10);
+    const response = options?.full
+      ? await postulacionService.getBySolicitud(id)
+      : await postulacionService.getBySolicitudOptimized(id);
     if (response.success && response.data) {
       return response.data;
     }
@@ -1474,6 +1494,27 @@ export async function getCandidatesByProcess(processId: string): Promise<any[]> 
   } catch (error) {
     console.error('Error al obtener candidatos por proceso:', error);
     return [];
+  }
+}
+
+export type PostulacionResumenBatch = Record<string, {
+  total: number;
+  nombre: string;
+  apellido: string;
+  en_revision_count: number;
+}>;
+
+export async function getCandidatesSummaryBatch(processIds: string[]): Promise<PostulacionResumenBatch> {
+  try {
+    const ids = processIds.map((id) => parseInt(id, 10)).filter((n) => !isNaN(n) && n > 0);
+    const response = await postulacionService.getResumenBatch(ids);
+    if (response.success && response.data) {
+      return response.data;
+    }
+    return {};
+  } catch (error) {
+    console.error('Error al obtener resumen batch de candidatos:', error);
+    return {};
   }
 }
 

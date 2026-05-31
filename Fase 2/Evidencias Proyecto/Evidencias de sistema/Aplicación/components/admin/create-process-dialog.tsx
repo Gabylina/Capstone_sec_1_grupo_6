@@ -391,7 +391,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         const isEvaluationProcess = solicitud.service_type === 'ES' || solicitud.service_type === 'EP' || solicitud.service_type === 'TS'
         if (isEvaluationProcess) {
           try {
-            const candidatosExistentes = await getCandidatesByProcess(solicitudToEdit.id)
+            const candidatosExistentes = await getCandidatesByProcess(solicitudToEdit.id, { full: true })
             
             if (candidatosExistentes && candidatosExistentes.length > 0) {
               // Transformar candidatos al formato del formulario
@@ -604,18 +604,38 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
       return
     }
 
+    const uploads: Promise<void>[] = []
+
     if (formData.pdf_file) {
-      await descripcionCargoService.uploadPdf(descripcionCargoId, formData.pdf_file)
+      uploads.push(
+        descripcionCargoService.uploadPdf(descripcionCargoId, formData.pdf_file).then((res) => {
+          if (!res.success) {
+            throw new Error(res.message || "Error al guardar el PDF de descripción de cargo")
+          }
+        })
+      )
     }
 
     if (formData.excel_file) {
-      const excelData = await processExcelFile(formData.excel_file)
-      const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
-      if (!excelResponse.success) {
-        throw new Error(excelResponse.message || "Error al guardar los datos del Excel")
-      }
+      uploads.push(
+        processExcelFile(formData.excel_file).then(async (excelData) => {
+          const excelResponse = await descripcionCargoService.addExcelData(descripcionCargoId, excelData)
+          if (!excelResponse.success) {
+            throw new Error(excelResponse.message || "Error al guardar los datos del Excel")
+          }
+        })
+      )
     }
+
+    await Promise.all(uploads)
   }
+
+  const isPdfFile = (file: File) =>
+    file.name.toLowerCase().endsWith(".pdf") ||
+    file.type === "application/pdf" ||
+    file.type === "application/x-pdf" ||
+    file.type === "application/octet-stream" ||
+    file.type === ""
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1939,7 +1959,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                   e.preventDefault()
                   e.stopPropagation()
                   const file = e.dataTransfer.files?.[0]
-                  if (file && file.type === "application/pdf") {
+                  if (file && isPdfFile(file)) {
                     setFormData({ ...formData, pdf_file: file })
                   }
                 }}
@@ -1975,8 +1995,12 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
               <Input
                 id="pdf_file"
                 type="file"
-                accept="application/pdf"
-                onChange={(e) => setFormData({ ...formData, pdf_file: e.target.files?.[0] || null })}
+                accept=".pdf,application/pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null
+                  if (file && !isPdfFile(file)) return
+                  setFormData({ ...formData, pdf_file: file })
+                }}
                 className="hidden"
               />
 

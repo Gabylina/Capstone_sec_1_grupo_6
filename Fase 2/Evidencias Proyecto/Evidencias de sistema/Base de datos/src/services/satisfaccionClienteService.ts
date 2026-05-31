@@ -9,8 +9,10 @@ import {
     DescripcionCargo,
     Cargo,
     Candidato,
+    Usuario,
 } from '@/models';
 import { parseEncuestaSatisfaccion } from '@/utils/encuestaSatisfaccion';
+import { getServiciosConEncuesta, servicioTieneEncuesta } from '@/utils/encuestaModuloConfig';
 
 const ID_ESTADO_CONTRATADO = 1;
 
@@ -22,13 +24,20 @@ type RowContext = {
     nombreCandidato: string;
     idCliente: number;
     nombreCliente: string;
+    rutConsultor: string;
+    nombreConsultor: string;
     codigoServicio: string;
     nombreServicio: string;
     encuestaRaw?: string | null;
 };
 
 export class SatisfaccionClienteService {
-    private static async loadRows(serviceType?: string): Promise<RowContext[]> {
+    private static async loadRows(opts?: {
+        serviceType?: string;
+        clienteId?: string;
+        consultorRut?: string;
+    }): Promise<RowContext[]> {
+        const serviceType = opts?.serviceType;
         const solicitudWhere =
             serviceType && serviceType !== 'all' ? { codigo_servicio: serviceType } : undefined;
 
@@ -57,8 +66,14 @@ export class SatisfaccionClienteService {
                             as: 'solicitud',
                             required: true,
                             where: solicitudWhere,
-                            attributes: ['id_solicitud', 'codigo_servicio'],
+                            attributes: ['id_solicitud', 'codigo_servicio', 'rut_usuario'],
                             include: [
+                                {
+                                    model: Usuario,
+                                    as: 'usuario',
+                                    required: false,
+                                    attributes: ['rut_usuario', 'nombre_usuario', 'apellido_usuario'],
+                                },
                                 {
                                     model: Contacto,
                                     as: 'contacto',
@@ -116,6 +131,7 @@ export class SatisfaccionClienteService {
 
             const tipo = sol ? ((sol as any).tipoServicio as TipoServicio | undefined) : undefined;
             const codigo = sol?.codigo_servicio || tipo?.codigo_servicio || 'OTRO';
+            if (!servicioTieneEncuesta(codigo)) continue;
             const nombre = tipo?.nombre_servicio || codigo;
 
             const desc = sol ? ((sol as any).descripcionCargo as DescripcionCargo | undefined) : undefined;
@@ -129,6 +145,12 @@ export class SatisfaccionClienteService {
                 ? `${cand.nombre_candidato} ${cand.primer_apellido_candidato} ${cand.segundo_apellido_candidato || ''}`.trim()
                 : '—';
 
+            const usuario = sol ? ((sol as any).usuario as Usuario | undefined) : undefined;
+            const rutConsultor = sol?.rut_usuario || usuario?.rut_usuario || '';
+            const nombreConsultor = usuario
+                ? `${usuario.nombre_usuario} ${usuario.apellido_usuario}`.trim()
+                : 'Sin asignar';
+
             rows.push({
                 idContratacion: c.id_contratacion,
                 idSolicitud,
@@ -137,16 +159,33 @@ export class SatisfaccionClienteService {
                 nombreCandidato,
                 idCliente: cliente.id_cliente,
                 nombreCliente: cliente.nombre_cliente,
+                rutConsultor,
+                nombreConsultor,
                 codigoServicio: codigo,
                 nombreServicio: nombre,
                 encuestaRaw: c.encuesta_satisfaccion,
             });
         }
-        return rows;
+
+        let filtered = rows;
+        if (opts?.clienteId && opts.clienteId !== 'all') {
+            const idCliente = Number(opts.clienteId);
+            if (!Number.isNaN(idCliente)) {
+                filtered = filtered.filter((r) => r.idCliente === idCliente);
+            }
+        }
+        if (opts?.consultorRut && opts.consultorRut !== 'all') {
+            filtered = filtered.filter((r) => r.rutConsultor === opts.consultorRut);
+        }
+        return filtered;
     }
 
-    static async getDashboard(serviceType?: string) {
-        const rows = await this.loadRows(serviceType);
+    static async getDashboard(opts?: {
+        serviceType?: string;
+        clienteId?: string;
+        consultorRut?: string;
+    }) {
+        const rows = await this.loadRows(opts);
 
         let respondidas = 0;
         let sinRespuesta = 0;
@@ -203,9 +242,23 @@ export class SatisfaccionClienteService {
         const bottom = [...clientRanking].reverse().slice(0, 8);
 
         const tiposSet = new Map<string, string>();
-        const allRows = await this.loadRows();
+        const clientesSet = new Map<number, string>();
+        const consultoresSet = new Map<string, string>();
+        const allRows = await this.loadRows({ serviceType: opts?.serviceType });
         for (const r of allRows) {
             tiposSet.set(r.codigoServicio, r.nombreServicio);
+            clientesSet.set(r.idCliente, r.nombreCliente);
+            if (r.rutConsultor) {
+                consultoresSet.set(r.rutConsultor, r.nombreConsultor);
+            }
+        }
+
+        const tiposDb = await TipoServicio.findAll({
+            where: { codigo_servicio: getServiciosConEncuesta().map((s) => s.codigo) },
+            attributes: ['codigo_servicio', 'nombre_servicio'],
+        });
+        for (const t of tiposDb) {
+            tiposSet.set(t.codigo_servicio, t.nombre_servicio);
         }
 
         const detalleEncuestas = rows.map((row) => {
@@ -217,6 +270,9 @@ export class SatisfaccionClienteService {
                 id_postulacion: row.idPostulacion,
                 proceso: row.proceso,
                 cliente: row.nombreCliente,
+                id_cliente: row.idCliente,
+                consultor: row.nombreConsultor,
+                rut_consultor: row.rutConsultor,
                 candidato: row.nombreCandidato,
                 servicio: row.nombreServicio,
                 codigo_servicio: row.codigoServicio,
@@ -320,7 +376,18 @@ export class SatisfaccionClienteService {
                 mas_satisfechos: top,
                 menos_satisfechos: bottom,
             },
-            tipos_servicio: [...tiposSet.entries()].map(([codigo, nombre]) => ({ codigo, nombre })),
+            tipos_servicio: getServiciosConEncuesta()
+                .map(({ codigo }) => ({
+                    codigo,
+                    nombre: tiposSet.get(codigo) || codigo,
+                }))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+            clientes_disponibles: [...clientesSet.entries()]
+                .map(([id_cliente, nombre]) => ({ id_cliente, nombre }))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+            consultores_disponibles: [...consultoresSet.entries()]
+                .map(([rut_usuario, nombre]) => ({ rut_usuario, nombre }))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
             procesos_encuesta: procesosEncuesta,
             detalle_encuestas: detalleEncuestas,
         };

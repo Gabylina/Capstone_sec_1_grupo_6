@@ -1,4 +1,4 @@
-import { Transaction } from 'sequelize';
+import { Transaction, QueryTypes } from 'sequelize';
 import sequelize from '@/config/database';
 import { Logger } from '@/utils/logger';
 import { setDatabaseUser } from '@/utils/databaseUser';
@@ -197,6 +197,82 @@ export class PostulacionService {
         const transformedPostulaciones = postulaciones.map(postulacion => this.transformPostulacion(postulacion));
 
         return transformedPostulaciones;
+    }
+
+    /**
+     * Resumen ligero de candidatos por solicitud (para listas consultor/admin).
+     * Una sola query por lote en lugar de N requests getBySolicitud.
+     */
+    static async getResumenBatch(idSolicitudes: number[]): Promise<Record<number, {
+        total: number;
+        nombre: string;
+        apellido: string;
+        en_revision_count: number;
+    }>> {
+        if (idSolicitudes.length === 0) return {};
+
+        const uniqueIds = [...new Set(idSolicitudes.filter((id) => Number.isFinite(id) && id > 0))];
+        if (uniqueIds.length === 0) return {};
+
+        const summaryRows = await sequelize.query<{
+            id_solicitud: number;
+            total: number;
+            nombre: string | null;
+            apellido: string | null;
+        }>(`
+            SELECT
+                p.id_solicitud,
+                COUNT(*)::int AS total,
+                (array_agg(c.nombre_candidato ORDER BY p.fecha_envio NULLS LAST, p.id_postulacion ASC))[1] AS nombre,
+                (array_agg(c.primer_apellido_candidato ORDER BY p.fecha_envio NULLS LAST, p.id_postulacion ASC))[1] AS apellido
+            FROM postulacion p
+            INNER JOIN candidato c ON c.id_candidato = p.id_candidato
+            WHERE p.id_solicitud IN (:ids)
+            GROUP BY p.id_solicitud
+        `, {
+            replacements: { ids: uniqueIds },
+            type: QueryTypes.SELECT
+        });
+
+        const revisionRows = await sequelize.query<{
+            id_solicitud: number;
+            en_revision_count: number;
+        }>(`
+            SELECT
+                p.id_solicitud,
+                COUNT(*)::int AS en_revision_count
+            FROM postulacion p
+            INNER JOIN aprobacion_candidato_postulacion acp ON acp.id_postulacion = p.id_postulacion
+            WHERE p.id_solicitud IN (:ids)
+              AND LOWER(TRIM(acp.estado)) = 'en_revision'
+            GROUP BY p.id_solicitud
+        `, {
+            replacements: { ids: uniqueIds },
+            type: QueryTypes.SELECT
+        });
+
+        const revisionMap = new Map<number, number>();
+        (Array.isArray(revisionRows) ? revisionRows : []).forEach((row) => {
+            revisionMap.set(row.id_solicitud, row.en_revision_count);
+        });
+
+        const result: Record<number, {
+            total: number;
+            nombre: string;
+            apellido: string;
+            en_revision_count: number;
+        }> = {};
+
+        (Array.isArray(summaryRows) ? summaryRows : []).forEach((row) => {
+            result[row.id_solicitud] = {
+                total: row.total,
+                nombre: row.nombre || '',
+                apellido: row.apellido || '',
+                en_revision_count: revisionMap.get(row.id_solicitud) || 0
+            };
+        });
+
+        return result;
     }
 
     /**

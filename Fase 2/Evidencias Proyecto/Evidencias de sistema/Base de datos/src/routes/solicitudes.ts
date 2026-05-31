@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { SolicitudController } from '@/controllers/solicitudController';
 import { SolicitudEvaluacionController } from '@/controllers/solicitudEvaluacionController';
 import { BolaNieveSolicitudController } from '@/controllers/bolaNieveSolicitudController';
+import { EncuestaPanelController } from '@/controllers/encuestaPanelController';
 import { authenticateToken } from '@/middleware/auth';
 
 const router = Router();
@@ -70,6 +71,9 @@ router.put('/:id/avanzar-modulo2', SolicitudController.avanzarAModulo2);
 
 // Avanzar al módulo 3
 router.put('/:id/avanzar-modulo3', SolicitudController.avanzarAModulo3);
+
+// Panel de encuesta de satisfacción (según tipo de servicio)
+router.get('/:id(\\d+)/encuesta-panel', EncuestaPanelController.getPanel);
 
 // Bola de Nieve (registro paralelo a publicación, obligatorio PC/HH/HS para pasar a M3)
 router.get('/:id(\\d+)/bola-nieve', BolaNieveSolicitudController.getBySolicitud);

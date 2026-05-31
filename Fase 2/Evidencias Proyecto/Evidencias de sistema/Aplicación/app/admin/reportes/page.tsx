@@ -260,6 +260,7 @@ export default function ReportesPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedWeek, setSelectedWeek] = useState(defaultWeek.id)
+  const [reportTab, setReportTab] = useState("estados")
   const [activeProcesses, setActiveProcesses] = useState<Record<string, number>>({})
   const [loadingActiveProcesses, setLoadingActiveProcesses] = useState(true)
   const [serviceTypeData, setServiceTypeData] = useState<Array<{ service: string; count: number; percentage: number }>>([])
@@ -396,8 +397,10 @@ export default function ReportesPage() {
     )
   }
 
-  // Cargar procesos activos por consultor desde la API (optimizado)
+  // Cargar procesos activos por consultor (pestaña operacional)
   useEffect(() => {
+    if (reportTab !== "operacional") return
+
     const loadActiveProcesses = async () => {
       try {
         setLoadingActiveProcesses(true)
@@ -421,10 +424,12 @@ export default function ReportesPage() {
     }
 
     loadActiveProcesses()
-  }, [])
+  }, [reportTab])
 
-  // Cargar distribución por tipo de servicio desde la API (optimizado)
+  // Cargar distribución por tipo de servicio (pestaña operacional)
   useEffect(() => {
+    if (reportTab !== "operacional") return
+
     const loadServiceTypeData = async () => {
       try {
         setLoadingServiceType(true)
@@ -448,10 +453,12 @@ export default function ReportesPage() {
     }
 
     loadServiceTypeData()
-  }, [])
+  }, [reportTab])
 
-  // Cargar fuentes de candidatos desde la API (optimizado)
+  // Cargar fuentes de candidatos (pestaña operacional)
   useEffect(() => {
+    if (reportTab !== "operacional") return
+
     const loadCandidateSourceData = async () => {
       try {
         setLoadingCandidateSource(true)
@@ -475,10 +482,12 @@ export default function ReportesPage() {
     }
 
     loadCandidateSourceData()
-  }, [])
+  }, [reportTab])
 
-  // Cargar estadísticas generales desde la API (optimizado)
+  // Cargar estadísticas generales (pestaña estados)
   useEffect(() => {
+    if (reportTab !== "estados") return
+
     const loadProcessStats = async () => {
       try {
         setLoadingProcessStats(true)
@@ -505,9 +514,11 @@ export default function ReportesPage() {
     }
 
     loadProcessStats()
-  }, [])
+  }, [reportTab])
 
   useEffect(() => {
+    if (reportTab !== "estados") return
+
     const loadAverageTime = async () => {
       try {
         setLoadingAverageTime(true)
@@ -543,9 +554,11 @@ export default function ReportesPage() {
     }
 
     loadAverageTime()
-  }, [selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
+  }, [reportTab, selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
 
   useEffect(() => {
+    if (reportTab !== "estados") return
+
     const loadProcessOverview = async () => {
       try {
         setLoadingProcessOverview(true)
@@ -591,10 +604,12 @@ export default function ReportesPage() {
       }
 
       loadProcessOverview()
-    }, [selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
+    }, [reportTab, selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
 
   // useEffect separado para cargar procesos cerrados exitosos con sus propios filtros
   useEffect(() => {
+    if (reportTab !== "estados") return
+
     const loadClosedSuccessfulProcesses = async () => {
       try {
         setLoadingClosedProcesses(true)
@@ -654,15 +669,17 @@ export default function ReportesPage() {
     }
 
     loadClosedSuccessfulProcesses()
-  }, [closedProcessesYear, closedProcessesMonth, closedProcessesWeek, selectedClosedProcessesWeekOption, closedProcessesWeekOptions, closedProcessesTimePeriod])
+  }, [reportTab, closedProcessesYear, closedProcessesMonth, closedProcessesWeek, selectedClosedProcessesWeekOption, closedProcessesWeekOptions, closedProcessesTimePeriod])
 
   // Resetear página cuando cambien los filtros
   useEffect(() => {
     setClosedProcessesPage(1)
   }, [closedProcessesTimePeriod, closedProcessesYear, closedProcessesMonth, closedProcessesWeek, closedProcessesServiceFilter])
 
-  // Cargar datos de rendimiento por consultor
+  // Cargar datos de rendimiento por consultor (pestaña rendimiento)
   useEffect(() => {
+    if (reportTab !== "rendimiento") return
+
     const loadPerformanceData = async () => {
       try {
         setLoadingPerformance(true)
@@ -691,10 +708,12 @@ export default function ReportesPage() {
     }
 
     loadPerformanceData()
-  }, [])
+  }, [reportTab])
 
-  // Cargar estadísticas de cumplimiento
+  // Cargar estadísticas de cumplimiento (pestaña rendimiento)
   useEffect(() => {
+    if (reportTab !== "rendimiento") return
+
     const loadCompletionStats = async () => {
       try {
         setLoadingCompletion(true)
@@ -724,10 +743,12 @@ export default function ReportesPage() {
     }
 
     loadCompletionStats()
-  }, [])
+  }, [reportTab])
 
-  // Cargar hitos vencidos por consultor
+  // Cargar hitos vencidos por consultor (pestaña rendimiento)
   useEffect(() => {
+    if (reportTab !== "rendimiento") return
+
     const loadOverdueHitos = async () => {
       try {
         setLoadingOverdue(true)
@@ -751,7 +772,7 @@ export default function ReportesPage() {
     }
 
     loadOverdueHitos()
-  }, [])
+  }, [reportTab])
 
   // Colores para los estados
   const statusColors: Record<string, string> = {
@@ -1203,7 +1224,7 @@ export default function ReportesPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="estados" className="space-y-4">
+      <Tabs value={reportTab} onValueChange={setReportTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="estados">Estados de Procesos</TabsTrigger>
           <TabsTrigger value="operacional">Operacional</TabsTrigger>

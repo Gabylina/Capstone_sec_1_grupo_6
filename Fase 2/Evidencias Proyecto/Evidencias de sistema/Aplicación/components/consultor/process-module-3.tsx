@@ -19,6 +19,7 @@ import { ChevronDown, ChevronRight, ArrowLeft, User, Mail, Phone, DollarSign, Ca
 import type { Process, Candidate, ProcessStatus } from "@/lib/types"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { EncuestaSatisfaccionPanel } from "./encuesta-satisfaccion-panel"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -905,6 +906,8 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
           </CardContent>
         </Card>
       )}
+
+      <EncuestaSatisfaccionPanel process={process} modulo={3} readOnly={readOnly} />
 
       {/* Dialog para finalizar solicitud */}
       <Dialog open={showStatusChange} onOpenChange={setShowStatusChange}>
