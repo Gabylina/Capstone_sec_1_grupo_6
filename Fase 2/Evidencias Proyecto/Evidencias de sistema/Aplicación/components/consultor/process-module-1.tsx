@@ -28,6 +28,7 @@ import { descripcionCargoService, solicitudService, regionService, comunaService
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import CVViewerDialog from "./cv-viewer-dialog"
 import { ProcessBlocked } from "./ProcessBlocked"
+import { useProcessView } from "@/lib/process-view-context"
 
 interface ProcessModule1Props {
   process: Process
@@ -37,6 +38,7 @@ interface ProcessModule1Props {
 
 export function ProcessModule1({ process, descripcionCargo, readOnly = false }: ProcessModule1Props) {
   const { showToast } = useToastNotification()
+  const processView = useProcessView()
 
   // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
   const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -192,28 +194,36 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
   const isEvaluationProcess =
     (process.service_type === "ES" || process.service_type === "EP" || process.service_type === "TS")
 
-  // Load candidates (para proceso de evaluación)
+  // Load candidates (para proceso de evaluación; reutiliza caché en solo lectura)
   useEffect(() => {
     if (isEvaluationProcess) {
       const loadCandidates = async () => {
         try {
           setIsLoading(true)
-          const candidatesData = await getCandidatesByProcess(process.id)
+          let candidatesData: any[]
+          if (readOnly && processView?.sharedCandidates) {
+            candidatesData = processView.sharedCandidates
+          } else if (readOnly && processView) {
+            candidatesData = await processView.ensureCandidates(process.id)
+          } else {
+            candidatesData = await getCandidatesByProcess(process.id)
+          }
           setCandidates(candidatesData)
         } catch (error: any) {
           const errorMsg = processApiErrorMessage(error.message, "Error al cargar candidatos")
           console.error('❌ Error al cargar candidatos:', errorMsg)
-          // No mostrar toast aquí para no interrumpir la carga inicial, solo loguear
         } finally {
           setIsLoading(false)
         }
       }
       loadCandidates()
     }
-  }, [process.id, isEvaluationProcess])
+  }, [process.id, isEvaluationProcess, readOnly, processView?.sharedCandidates])
 
-  // Load estados disponibles
+  // Load estados disponibles (omitir en solo lectura)
   useEffect(() => {
+    if (readOnly) return
+
     const loadEstados = async () => {
       try {
         setLoadingEstados(true)
@@ -234,7 +244,7 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
       }
     }
     loadEstados()
-  }, [])
+  }, [readOnly])
 
   // Load Excel data if available
   useEffect(() => {
@@ -799,8 +809,13 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
     return age
   }
 
-  // Cargar listas desplegables
+  // Cargar listas desplegables (omitir en solo lectura)
   useEffect(() => {
+    if (readOnly) {
+      setLoadingLists(false)
+      return
+    }
+
     const loadLists = async () => {
       try {
         setLoadingLists(true)
@@ -827,7 +842,7 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
     }
 
     loadLists()
-  }, [])
+  }, [readOnly])
 
   // Filtrar comunas cuando cambia la región
   useEffect(() => {

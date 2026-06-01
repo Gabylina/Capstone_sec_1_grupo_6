@@ -23,19 +23,44 @@ import type { Hito } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
+import { ProcessViewProvider, useProcessView } from "@/lib/process-view-context"
 
 interface ProcessPageProps {
   params: Promise<{ id: string }> | { id: string }
 }
 
-export default function ProcessPage({ params }: ProcessPageProps) {
-  const { id } = use(
-    params instanceof Promise ? params : Promise.resolve(params as { id: string })
+export default function ProcessPage(props: ProcessPageProps) {
+  const { id: paramId } = use(
+    props.params instanceof Promise ? props.params : Promise.resolve(props.params as { id: string })
   )
   const searchParams = useSearchParams()
-  const router = useRouter()
   const viewOnly = searchParams.get("viewOnly") === "1" || searchParams.get("viewOnly") === "true"
   const coordinadorMode = searchParams.get("coordinador") === "1"
+  const { user } = useAuth()
+  const isClienteViewOnly = user?.role === "cliente" && viewOnly
+  const isViewOnlyMode = viewOnly || isClienteViewOnly
+
+  return (
+    <ProcessViewProvider isViewOnly={isViewOnlyMode && !coordinadorMode}>
+      <ProcessPageContent {...props} paramId={paramId} viewOnly={viewOnly} coordinadorMode={coordinadorMode} isClienteViewOnly={isClienteViewOnly} />
+    </ProcessViewProvider>
+  )
+}
+
+function ProcessPageContent({
+  paramId: id,
+  viewOnly,
+  coordinadorMode,
+  isClienteViewOnly,
+}: ProcessPageProps & {
+  paramId: string
+  viewOnly: boolean
+  coordinadorMode: boolean
+  isClienteViewOnly: boolean
+}) {
+  const router = useRouter()
+  const processView = useProcessView()
+  const isViewOnlyMode = viewOnly || isClienteViewOnly
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("modulo-1")
   const [process, setProcess] = useState<any>(null)
@@ -144,15 +169,26 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     }
   }, [process, isLoading])
 
-  // Recargar verificación M5 solo al entrar al módulo 4 (PC en etapa evaluación)
+  // Recargar verificación M5 solo al entrar al módulo 4 (PC en etapa evaluación; omitir en solo lectura)
   useEffect(() => {
-    if (!process || isLoading || activeTab !== "modulo-4") return
+    if (isViewOnlyMode || !process || isLoading || activeTab !== "modulo-4") return
     const serviceType = process.tipo_servicio || process.service_type
     const currentStage = process.etapa || process.stage
     if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
       checkCandidatesWithReportStatus(parseInt(id))
     }
-  }, [activeTab, process, isLoading, id])
+  }, [activeTab, process, isLoading, id, isViewOnlyMode])
+
+  // Hitos: cargar bajo demanda en solo lectura (pestaña timeline)
+  useEffect(() => {
+    if (!isViewOnlyMode || !process || isLoading || activeTab !== "timeline" || hitos.length > 0) return
+    const processId = parseInt(id)
+    if (isNaN(processId)) return
+    void loadHitos(processId, process.codigo_servicio).then((hitosData) => {
+      const serviceType = process.tipo_servicio || process.service_type
+      setHitos(mapHitosToFrontend(hitosData, processId, serviceType))
+    })
+  }, [activeTab, process, isLoading, id, isViewOnlyMode, hitos.length])
 
   const mapHitosToFrontend = (hitosData: any[], processId: number, serviceTypeForHitos: string): Hito[] =>
     hitosData.map((hito: any) => {
@@ -199,11 +235,19 @@ export default function ProcessPage({ params }: ProcessPageProps) {
     const serviceType = data.tipo_servicio || data.service_type
     const currentStage = data.etapa || data.stage
 
-    const tasks: Promise<void>[] = [
-      loadHitos(processId, data.codigo_servicio).then((hitosData) => {
-        setHitos(mapHitosToFrontend(hitosData, processId, serviceType))
-      }),
+    const tasks: Promise<void>[] = []
+
+    if (!isViewOnlyMode) {
+      tasks.push(
+        loadHitos(processId, data.codigo_servicio).then((hitosData) => {
+          setHitos(mapHitosToFrontend(hitosData, processId, serviceType))
+        })
+      )
+    }
+
+    tasks.push(
       getCandidatesByProcess(String(processId)).then((candidates) => {
+        processView?.setSharedCandidates(candidates)
         if (candidates && candidates.length > 0) {
           const sorted = [...candidates].sort((a: any, b: any) => {
             const dateA = a.fecha_postulacion || a.created_at || a.fecha_creacion || 0
@@ -218,10 +262,10 @@ export default function ProcessPage({ params }: ProcessPageProps) {
         } else {
           setFirstCandidateName(null)
         }
-      }),
-    ]
+      })
+    )
 
-    if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+    if (!isViewOnlyMode && serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
       tasks.push(checkCandidatesWithReportStatus(processId))
     } else {
       setHasCandidatesWithReportStatus(false)
@@ -320,8 +364,6 @@ export default function ProcessPage({ params }: ProcessPageProps) {
       setHasCandidatesWithReportStatus(false)
     }
   }
-
-  const isClienteViewOnly = user?.role === "cliente" && viewOnly
 
   // Permitir consultor, admin (viewOnly/coordinador) o cliente (viewOnly)
   if (user?.role !== "consultor" && !viewOnly && !coordinadorMode && !isClienteViewOnly) {

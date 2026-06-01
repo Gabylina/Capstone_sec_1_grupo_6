@@ -606,9 +606,9 @@ export default function ReportesPage() {
       loadProcessOverview()
     }, [reportTab, selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
 
-  // useEffect separado para cargar procesos cerrados exitosos con sus propios filtros
+  // useEffect separado para cargar procesos cerrados exitosos (pestaña Rendimiento)
   useEffect(() => {
-    if (reportTab !== "estados") return
+    if (reportTab !== "rendimiento") return
 
     const loadClosedSuccessfulProcesses = async () => {
       try {
@@ -630,25 +630,12 @@ export default function ReportesPage() {
             : undefined
         const periodType = closedProcessesTimePeriod === "week" ? "week" : closedProcessesTimePeriod === "year" ? "year" : "month"
 
-        console.log('[DEBUG] Cargando procesos cerrados exitosos:', {
-          year: closedProcessesYear,
-          month: closedProcessesMonth,
-          week,
-          periodType
-        })
-
         const response = await solicitudService.getClosedSuccessfulProcesses(
           closedProcessesYear,
           closedProcessesMonth,
           week,
           periodType
         )
-
-        console.log('[DEBUG] Respuesta de procesos cerrados exitosos:', {
-          success: response.success,
-          dataLength: response.data?.length || 0,
-          data: response.data
-        })
 
         if (response.success && response.data) {
           setClosedSuccessfulProcesses(response.data as any)

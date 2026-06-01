@@ -26,6 +26,7 @@ import { formatDate, processStatusLabels, getStatusColor } from "@/lib/utils"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { ProcessBlocked } from "@/components/consultor/ProcessBlocked"
 import { EncuestaSatisfaccionPanel } from "@/components/consultor/encuesta-satisfaccion-panel"
+import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
 import { useFormValidation, validationSchemas } from "@/hooks/useFormValidation"
 import { ValidationErrorDisplay } from "@/components/ui/ValidatedFormComponents"
 import {
@@ -129,6 +130,8 @@ interface ProcessModule4Props {
 
 function ProcessModule4Component({ process, readOnly = false, clientViewOnly = false }: ProcessModule4Props) {
   const { showToast } = useToastNotification()
+  const viewOnlyMode = isProcessViewOnly(readOnly, clientViewOnly)
+  const processView = useProcessView()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -200,10 +203,16 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
     const loadData = async () => {
       try {
         setIsLoading(true)
-        // Usar endpoint optimizado para evitar consultas innecesarias a institución
         const { postulacionService } = await import('@/lib/api')
-        const response = await postulacionService.getBySolicitudOptimized(Number(process.id))
-        const allCandidates = response.data || []
+        let allCandidates: Candidate[]
+        if (viewOnlyMode && processView?.sharedCandidates) {
+          allCandidates = processView.sharedCandidates as Candidate[]
+        } else if (viewOnlyMode && processView) {
+          allCandidates = (await processView.ensureCandidates(process.id)) as Candidate[]
+        } else {
+          const response = await postulacionService.getBySolicitudOptimized(Number(process.id))
+          allCandidates = response.data || []
+        }
         const serviceType = process.service_type || (process as any).tipo_servicio
         const isEvaluationProcess = serviceType === "ES" || serviceType === "EP" || serviceType === "TS"
         const isSanCristobal = (serviceType as string) === "SC" || (serviceType as string) === "CA"
@@ -309,16 +318,18 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
         setCandidateTests(testsData)
         setCandidateReports(reportsData)
 
-        // Cargar tests disponibles (solo consultor/admin)
-        if (!clientViewOnly) {
+        // Cargar tests disponibles (solo consultor en edición)
+        if (!clientViewOnly && !viewOnlyMode) {
           const { testPsicolaboralService } = await import('@/lib/api')
           const testsResponse = await testPsicolaboralService.getAll()
           setAvailableTests(testsResponse.data || [])
         }
 
-        await Promise.all(candidatesToShow.map((candidate) =>
-          loadReferencesForCandidate(Number(candidate.id))
-        ))
+        if (!viewOnlyMode) {
+          await Promise.all(candidatesToShow.map((candidate) =>
+            loadReferencesForCandidate(Number(candidate.id))
+          ))
+        }
       } catch (error) {
         console.error('Error al cargar candidatos:', error)
       } finally {
@@ -326,13 +337,14 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
       }
     }
     loadData()
-  }, [process.id, process.service_type, clientViewOnly])
+  }, [process.id, process.service_type, clientViewOnly, viewOnlyMode, processView?.sharedCandidates])
 
   // Cargar estado del proceso y estados disponibles para finalización (solo ES y TS)
   useEffect(() => {
-    // Inicializar estado desde el proceso
     const initialStatus = (process.estado_solicitud || process.status || "") as string
     setProcessStatus(initialStatus)
+
+    if (viewOnlyMode) return
 
     const loadProcessStatus = async () => {
       try {
@@ -392,7 +404,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
 
     loadProcessStatus()
     loadEstados()
-  }, [process.id, process.service_type])
+  }, [process.id, process.service_type, viewOnlyMode])
 
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [showInterviewDialog, setShowInterviewDialog] = useState(false)

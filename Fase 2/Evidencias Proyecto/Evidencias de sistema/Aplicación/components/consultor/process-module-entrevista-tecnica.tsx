@@ -21,6 +21,7 @@ import { getCandidatesByProcess, solicitudService, entrevistaTecnicaService } fr
 import { Calendar, Clock, Loader2, User, Settings, ChevronDown, ChevronRight } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 import { toast } from "sonner"
+import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -42,6 +43,8 @@ interface ProcessModuleEntrevistaTecnicaProps {
 }
 
 export function ProcessModuleEntrevistaTecnica({ process, readOnly = false, onAdvance }: ProcessModuleEntrevistaTecnicaProps) {
+  const viewOnlyMode = isProcessViewOnly(readOnly, false)
+  const processView = useProcessView()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAdvancing, setIsAdvancing] = useState(false)
@@ -86,7 +89,14 @@ export function ProcessModuleEntrevistaTecnica({ process, readOnly = false, onAd
     const load = async () => {
       try {
         setIsLoading(true)
-        const list = await getCandidatesByProcess(process.id)
+        let list: Candidate[]
+        if (viewOnlyMode && processView?.sharedCandidates) {
+          list = processView.sharedCandidates as Candidate[]
+        } else if (viewOnlyMode && processView) {
+          list = (await processView.ensureCandidates(process.id)) as Candidate[]
+        } else {
+          list = await getCandidatesByProcess(process.id)
+        }
         // Solo candidatos aprobados por el cliente (rechazados no deben verse en Entrevista Técnica)
         const aprobadosCliente = list.filter((c: Candidate) => (c as any).client_response === "aprobado" || (c as any).estado_candidato === "aprobado")
         setCandidates(aprobadosCliente)
@@ -132,7 +142,7 @@ export function ProcessModuleEntrevistaTecnica({ process, readOnly = false, onAd
       }
     }
     load()
-  }, [process.id])
+  }, [process.id, viewOnlyMode, processView?.sharedCandidates])
 
   const openGestionar = (c: Candidate) => {
     const id = String((c as any).id_candidato ?? (c as any).id ?? c)

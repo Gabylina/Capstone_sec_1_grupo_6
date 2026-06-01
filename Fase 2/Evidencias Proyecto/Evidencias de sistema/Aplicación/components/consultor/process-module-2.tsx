@@ -73,6 +73,7 @@ import { CandidateReviewDetail } from "./candidate-review-detail"
 import { CandidateForm } from "./candidate-form"
 import { getApprovalStatusBadgeClass } from "@/lib/approval-utils"
 import { EncuestaSatisfaccionPanel } from "./encuesta-satisfaccion-panel"
+import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -195,6 +196,8 @@ interface ProcessModule2Props {
 export function ProcessModule2({ process, readOnly = false, coordinadorMode = false, clientViewOnly = false }: ProcessModule2Props) {
 
   console.log('=== ProcessModule2 RENDERIZADO ===')
+  const viewOnlyMode = isProcessViewOnly(readOnly, clientViewOnly)
+  const processView = useProcessView()
   const { showToast } = useToastNotification()
   const { errors, validateField, validateAllFields, clearAllErrors, setFieldError, clearError } = useFormValidation()
 
@@ -363,6 +366,10 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
   // Cargar listas desplegables
 
   useEffect(() => {
+    if (viewOnlyMode) {
+      setLoadingLists(false)
+      return
+    }
 
     const loadLists = async () => {
 
@@ -429,7 +436,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
     loadLists()
 
-  }, [])
+  }, [viewOnlyMode])
 
 
 
@@ -438,7 +445,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     if (process?.id && !isNaN(parseInt(process.id))) {
       loadData()
     }
-  }, [process.id])
+  }, [process.id, viewOnlyMode, processView?.sharedCandidates])
 
   // Efecto para configurar comunas filtradas cuando se abre el formulario de editar
   useEffect(() => {
@@ -454,8 +461,10 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     }
   }, [showEditCandidate, editingCandidate?.region, regiones, todasLasComunas])
 
-  // Cargar estados disponibles para PP (Publicación Portales)
+  // Cargar estados disponibles para PP (Publicación Portales) — omitir en solo lectura
   useEffect(() => {
+    if (viewOnlyMode) return
+
     const loadEstados = async () => {
       const processAny = process as any
       if (processAny.tipo_servicio !== "PP" && process.service_type !== "PP") return
@@ -482,7 +491,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     }
 
     loadEstados()
-  }, [(process as any).tipo_servicio, process.service_type])
+  }, [(process as any).tipo_servicio, process.service_type, viewOnlyMode])
 
   // Función para obtener el label dinámico según el estado seleccionado (PP)
   const getReasonLabel = (): string => {
@@ -618,9 +627,16 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
       const publicationsResponse = await publicacionService.getAll({ solicitud_id: processId })
       const publicationsData = publicationsResponse.success && publicationsResponse.data ? publicationsResponse.data : []
       
-      // Cargar candidatos desde el backend (postulaciones)
-      const candidatesResponse = await postulacionService.getBySolicitud(processId)
-      const candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
+      // Cargar candidatos (optimizado + caché compartida en solo lectura)
+      let candidatesData: Candidate[] = []
+      if (viewOnlyMode && processView?.sharedCandidates) {
+        candidatesData = processView.sharedCandidates as Candidate[]
+      } else if (viewOnlyMode && processView) {
+        candidatesData = (await processView.ensureCandidates(process.id)) as Candidate[]
+      } else {
+        const candidatesResponse = await postulacionService.getBySolicitud(processId)
+        candidatesData = candidatesResponse.success && candidatesResponse.data ? candidatesResponse.data : []
+      }
       
         setPublications(publicationsData)
 
@@ -931,9 +947,9 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     )
   }, [professionForms])
 
-  // Listener para sincronización con Módulo 3
-
+  // Listener para sincronización con Módulo 3 (solo edición)
   useEffect(() => {
+    if (viewOnlyMode) return
 
     const checkForSyncData = () => {
 
@@ -1017,7 +1033,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
     }
 
-  }, [process.id])
+  }, [process.id, viewOnlyMode])
 
 
 

@@ -26,6 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -82,6 +83,8 @@ interface ProcessModule3Props {
 
 export function ProcessModule3({ process, readOnly = false, clientViewOnly = false }: ProcessModule3Props) {
   const { showToast } = useToastNotification()
+  const viewOnlyMode = isProcessViewOnly(readOnly, clientViewOnly)
+  const processView = useProcessView()
   const { errors, validateField, validateAllFields, clearError, clearAllErrors } = useFormValidation()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -125,32 +128,39 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
       try {
         setIsLoading(true)
         
-        // Cargar candidatos
-        const allCandidates = await getCandidatesByProcess(process.id)
+        let allCandidates: Candidate[]
+        if (viewOnlyMode && processView?.sharedCandidates) {
+          allCandidates = processView.sharedCandidates as Candidate[]
+        } else if (viewOnlyMode && processView) {
+          allCandidates = (await processView.ensureCandidates(process.id)) as Candidate[]
+        } else {
+          allCandidates = await getCandidatesByProcess(process.id)
+        }
         const filteredCandidates = allCandidates.filter((c: Candidate) => c.presentation_status === "presentado")
         setCandidates(filteredCandidates)
         
-        // Cargar estados de cliente
-        const estadosResponse = await estadoClienteService.getAll()
-        if (estadosResponse.success && estadosResponse.data) {
-          setEstadosCliente(estadosResponse.data)
-        } else if (!estadosResponse.success) {
-          // Si hay un error en la respuesta, procesarlo pero no bloquear la carga
-          const errorMsg = processApiErrorMessage(estadosResponse.message, "Error al cargar estados de cliente")
-          console.error('Error al cargar estados de cliente:', errorMsg)
+        if (!viewOnlyMode) {
+          const estadosResponse = await estadoClienteService.getAll()
+          if (estadosResponse.success && estadosResponse.data) {
+            setEstadosCliente(estadosResponse.data)
+          } else if (!estadosResponse.success) {
+            const errorMsg = processApiErrorMessage(estadosResponse.message, "Error al cargar estados de cliente")
+            console.error('Error al cargar estados de cliente:', errorMsg)
+          }
         }
       } catch (error: any) {
         console.error('Error al cargar datos:', error)
-        // No mostrar toast aquí para no interrumpir la carga inicial, solo loguear
       } finally {
         setIsLoading(false)
       }
     }
     loadData()
-  }, [process.id])
+  }, [process.id, viewOnlyMode, processView?.sharedCandidates])
 
-  // Cargar estados de solicitud disponibles para finalización (LL, FI, HH, TR)
+  // Cargar estados de solicitud disponibles para finalización (LL, FI, HH, TR) — omitir en solo lectura
   useEffect(() => {
+    if (viewOnlyMode) return
+
     const loadEstados = async () => {
       // Cargar estados si es Long List, Filtro Inteligente, Head Hunting o Targeted Recruitment
       const serviceType = (process.service_type as string)?.toLowerCase() || ""
@@ -202,7 +212,7 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
       }
     }
     loadEstados()
-  }, [process.service_type])
+  }, [process.service_type, viewOnlyMode])
 
   const [expandedCandidate, setExpandedCandidate] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})

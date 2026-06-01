@@ -22,6 +22,7 @@ import { DocumentViewerDialog } from "./document-viewer-dialog"
 import { FileText, Loader2, User, Upload, Plus, Trash2, Eye, ChevronDown, ChevronRight, Save, Settings } from "lucide-react"
 import type { Process, Candidate } from "@/lib/types"
 import { toast } from "sonner"
+import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
 
 export interface ExamenItem {
   id: string
@@ -48,6 +49,8 @@ function generateId() {
 }
 
 export function ProcessModuleExamenesMedicos({ process, readOnly = false, clientViewOnly = false, onAdvance }: ProcessModuleExamenesMedicosProps) {
+  const viewOnlyMode = isProcessViewOnly(readOnly, clientViewOnly)
+  const processView = useProcessView()
   const [candidates, setCandidates] = useState<Candidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isAdvancing, setIsAdvancing] = useState(false)
@@ -78,7 +81,14 @@ export function ProcessModuleExamenesMedicos({ process, readOnly = false, client
   const loadData = async (skipLoadingSpinner = false) => {
     try {
       if (!skipLoadingSpinner) setIsLoading(true)
-      const list = await getCandidatesByProcess(process.id)
+      let list: Candidate[]
+      if (viewOnlyMode && processView?.sharedCandidates) {
+        list = processView.sharedCandidates as Candidate[]
+      } else if (viewOnlyMode && processView) {
+        list = (await processView.ensureCandidates(process.id)) as Candidate[]
+      } else {
+        list = await getCandidatesByProcess(process.id)
+      }
       const aprobadosCliente = list.filter((c: Candidate) => (c as any).client_response === "aprobado" || (c as any).estado_candidato === "aprobado")
       const idSolicitud = Number(process.id)
       const entrevistasRes = await entrevistaTecnicaService.getBySolicitud(idSolicitud)

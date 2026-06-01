@@ -231,8 +231,10 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
     loadData()
   }, [process.id])
 
-  // Cargar estados de solicitud disponibles para finalización
+  // Cargar estados de solicitud disponibles para finalización — omitir en solo lectura
   useEffect(() => {
+    if (readOnly) return
+
     const loadEstados = async () => {
       try {
         setLoadingEstados(true)
@@ -259,7 +261,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
       }
     }
     loadEstados()
-  }, [])
+  }, [readOnly])
 
   const [contractedCandidates, setContractedCandidates] = useState<ContractedCandidate[]>([])
   const [showContractDialog, setShowContractDialog] = useState(false)
