@@ -6,6 +6,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { config } from '@/config';
 import { Logger } from '@/utils/logger';
+import { logMailConfigStatus } from '@/services/emailService';
 import { errorHandler, notFoundHandler } from '@/middleware/errorHandler';
 import { connectionManager } from '@/middleware/connectionManager';
 import { captureUserContext } from '@/middleware/captureUserContext';
@@ -359,10 +360,7 @@ app.use(errorHandler);
 export const initializeApp = async (): Promise<void> => {
   try {
     Logger.info('Inicializando aplicación LL Consulting...');
-    
-    // Aquí se pueden agregar inicializaciones adicionales
-    // como conexión a base de datos, etc.
-    
+    logMailConfigStatus();
     Logger.info('✅ Aplicación inicializada correctamente');
   } catch (error) {
     Logger.error('❌ Error al inicializar la aplicación:', error);

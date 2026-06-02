@@ -3,6 +3,7 @@ import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { SolicitudEvaluacionService } from '@/services/solicitudEvaluacionService';
 import { parseLocalDate } from '@/utils/validators';
+import { notifyConsultorNewSolicitud } from '@/services/emailService';
 
 /**
  * Controlador para solicitudes de evaluación/test psicolaboral
@@ -60,7 +61,16 @@ export class SolicitudEvaluacionController {
             }, req.user?.id);
 
             Logger.info(`Solicitud de evaluación creada: ${resultado.data.solicitud_id} con ${resultado.data.candidatos_creados} candidatos`);
-            
+
+            void notifyConsultorNewSolicitud(resultado.data.solicitud_id, {
+                candidatosCount: resultado.data.candidatos_creados,
+            }).catch(err => {
+                Logger.error(
+                    'Error enviando correo de nueva solicitud (evaluación) ' + resultado.data.solicitud_id,
+                    err
+                );
+            });
+
             return sendSuccess(res, resultado.data, resultado.message, 201);
 
         } catch (error: any) {
