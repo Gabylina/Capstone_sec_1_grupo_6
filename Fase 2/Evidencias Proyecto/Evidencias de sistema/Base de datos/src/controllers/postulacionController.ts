@@ -95,6 +95,7 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion,
                     comentario_no_presentado,
+                    comentario_candidato,
                     situacion_familiar
                 } = req.body;
 
@@ -108,6 +109,7 @@ export class PostulacionController {
                     disponibilidad_postulacion,
                     valoracion: valoracion ? parseInt(valoracion) : undefined,
                     comentario_no_presentado,
+                    comentario_candidato,
                     situacion_familiar,
                     cv_file: cvFile
                 }, req.user?.id);
@@ -226,7 +228,8 @@ export class PostulacionController {
                 expectativa_renta, 
                 disponibilidad_postulacion,
                 situacion_familiar,
-                comentario_no_presentado 
+                comentario_no_presentado,
+                comentario_candidato
             } = req.body;
 
             console.log('🔍 === ACTUALIZANDO VALORACIÓN ===');
@@ -246,7 +249,8 @@ export class PostulacionController {
                 expectativa_renta: expectativa_renta ? parseFloat(expectativa_renta) : undefined,
                 disponibilidad_postulacion,
                 situacion_familiar,
-                comentario_no_presentado
+                comentario_no_presentado,
+                comentario_candidato
             }, req.user?.id);
 
             Logger.info(`Postulación actualizada ${id}`);

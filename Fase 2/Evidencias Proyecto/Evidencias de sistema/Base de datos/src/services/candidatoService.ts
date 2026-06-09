@@ -622,6 +622,7 @@ export class CandidatoService {
             start_date: string;
             end_date: string;
             description: string;
+            exit_reason?: string;
         }>;
         education?: Array<{
             title: string;
@@ -776,7 +777,8 @@ export class CandidatoService {
                                 cargo: exp.position.trim(),
                                 fecha_inicio_experiencia: exp.start_date ? this.parseDateOnly(exp.start_date) : new Date(),
                                 fecha_fin_experiencia: exp.end_date ? this.parseDateOnly(exp.end_date) : undefined,
-                                descripcion_funciones_experiencia: exp.description || ''
+                                descripcion_funciones_experiencia: exp.description || '',
+                                motivo_salida_experiencia: exp.exit_reason?.trim() || undefined
                             }, { transaction });
                         }
                     }
@@ -959,6 +961,7 @@ export class CandidatoService {
                     fecha_inicio_experiencia: exp.start_date ? this.parseDateOnly(exp.start_date) : new Date(),
                     fecha_fin_experiencia: exp.end_date ? this.parseDateOnly(exp.end_date) : undefined,
                     descripcion_funciones_experiencia: exp.description || '',
+                    motivo_salida_experiencia: exp.exit_reason?.trim() || undefined,
                     id_candidato: idCandidato
                 }, { transaction: useTransaction });
             }
@@ -994,7 +997,7 @@ export class CandidatoService {
             is_current: !exp.fecha_fin_experiencia,
             description: exp.descripcion_funciones_experiencia || '',
             comments: '',
-            exit_reason: ''
+            exit_reason: exp.motivo_salida_experiencia || ''
         }));
     }
 
@@ -1012,7 +1015,8 @@ export class CandidatoService {
             cargo: data.position,
             fecha_inicio_experiencia: data.start_date ? this.parseDateOnly(data.start_date) : experiencia.fecha_inicio_experiencia,
             fecha_fin_experiencia: data.end_date ? this.parseDateOnly(data.end_date) : undefined,
-            descripcion_funciones_experiencia: data.description || experiencia.descripcion_funciones_experiencia
+            descripcion_funciones_experiencia: data.description || experiencia.descripcion_funciones_experiencia,
+            motivo_salida_experiencia: data.exit_reason?.trim() || undefined
         });
 
         return { id };
@@ -1191,7 +1195,7 @@ export class CandidatoService {
                 is_current: !exp.fecha_fin_experiencia,
                 description: exp.descripcion_funciones_experiencia,
                 comments: '',
-                exit_reason: ''
+                exit_reason: exp.motivo_salida_experiencia || ''
             })) || [],
             education: candidato.postgradosCapacitaciones?.map((edu: any) => ({
                 id: edu.id_postgradocapacitacion.toString(),
@@ -1313,9 +1317,9 @@ export class CandidatoService {
                 id_estado_candidato: idEstadoCandidato
             };
 
-            // Si es "no_presentado", agregar el comentario
-            if (status === 'no_presentado' && comment) {
-                updateData.comentario_no_presentado = comment;
+            // Guardar comentario del cambio de estado (presentado o no presentado)
+            if (comment?.trim()) {
+                updateData.comentario_no_presentado = comment.trim();
             }
 
             await postulacion.update(updateData, { transaction });

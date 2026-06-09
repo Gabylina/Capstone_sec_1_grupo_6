@@ -55,7 +55,8 @@ export interface Client {
   id: string
   name: string
   contacts: ClientContact[] // Array de contactos en lugar de un solo contacto
-  processCount?: number // Cantidad de procesos/solicitudes del cliente
+  processCount?: number // Total de procesos/solicitudes del cliente
+  activeProcessCount?: number // Procesos activos (no cerrados ni cancelados)
 }
 
 export interface Process {
@@ -134,6 +135,8 @@ export interface Candidate {
   portal_responses?: PortalResponses
   // Consultant comment about the candidate
   consultant_comment?: string
+  // Comments about the candidate (consultant notes for export / long list)
+  candidate_comments?: string
   // Presentation status and reason
   presentation_status?: "agregado" | "presentado" | "no_presentado" | "rechazado"
   rejection_reason?: string

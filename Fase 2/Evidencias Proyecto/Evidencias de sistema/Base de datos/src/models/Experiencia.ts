@@ -12,10 +12,11 @@ interface ExperienciaAttributes {
     fecha_inicio_experiencia: Date;
     fecha_fin_experiencia?: Date;
     descripcion_funciones_experiencia: string;
+    motivo_salida_experiencia?: string;
     id_candidato: number;
 }
 
-interface ExperienciaCreationAttributes extends Optional<ExperienciaAttributes, 'id_experiencia' | 'fecha_fin_experiencia'> { }
+interface ExperienciaCreationAttributes extends Optional<ExperienciaAttributes, 'id_experiencia' | 'fecha_fin_experiencia' | 'motivo_salida_experiencia'> { }
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -28,6 +29,7 @@ class Experiencia extends Model<ExperienciaAttributes, ExperienciaCreationAttrib
     public fecha_inicio_experiencia!: Date;
     public fecha_fin_experiencia?: Date;
     public descripcion_funciones_experiencia!: string;
+    public motivo_salida_experiencia?: string;
     public id_candidato!: number;
 }
 
@@ -95,6 +97,16 @@ Experiencia.init({
             len: {
                 args: [10, 500],
                 msg: 'La descripción debe tener entre 10 y 500 caracteres'
+            }
+        }
+    },
+    motivo_salida_experiencia: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        validate: {
+            len: {
+                args: [0, 500],
+                msg: 'El motivo de salida no puede exceder 500 caracteres'
             }
         }
     },

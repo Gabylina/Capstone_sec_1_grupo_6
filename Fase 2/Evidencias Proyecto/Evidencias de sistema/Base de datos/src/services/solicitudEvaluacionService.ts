@@ -317,9 +317,14 @@ export class SolicitudEvaluacionService {
                 throw new Error('Solicitud no encontrada');
             }
 
+            if (data.service_type && data.service_type !== solicitud.codigo_servicio) {
+                throw new Error(
+                    'No se puede cambiar el tipo de proceso una vez creado. La línea de tiempo depende del tipo original.'
+                );
+            }
+
             // Actualizar campos de la solicitud si se proporcionan
             if (data.contact_id) solicitud.id_contacto = data.contact_id;
-            if (data.service_type) solicitud.codigo_servicio = data.service_type;
             if (data.consultant_id) solicitud.rut_usuario = data.consultant_id;
             
             // Actualizar fecha de ingreso si se proporciona
@@ -334,10 +339,10 @@ export class SolicitudEvaluacionService {
                 solicitud.fecha_ingreso_solicitud = fechaIngreso;
             }
 
-            // Recalcular fecha límite si se cambia el servicio o la fecha de ingreso
+            // Recalcular fecha límite si se cambia la fecha de ingreso
             const fechaIngresoParaCalculo = data.fecha_ingreso_solicitud || solicitud.fecha_ingreso_solicitud;
-            if (data.service_type || data.fecha_ingreso_solicitud) {
-                const codigoServicio = data.service_type || solicitud.codigo_servicio;
+            if (data.fecha_ingreso_solicitud) {
+                const codigoServicio = solicitud.codigo_servicio;
                 const diasHabiles = obtenerDuracionProceso(codigoServicio);
                 const nuevaFecha = await FechasLaborales.sumarDiasHabiles(fechaIngresoParaCalculo, diasHabiles);
                 solicitud.plazo_maximo_solicitud = nuevaFecha;

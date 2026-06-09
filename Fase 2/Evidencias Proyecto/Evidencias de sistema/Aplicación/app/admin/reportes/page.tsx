@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from "recharts"
 import { solicitudService } from "@/lib/api"
-import { Users, Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight, Download, Eye, Pause } from "lucide-react"
+import { Clock, Target, TrendingUp, AlertTriangle, ChevronLeft, ChevronRight, Download, Eye } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useState, useEffect, useMemo, Fragment } from "react"
@@ -75,6 +75,7 @@ type ProcessOverviewProcess = {
   deadline: string | null
   closedAt: string | null
   daysOpen: number | null
+  businessDaysOpen: number | null
   daysUntilDeadline: number | null
   urgency: "no_deadline" | "on_track" | "due_soon" | "overdue" | "closed_on_time" | "closed_overdue"
 }
@@ -104,6 +105,14 @@ type ProcessOverviewData = {
     averageCloseDays: number
     cancelledCount: number
   }
+  periodActiveSnapshot?: Array<{
+    id: number
+    serviceCode: string
+    serviceName: string
+    consultant: string
+    statusAtEnd: string
+    urgencyAtEnd: 'on_track' | 'overdue' | 'no_deadline'
+  }>
 }
 
 const weekLabelFormatter = new Intl.DateTimeFormat("es-CL", {
@@ -255,6 +264,7 @@ export default function ReportesPage() {
     return errorMessage || defaultMessage
   }
   
+
   const defaultWeek = getDefaultWeekInfo()
   const [timePeriod, setTimePeriod] = useState<"month" | "week" | "year">("month")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -267,19 +277,33 @@ export default function ReportesPage() {
   const [loadingServiceType, setLoadingServiceType] = useState(true)
   const [candidateSourceData, setCandidateSourceData] = useState<Array<{ source: string; candidates: number; hired: number }>>([])
   const [loadingCandidateSource, setLoadingCandidateSource] = useState(true)
-  const [processStats, setProcessStats] = useState<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount: number }>({
-    activeProcesses: 0,
-    avgTimeToHire: 0,
-    totalCandidates: 0,
-    pausedCount: 0
-  })
-  const [loadingProcessStats, setLoadingProcessStats] = useState(true)
+  // --- KPIs cards nuevas ---
+  type SummaryCardsData = {
+    totalProcesses: number
+    closedProcesses: number
+    closingTimes: { min: number | null; max: number | null; avg: number | null }
+    plazoStats: { withinDeadline: number; outsideDeadline: number; totalWithDeadline: number }
+    filters: {
+      availableYears: number[]
+      availableServices: Array<{ code: string; name: string }>
+      availableConsultants: string[]
+    }
+  }
+  const [summaryCards, setSummaryCards] = useState<SummaryCardsData | null>(null)
+  const [loadingSummaryCards, setLoadingSummaryCards] = useState(true)
+  const [cardYear, setCardYear] = useState<string>("all")
+  const [cardService, setCardService] = useState<string>("all")
+  const [cardConsultant, setCardConsultant] = useState<string>("all")
   const [averageTimeData, setAverageTimeData] = useState<AverageTimeItem[]>([])
   const [loadingAverageTime, setLoadingAverageTime] = useState(true)
   const [processOverview, setProcessOverview] = useState<ProcessOverviewData | null>(null)
   const [loadingProcessOverview, setLoadingProcessOverview] = useState(true)
   const [currentProcessesPage, setCurrentProcessesPage] = useState(1)
   const [processTypeFilter, setProcessTypeFilter] = useState<string>("all")
+  const [selectedStateConsultant, setSelectedStateConsultant] = useState<string>("all")
+  const [urgencyServiceFilter, setUrgencyServiceFilter] = useState<string>("all")
+  const [urgencyConsultantFilter, setUrgencyConsultantFilter] = useState<string>("all")
+  const [tableConsultantFilter, setTableConsultantFilter] = useState<string>("all")
   const [performanceData, setPerformanceData] = useState<Array<{
     consultant: string;
     processesCompleted: number;
@@ -484,37 +508,29 @@ export default function ReportesPage() {
     loadCandidateSourceData()
   }, [reportTab])
 
-  // Cargar estadísticas generales (pestaña estados)
+  // Cargar KPIs de las 4 cards nuevas (sin filtro de período)
   useEffect(() => {
-    if (reportTab !== "estados") return
-
-    const loadProcessStats = async () => {
+    const loadSummaryCards = async () => {
       try {
-        setLoadingProcessStats(true)
-        const response = await solicitudService.getProcessStats()
+        setLoadingSummaryCards(true)
+        const yearParam = cardYear === "all" ? undefined : parseInt(cardYear)
+        const serviceParam = cardService === "all" ? undefined : cardService
+        const consultantParam = cardConsultant === "all" ? undefined : cardConsultant
+        const response = await solicitudService.getSummaryCards(yearParam, serviceParam, consultantParam)
         if (response.success && response.data) {
-          const stats = response.data as { activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount?: number }
-          setProcessStats({ ...stats, pausedCount: stats.pausedCount ?? 0 })
+          setSummaryCards(response.data)
         } else {
-          // Fallback: usar valores por defecto
-          setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0, pausedCount: 0 })
+          setSummaryCards(null)
         }
       } catch (error: any) {
-        console.error("[FRONTEND] Error al cargar estadísticas de procesos:", error)
-        // Fallback: usar valores por defecto
-        setProcessStats({ activeProcesses: 0, avgTimeToHire: 0, totalCandidates: 0, pausedCount: 0 })
-        showToast({
-          type: "error",
-          title: "Error",
-          description: processApiErrorMessage(error?.message, "No se pudieron cargar las estadísticas de procesos. Por favor recarga la página."),
-        })
+        console.error("Error al cargar KPIs del dashboard:", error)
+        setSummaryCards(null)
       } finally {
-        setLoadingProcessStats(false)
+        setLoadingSummaryCards(false)
       }
     }
-
-    loadProcessStats()
-  }, [reportTab])
+    loadSummaryCards()
+  }, [cardYear, cardService, cardConsultant])
 
   useEffect(() => {
     if (reportTab !== "estados") return
@@ -532,7 +548,8 @@ export default function ReportesPage() {
           selectedYear,
           selectedMonth,
           week,
-          periodType
+          periodType,
+          selectedStateConsultant === "all" ? undefined : selectedStateConsultant
         )
 
         if (response.success && response.data) {
@@ -554,7 +571,7 @@ export default function ReportesPage() {
     }
 
     loadAverageTime()
-  }, [reportTab, selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod])
+  }, [reportTab, selectedYear, selectedMonth, selectedWeek, selectedWeekOption, weekOptions, timePeriod, selectedStateConsultant])
 
   useEffect(() => {
     if (reportTab !== "estados") return
@@ -767,11 +784,12 @@ export default function ReportesPage() {
     "En Progreso": "#1E3A8A",
     "En Revisión": "#10b981",
     "Completado": "#3b82f6",
+    "Cierre Ext.": "#8b5cf6",
     "Pausado": "#f59e0b",
     "Cancelado": "#ef4444",
   }
 
-  const statusDisplayOrder = ["Iniciado", "En Progreso", "En Revisión", "Pausado", "Completado", "Cancelado"]
+  const statusDisplayOrder = ["Iniciado", "En Progreso", "En Revisión", "Pausado", "Completado", "Cierre Ext.", "Cancelado"]
 
   const periodProcesses = processOverview?.processes ?? []
   const periodTotals = processOverview?.totals ?? {
@@ -808,20 +826,182 @@ export default function ReportesPage() {
     { label: "Vencidos", value: urgencySummary.overdueCount },
   ]
 
+  // Procesos del período filtrados por consultor (para cards y gráfico de estados)
+  const periodProcessesFiltered = useMemo(() => {
+    const procs = processOverview?.processes ?? []
+    if (selectedStateConsultant === "all") return procs
+    return procs.filter((p) => p.consultant === selectedStateConsultant)
+  }, [processOverview?.processes, selectedStateConsultant])
+
+  // Lista única de consultores para el select (extraída del processOverview)
+  const stateConsultantOptions = useMemo(() => {
+    const all = processOverview?.processes ?? []
+    const set = new Set<string>()
+    all.forEach((p) => { if (p.consultant && p.consultant !== "Sin asignar") set.add(p.consultant) })
+    return Array.from(set).sort()
+  }, [processOverview?.processes])
+
+  const CLOSED_STATUSES = ["Completado", "Cierre Ext.", "Cancelado"]
+
+  // Snapshot de procesos activos al FINAL del período, filtrado por consultor
+  const periodSnapshotFiltered = useMemo(() => {
+    const snap = processOverview?.periodActiveSnapshot ?? []
+    if (selectedStateConsultant === "all") return snap
+    return snap.filter((p) => p.consultant === selectedStateConsultant)
+  }, [processOverview?.periodActiveSnapshot, selectedStateConsultant])
+
+  // Cards del período: activos por tipo de servicio (snapshot al final del período)
+  const periodActiveByService = useMemo(() => {
+    const map = new Map<string, { name: string; count: number }>()
+    periodSnapshotFiltered.forEach((p) => {
+      const key = p.serviceCode || "sin_servicio"
+      const current = map.get(key) ?? { name: formatServiceName(p.serviceName || key), count: 0 }
+      map.set(key, { ...current, count: current.count + 1 })
+    })
+    return Array.from(map.values()).sort((a, b) => b.count - a.count)
+  }, [periodSnapshotFiltered])
+
+  // Cards del período: total activos al final del período
+  const periodActiveTotal = useMemo(
+    () => periodSnapshotFiltered.length,
+    [periodSnapshotFiltered]
+  )
+
+  // Cards del período: plazo (dentro / fuera) al final del período
+  const periodPlazoStats = useMemo(() => {
+    let dentro = 0, fuera = 0
+    periodSnapshotFiltered.forEach((p) => {
+      if (p.urgencyAtEnd === "no_deadline") return
+      if (p.urgencyAtEnd === "on_track") dentro++
+      else if (p.urgencyAtEnd === "overdue") fuera++
+    })
+    return { dentro, fuera, total: dentro + fuera }
+  }, [periodSnapshotFiltered])
+
+  // Rango del período como strings YYYY-MM-DD (evita problemas de timezone)
+  const periodRange = useMemo(() => {
+    if (timePeriod === "week" && selectedWeekOption) {
+      const weekIdx = weekOptions.findIndex((o) => o.id === selectedWeekOption.id) + 1
+      const jan1Day = new Date(Date.UTC(selectedYear, 0, 1)).getUTCDay()
+      const daysToFirstMonday = jan1Day === 0 ? 1 : jan1Day === 1 ? 0 : (8 - jan1Day)
+      const firstMondayMs = Date.UTC(selectedYear, 0, 1 + daysToFirstMonday)
+      const weekStartMs = firstMondayMs + (weekIdx - 1) * 7 * 86400000
+      const weekEndMs = weekStartMs + 6 * 86400000
+      const fmt = (ms: number) => new Date(ms).toISOString().split('T')[0]
+      return { startStr: fmt(weekStartMs), endStr: fmt(weekEndMs) }
+    } else if (timePeriod === "year") {
+      return {
+        startStr: `${selectedYear}-01-01`,
+        endStr: `${selectedYear}-12-31`,
+      }
+    } else {
+      const mm = String(selectedMonth + 1).padStart(2, '0')
+      const endLocal = new Date(selectedYear, selectedMonth + 1, 0)
+      endLocal.setHours(23, 59, 59, 999)
+      return {
+        startStr: `${selectedYear}-${mm}-01`,
+        endStr: endLocal.toISOString().split('T')[0],
+      }
+    }
+  }, [timePeriod, selectedYear, selectedMonth, selectedWeekOption, weekOptions])
+
+  // Gráfico de estados:
+  // - Activos (En Progreso, Pausado, etc.): snapshot al FINAL del período (todos, sin importar fecha inicio)
+  // - Cerrados (Completado, Cierre Ext., Cancelado): solo los que cerraron DENTRO del período
+  const filteredStatusChartData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    // Activos al final del período (sin importar cuándo empezaron)
+    periodSnapshotFiltered.forEach((p) => {
+      counts[p.statusAtEnd] = (counts[p.statusAtEnd] || 0) + 1
+    })
+    // Cerrados dentro del período
+    periodProcessesFiltered.forEach((p) => {
+      if (p.status !== "Completado" && p.status !== "Cierre Ext." && p.status !== "Cancelado") return
+      if (!p.closedAt) return
+      const closedDateStr = p.closedAt.split('T')[0]
+      if (closedDateStr < periodRange.startStr || closedDateStr > periodRange.endStr) return
+      counts[p.status] = (counts[p.status] || 0) + 1
+    })
+    return statusDisplayOrder
+      .map((status) => ({ status, count: counts[status] ?? 0, color: statusColors[status] || "#8884d8" }))
+      .filter((item) => item.count > 0)
+  }, [periodSnapshotFiltered, periodProcessesFiltered, periodRange, statusDisplayOrder, statusColors])
+
+  // Filtros disponibles para urgencia (extraídos de los procesos con urgencia)
+  const urgencyServiceOptions = useMemo(() => {
+    const all = [
+      ...(urgencySummary.dueSoonProcessesDetails ?? []),
+      ...(urgencySummary.overdueProcessesDetails ?? []),
+    ]
+    const map = new Map<string, string>()
+    all.forEach((p) => {
+      if (p.serviceCode) map.set(p.serviceCode, formatServiceName(p.serviceName || p.serviceCode))
+    })
+    return Array.from(map.entries()).map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [urgencySummary])
+
+  const urgencyConsultantOptions = useMemo(() => {
+    const all = [
+      ...(urgencySummary.dueSoonProcessesDetails ?? []),
+      ...(urgencySummary.overdueProcessesDetails ?? []),
+    ]
+    const set = new Set<string>()
+    all.forEach((p) => { if (p.consultant && p.consultant !== "Sin asignar") set.add(p.consultant) })
+    return Array.from(set).sort()
+  }, [urgencySummary])
+
+  // Datos de urgencia filtrados
+  const filteredDueSoon = useMemo(() => {
+    let list = urgencySummary.dueSoonProcessesDetails ?? []
+    if (urgencyServiceFilter !== "all") list = list.filter((p) => p.serviceCode === urgencyServiceFilter)
+    if (urgencyConsultantFilter !== "all") list = list.filter((p) => p.consultant === urgencyConsultantFilter)
+    return list
+  }, [urgencySummary, urgencyServiceFilter, urgencyConsultantFilter])
+
+  const filteredOverdue = useMemo(() => {
+    let list = urgencySummary.overdueProcessesDetails ?? []
+    if (urgencyServiceFilter !== "all") list = list.filter((p) => p.serviceCode === urgencyServiceFilter)
+    if (urgencyConsultantFilter !== "all") list = list.filter((p) => p.consultant === urgencyConsultantFilter)
+    return list
+  }, [urgencySummary, urgencyServiceFilter, urgencyConsultantFilter])
+
+  const urgencyFiltersActive = urgencyServiceFilter !== "all" || urgencyConsultantFilter !== "all"
+
+  const filteredUrgencyChartData = useMemo(() => [
+    {
+      label: "Por vencer",
+      value: urgencyFiltersActive ? filteredDueSoon.length : urgencySummary.dueSoonCount,
+    },
+    {
+      label: "Vencidos",
+      value: urgencyFiltersActive ? filteredOverdue.length : urgencySummary.overdueCount,
+    },
+  ], [filteredDueSoon, filteredOverdue, urgencyFiltersActive, urgencySummary])
+
+  const tableConsultantOptions = useMemo(() => {
+    const all = processOverview?.currentActiveProcesses || []
+    const set = new Set<string>()
+    all.forEach((p) => { if (p.consultant && p.consultant !== "Sin asignar") set.add(p.consultant) })
+    return Array.from(set).sort()
+  }, [processOverview?.currentActiveProcesses])
+
   const processesInProgress = useMemo(() => {
     let filtered = processOverview?.currentActiveProcesses || []
 
     if (processTypeFilter !== "all") {
       filtered = filtered.filter((process) => {
         const code = process.serviceCode || ""
-        // BD usa codigo_servicio en solicitud (tiposervicio.codigo_servicio): HH Headhunting; puede existir HS legacy
         if (processTypeFilter === "HH") return code === "HH" || code === "HS"
         return code === processTypeFilter
       })
     }
 
+    if (tableConsultantFilter !== "all") {
+      filtered = filtered.filter((p) => p.consultant === tableConsultantFilter)
+    }
+
     return filtered
-  }, [processOverview?.currentActiveProcesses, processTypeFilter])
+  }, [processOverview?.currentActiveProcesses, processTypeFilter, tableConsultantFilter])
 
   const ITEMS_PER_PAGE = 10
   const totalProcessesPages = Math.ceil(processesInProgress.length / ITEMS_PER_PAGE)
@@ -836,16 +1016,16 @@ export default function ReportesPage() {
     setCurrentProcessesPage(1)
   }, [processesInProgress.length])
 
-  const averageTimeChartData = useMemo(
-    () =>
-      averageTimeData
-        .filter((item) => item.sampleSize > 0 && item.averageDays > 0)
-        .map((item) => ({
-          service: item.serviceName,
-          days: item.averageDays,
-          sampleSize: item.sampleSize,
-        })),
-    [averageTimeData],
+  const averageTimeChartData = useMemo(() => {
+    return averageTimeData
+      .filter((item) => item.averageDays > 0)
+      .map((item) => ({
+        service: formatServiceName(item.serviceName),
+        days: item.averageDays,
+        sampleSize: item.sampleSize,
+      }))
+      .sort((a, b) => b.days - a.days)
+  }, [averageTimeData],
   )
 
   const activeProcessesData = Object.entries(activeProcesses).map(([name, count]) => ({
@@ -853,11 +1033,6 @@ export default function ReportesPage() {
     procesos: count,
   }))
 
-  // Usar datos reales de la API para las estadísticas
-  const avgTimeToHire = processStats.avgTimeToHire || 0
-  const totalCandidates = processStats.totalCandidates || 0
-  const totalActiveProcesses = processStats.activeProcesses || 0
-  const totalPausedProcesses = processStats.pausedCount || 0
   const totalProcesses = periodTotals.total
   const completedProcesses = processStatusData.find((p) => p.status === "Completado")?.count || 0
   const completionRate = totalProcesses > 0 ? Math.round((completedProcesses / totalProcesses) * 100) : 0
@@ -1136,76 +1311,190 @@ export default function ReportesPage() {
         <p className="text-muted-foreground">Análisis integral de rendimiento y métricas operativas</p>
       </div>
 
+      {/* ── Filtros de las cards de resumen ── */}
+      <div className="flex flex-wrap gap-3 items-end">
+        {/* Año */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Año</label>
+          <Select value={cardYear} onValueChange={(v) => { setCardYear(v); setCardService("all"); setCardConsultant("all") }}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Todos los años" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {(summaryCards?.filters.availableYears ?? []).map((y) => (
+                <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Tipo de servicio */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Tipo de servicio</label>
+          <Select value={cardService} onValueChange={setCardService}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Todos los servicios" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {(summaryCards?.filters.availableServices ?? []).map((s) => (
+                <SelectItem key={s.code} value={s.code}>{formatServiceName(s.name)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Consultor */}
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Consultor</label>
+          <Select value={cardConsultant} onValueChange={setCardConsultant}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Todos los consultores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {(summaryCards?.filters.availableConsultants ?? []).map((c) => (
+                <SelectItem key={c} value={c}>{c}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Badge indicador */}
+        {(cardYear !== "all" || cardService !== "all" || cardConsultant !== "all") && (
+          <div className="flex items-center gap-2 pb-0.5">
+            <Badge variant="secondary" className="text-xs">
+              Mostrando según filtro aplicado
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground"
+              onClick={() => { setCardYear("all"); setCardService("all"); setCardConsultant("all") }}
+            >
+              Limpiar filtros
+            </Button>
+          </div>
+        )}
+        {cardYear === "all" && cardService === "all" && cardConsultant === "all" && (
+          <Badge variant="outline" className="text-xs self-end mb-0.5">
+            Mostrando acumulado histórico
+          </Badge>
+        )}
+      </div>
+
+      {/* ── 4 cards de resumen ── */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Procesos Activos</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
+        {/* Card 1: Total de procesos */}
+        <Card className="gap-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+            <CardTitle className="text-base font-semibold">Total de Procesos</CardTitle>
+            <Target className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {loadingProcessStats ? (
+            {loadingSummaryCards ? (
               <div className="flex items-center justify-center h-12">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
               </div>
             ) : (
               <>
-            <div className="text-2xl font-bold">{totalActiveProcesses}</div>
-            <p className="text-xs text-muted-foreground">En curso actualmente</p>
+                <div className="text-3xl font-bold">{summaryCards?.totalProcesses ?? 0}</div>
+                <p className="text-sm text-muted-foreground mt-1">Procesos registrados</p>
               </>
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tiempo Promedio</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+
+        {/* Card 2: Procesos cerrados */}
+        <Card className="gap-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+            <CardTitle className="text-base font-semibold">Procesos Cerrados</CardTitle>
+            <TrendingUp className="h-5 w-5 text-blue-600" />
           </CardHeader>
           <CardContent>
-            {loadingProcessStats ? (
+            {loadingSummaryCards ? (
               <div className="flex items-center justify-center h-12">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
               </div>
             ) : (
               <>
-            <div className="text-2xl font-bold">{avgTimeToHire} días</div>
-            <p className="text-xs text-muted-foreground">Time-to-hire promedio</p>
+                <div className="text-3xl font-bold text-blue-600">{summaryCards?.closedProcesses ?? 0}</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {summaryCards && summaryCards.totalProcesses > 0
+                    ? `${Math.round((summaryCards.closedProcesses / summaryCards.totalProcesses) * 100)}% del total`
+                    : "Sin datos"}
+                </p>
               </>
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Candidatos Totales</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+
+        {/* Card 3: Tiempo de cierre */}
+        <Card className="gap-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+            <CardTitle className="text-base font-semibold">Tiempo de Cierre</CardTitle>
+            <Clock className="h-5 w-5 text-green-600" />
           </CardHeader>
           <CardContent>
-            {loadingProcessStats ? (
+            {loadingSummaryCards ? (
               <div className="flex items-center justify-center h-12">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
               </div>
-            ) : (
+            ) : summaryCards?.closingTimes.avg !== null && summaryCards?.closingTimes.avg !== undefined ? (
               <>
-            <div className="text-2xl font-bold">{totalCandidates}</div>
-            <p className="text-xs text-muted-foreground">En todos los procesos</p>
+                <div className="text-3xl font-bold text-green-600">{summaryCards.closingTimes.avg} <span className="text-xl">días</span></div>
+                <div className="flex gap-4 mt-2">
+                  <span className="text-sm text-muted-foreground">Mín: <span className="font-semibold text-foreground">{summaryCards.closingTimes.min ?? "-"}</span></span>
+                  <span className="text-sm text-muted-foreground">Máx: <span className="font-semibold text-foreground">{summaryCards.closingTimes.max ?? "-"}</span></span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">Promedio de procesos cerrados</p>
               </>
+            ) : (
+              <p className="text-sm text-muted-foreground mt-2">Sin procesos cerrados</p>
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Procesos Pausados</CardTitle>
-            <Pause className="h-4 w-4 text-muted-foreground" />
+
+        {/* Card 4: Dentro / Fuera de plazo */}
+        <Card className="gap-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+            <CardTitle className="text-base font-semibold">Cumplimiento de Plazo</CardTitle>
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
           </CardHeader>
           <CardContent>
-            {loadingProcessStats ? (
+            {loadingSummaryCards ? (
               <div className="flex items-center justify-center h-12">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+              </div>
+            ) : summaryCards && summaryCards.plazoStats.totalWithDeadline > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
+                    Dentro de plazo
+                  </span>
+                  <span className="text-base font-bold text-green-600">
+                    {summaryCards.plazoStats.withinDeadline}
+                    <span className="text-sm font-normal text-muted-foreground ml-1.5">
+                      ({Math.round((summaryCards.plazoStats.withinDeadline / summaryCards.plazoStats.totalWithDeadline) * 100)}%)
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+                    Fuera de plazo
+                  </span>
+                  <span className="text-base font-bold text-red-600">
+                    {summaryCards.plazoStats.outsideDeadline}
+                    <span className="text-sm font-normal text-muted-foreground ml-1.5">
+                      ({Math.round((summaryCards.plazoStats.outsideDeadline / summaryCards.plazoStats.totalWithDeadline) * 100)}%)
+                    </span>
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground pt-0.5">
+                </p>
               </div>
             ) : (
-              <>
-            <div className="text-2xl font-bold">{totalPausedProcesses}</div>
-            <p className="text-xs text-muted-foreground">En estado congelado</p>
-              </>
+              <p className="text-sm text-muted-foreground mt-2">Sin datos de plazo</p>
             )}
           </CardContent>
         </Card>
@@ -1336,69 +1625,133 @@ export default function ReportesPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Filtro de consultor */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Consultor</label>
+                  <Select value={selectedStateConsultant} onValueChange={setSelectedStateConsultant}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {stateConsultantOptions.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Solicitudes Ingresadas</CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
+          {/* ── 3 cards del período ── */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Card 1: Total procesos activos */}
+            <Card className="gap-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+                <CardTitle className="text-base font-semibold">Procesos Activos</CardTitle>
+                <Target className="h-5 w-5 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{periodSummary.createdCount}</div>
-                <p className="text-xs text-muted-foreground">
-                  {timePeriod === "week"
-                    ? selectedWeekOption?.label ?? "Semana seleccionada"
-                    : timePeriod === "year"
-                    ? `Año ${selectedYear}`
-                    : `${monthNames[selectedMonth]} ${selectedYear}`}
-                </p>
+                {loadingProcessOverview ? (
+                  <div className="flex items-center justify-center h-12">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-3xl font-bold">{periodActiveTotal}</div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {timePeriod === "week"
+                        ? selectedWeekOption?.label ?? "Semana seleccionada"
+                        : timePeriod === "year"
+                        ? `Año ${selectedYear}`
+                        : `${monthNames[selectedMonth]} ${selectedYear}`}
+                      {selectedStateConsultant !== "all" ? ` · ${selectedStateConsultant}` : ""}
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Procesos Completados</CardTitle>
-                <TrendingUp className="h-4 w-4 text-blue-600" />
+            {/* Card 2: Activos por tipo de proceso */}
+            <Card className="gap-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+                <CardTitle className="text-base font-semibold">Activos por Proceso</CardTitle>
+                <TrendingUp className="h-5 w-5 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{periodSummary.completedCount}</div>
-                <p className="text-xs text-muted-foreground">Cerrados en el período</p>
+                {loadingProcessOverview ? (
+                  <div className="flex items-center justify-center h-12">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                  </div>
+                ) : periodActiveByService.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin procesos activos</p>
+                ) : (
+                  <ul className="space-y-1.5">
+                    {periodActiveByService.map((s) => (
+                      <li key={s.name} className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground truncate max-w-[70%]">{s.name}</span>
+                        <span className="font-bold text-blue-600 ml-1">{s.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Tiempo Promedio de Cierre</CardTitle>
-                <Target className="h-4 w-4 text-green-600" />
+            {/* Card 3: Dentro / Fuera de plazo (período) */}
+            <Card className="gap-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0">
+                <CardTitle className="text-base font-semibold">Cumplimiento de Plazo</CardTitle>
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{periodSummary.averageCloseDays} días</div>
-                <p className="text-xs text-muted-foreground">Promedio (solo procesos cerrados)</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Procesos Cancelados</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-orange-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-600">{periodSummary.cancelledCount}</div>
-                <p className="text-xs text-muted-foreground">Cancelados en el período</p>
+                {loadingProcessOverview ? (
+                  <div className="flex items-center justify-center h-12">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                  </div>
+                ) : periodPlazoStats.total === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin datos de plazo</p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />
+                        Dentro de plazo
+                      </span>
+                      <span className="text-base font-bold text-green-600">
+                        {periodPlazoStats.dentro}
+                        <span className="text-sm font-normal text-muted-foreground ml-1.5">
+                          ({Math.round((periodPlazoStats.dentro / periodPlazoStats.total) * 100)}%)
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />
+                        Fuera de plazo
+                      </span>
+                      <span className="text-base font-bold text-red-600">
+                        {periodPlazoStats.fuera}
+                        <span className="text-sm font-normal text-muted-foreground ml-1.5">
+                          ({Math.round((periodPlazoStats.fuera / periodPlazoStats.total) * 100)}%)
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-                <CardTitle>Tiempo Promedio por Servicio</CardTitle>
-                <CardDescription>Comparación entre procesos Hunting y Proceso Completo</CardDescription>
+          <Card className="min-w-0 gap-2 py-4">
+            <CardHeader className="pb-2">
+                <CardTitle>Tiempo Promedio por Proceso</CardTitle>
+                <CardDescription>Días promedio de cierre por tipo de proceso</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="w-full min-w-0 pl-3 pr-6 pt-0">
                 {loadingAverageTime ? (
                   <div className="flex items-center justify-center h-[300px]">
                     <div className="text-center">
@@ -1408,23 +1761,37 @@ export default function ReportesPage() {
                   </div>
                 ) : averageTimeChartData.length === 0 ? (
                   <div className="flex items-center justify-center h-[300px]">
-                    <p className="text-sm text-muted-foreground">No hay procesos cerrados en el período seleccionado</p>
+                    <p className="text-sm text-muted-foreground">No hay datos en el período seleccionado</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={averageTimeChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="service" />
-                      <YAxis />
+                  <div style={{ height: Math.max(300, averageTimeChartData.length * 44) }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={averageTimeChartData}
+                      layout="vertical"
+                      margin={{ top: 5, right: 48, left: 5, bottom: 5 }}
+                      barCategoryGap="20%"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} unit=" días" domain={[0, 'auto']} />
+                      <YAxis type="category" dataKey="service" width={130} tick={{ fontSize: 13 }} axisLine={false} tickLine={false} />
                       <Tooltip
                         formatter={(value: number, _name, payload) => [
                           `${value} días`,
-                          `Promedio (${payload.payload.sampleSize} procesos)`,
+                          `Promedio (${payload.payload.sampleSize} proceso${payload.payload.sampleSize !== 1 ? 's' : ''})`,
                         ]}
                       />
-                      <Bar dataKey="days" fill="#1E3A8A" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="days" fill="#1E3A8A" barSize={26} radius={[0, 4, 4, 0]}>
+                        <LabelList
+                          dataKey="days"
+                          position="right"
+                          formatter={(v: unknown) => (v as number) > 0 ? `${v}d` : "—"}
+                          style={{ fontSize: 12, fill: "#6b7280" }}
+                        />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+                  </div>
                 )}
             </CardContent>
           </Card>
@@ -1442,21 +1809,22 @@ export default function ReportesPage() {
                       <p className="text-sm text-muted-foreground">Cargando datos...</p>
                     </div>
                   </div>
-                ) : processStatusData.length === 0 ? (
+                ) : filteredStatusChartData.length === 0 ? (
                   <div className="flex items-center justify-center h-[300px]">
                     <p className="text-sm text-muted-foreground">No hay datos para el período seleccionado</p>
                   </div>
                 ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={processStatusData}>
+                <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={filteredStatusChartData} margin={{ top: 24, right: 20, left: 10, bottom: 60 }}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="status" />
-                      <YAxis />
+                      <XAxis dataKey="status" tick={{ fontSize: 12, angle: -35, textAnchor: 'end' } as any} interval={0} />
+                      <YAxis allowDecimals={false} />
                       <Tooltip formatter={(value: number) => [`${value} procesos`, "Cantidad"]} />
-                      <Bar dataKey="count">
-                        {processStatusData.map((entry, index) => (
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        {filteredStatusChartData.map((entry, index) => (
                           <Cell key={`status-${index}`} fill={entry.color} />
                         ))}
+                        <LabelList dataKey="count" position="top" style={{ fontSize: 12, fill: "#6b7280" }} />
                       </Bar>
                     </BarChart>
                 </ResponsiveContainer>
@@ -1467,8 +1835,36 @@ export default function ReportesPage() {
 
             <Card>
               <CardHeader>
-              <CardTitle>Procesos con Urgencia</CardTitle>
-              <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>Procesos con Urgencia</CardTitle>
+                    <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0">
+                    <Select value={urgencyServiceFilter} onValueChange={setUrgencyServiceFilter}>
+                      <SelectTrigger className="w-[180px] h-8 text-xs">
+                        <SelectValue placeholder="Todos los procesos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los procesos</SelectItem>
+                        {urgencyServiceOptions.map((s) => (
+                          <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={urgencyConsultantFilter} onValueChange={setUrgencyConsultantFilter}>
+                      <SelectTrigger className="w-[170px] h-8 text-xs">
+                        <SelectValue placeholder="Todos los consultores" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos los consultores</SelectItem>
+                        {urgencyConsultantOptions.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
               {loadingProcessOverview ? (
@@ -1481,7 +1877,7 @@ export default function ReportesPage() {
               ) : (
                 <div className="space-y-6">
                 <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={urgencyChartData}>
+                    <BarChart data={filteredUrgencyChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="label" />
                       <YAxis allowDecimals={false} />
@@ -1494,14 +1890,14 @@ export default function ReportesPage() {
                     <div className="border rounded-md p-4">
                       <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                         <span className="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
-                        Procesos por vencer ({urgencySummary.dueSoonCount})
+                        Procesos por vencer ({urgencyFiltersActive ? filteredDueSoon.length : urgencySummary.dueSoonCount})
                       </h4>
-                      {urgencySummary.dueSoonCount === 0 ? (
+                      {(urgencyFiltersActive ? filteredDueSoon : (urgencySummary.dueSoonProcessesDetails ?? [])).length === 0 ? (
                         <p className="text-xs text-muted-foreground">No hay procesos próximos a vencer.</p>
                       ) : (
                         <div className="max-h-[400px] overflow-y-auto pr-2">
                           <ul className="space-y-3 text-xs">
-                            {(urgencySummary.dueSoonProcessesDetails || []).map((process) => (
+                            {(urgencyFiltersActive ? filteredDueSoon : (urgencySummary.dueSoonProcessesDetails ?? [])).map((process) => (
                               <li key={`due-soon-${process.id}`} className="border-b pb-2 last:border-0 last:pb-0">
                                 <div className="space-y-1">
                                   <div className="flex items-start justify-between gap-2">
@@ -1554,14 +1950,14 @@ export default function ReportesPage() {
                     <div className="border rounded-md p-4">
                       <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                         <span className="inline-block h-2 w-2 rounded-full bg-red-600"></span>
-                        Procesos vencidos ({urgencySummary.overdueCount})
+                        Procesos vencidos ({urgencyFiltersActive ? filteredOverdue.length : urgencySummary.overdueCount})
                       </h4>
-                      {urgencySummary.overdueCount === 0 ? (
+                      {(urgencyFiltersActive ? filteredOverdue : (urgencySummary.overdueProcessesDetails ?? [])).length === 0 ? (
                         <p className="text-xs text-muted-foreground">No hay procesos vencidos.</p>
                       ) : (
                         <div className="max-h-[400px] overflow-y-auto pr-2">
                           <ul className="space-y-3 text-xs">
-                            {(urgencySummary.overdueProcessesDetails || []).map((process) => (
+                            {(urgencyFiltersActive ? filteredOverdue : (urgencySummary.overdueProcessesDetails ?? [])).map((process) => (
                               <li key={`overdue-${process.id}`} className="border-b pb-2 last:border-0 last:pb-0">
                                 <div className="space-y-1">
                                   <div className="flex items-start justify-between gap-2">
@@ -1622,28 +2018,44 @@ export default function ReportesPage() {
               <CardDescription>Todos los procesos activos en este momento (independiente del período seleccionado arriba)</CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Filtro de tipo de proceso */}
-              <div className="mb-4 flex items-center gap-2">
-                <label className="text-sm font-medium whitespace-nowrap">Filtrar por tipo:</label>
-                <Select value={processTypeFilter} onValueChange={setProcessTypeFilter}>
-                  <SelectTrigger className="w-[250px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los tipos</SelectItem>
-                    <SelectItem value="PC">Proceso Completo (PC)</SelectItem>
-                    <SelectItem value="SC">San Cristóbal Completo (SC)</SelectItem>
-                    <SelectItem value="CA">San Cristóbal Acotado (CA)</SelectItem>
-                    <SelectItem value="LL">Long List (LL)</SelectItem>
-                    <SelectItem value="TR">Targeted Recruitment (TR)</SelectItem>
-                    <SelectItem value="HH">Headhunting (HH)</SelectItem>
-                    <SelectItem value="FI">Filtro Inteligente (FI)</SelectItem>
-                    <SelectItem value="ES">Evaluación Psicolaboral (ES)</SelectItem>
-                    <SelectItem value="TS">Test Psicolaboral (TS)</SelectItem>
-                    <SelectItem value="EP">Evaluación de Potencial (EP)</SelectItem>
-                    <SelectItem value="PP">Publicación Portales (PP)</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Filtros de la tabla */}
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium whitespace-nowrap">Proceso:</label>
+                  <Select value={processTypeFilter} onValueChange={setProcessTypeFilter}>
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los procesos</SelectItem>
+                      <SelectItem value="PC">Proceso Completo (PC)</SelectItem>
+                      <SelectItem value="SC">San Cristóbal Completo (SC)</SelectItem>
+                      <SelectItem value="CA">San Cristóbal Acotado (CA)</SelectItem>
+                      <SelectItem value="LL">Long List (LL)</SelectItem>
+                      <SelectItem value="TR">Targeted Recruitment (TR)</SelectItem>
+                      <SelectItem value="HH">Headhunting (HH)</SelectItem>
+                      <SelectItem value="FI">Filtro Inteligente (FI)</SelectItem>
+                      <SelectItem value="ES">Evaluación Psicolaboral (ES)</SelectItem>
+                      <SelectItem value="TS">Test Psicolaboral (TS)</SelectItem>
+                      <SelectItem value="EP">Evaluación de Potencial (EP)</SelectItem>
+                      <SelectItem value="PP">Publicación Portales (PP)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium whitespace-nowrap">Consultor:</label>
+                  <Select value={tableConsultantFilter} onValueChange={setTableConsultantFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {tableConsultantOptions.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               
               {processesInProgress.length === 0 ? (
@@ -1664,9 +2076,10 @@ export default function ReportesPage() {
                       <TableHead>Cargo</TableHead>
                       <TableHead>Tipo de Proceso</TableHead>
                       <TableHead>Consultor</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Fecha Inicio</TableHead>
-                      <TableHead>Días Transcurridos</TableHead>
+                      <TableHead className="text-center">Estado</TableHead>
+                      <TableHead className="text-center">Fecha Inicio</TableHead>
+                      <TableHead className="text-center">Días Transcurridos</TableHead>
+                      <TableHead className="text-center">Días Hábiles</TableHead>
                       <TableHead className="text-center">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1677,6 +2090,7 @@ export default function ReportesPage() {
                           startDate !== null
                             ? Math.floor((new Date().getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
                             : 0
+                        const businessDays = process.businessDaysOpen ?? 0
 
                       return (
                         <TableRow key={process.id}>
@@ -1688,7 +2102,7 @@ export default function ReportesPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>{process.consultant}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-center">
                             <Badge
                               variant="outline"
                               className={
@@ -1702,10 +2116,15 @@ export default function ReportesPage() {
                               {process.status}
                             </Badge>
                           </TableCell>
-                            <TableCell>{startDate ? startDate.toLocaleDateString() : "Sin fecha"}</TableCell>
-                          <TableCell>
+                            <TableCell className="text-center">{startDate ? startDate.toLocaleDateString() : "Sin fecha"}</TableCell>
+                          <TableCell className="text-center">
                             <span className={daysSinceStart > 60 ? "text-red-600 font-medium" : ""}>
                               {daysSinceStart} días
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className={process.urgency === "overdue" ? "text-red-600 font-medium" : process.urgency === "due_soon" ? "text-amber-600 font-medium" : ""}>
+                              {businessDays} días
                             </span>
                           </TableCell>
                           <TableCell className="text-center">
@@ -2135,18 +2554,25 @@ export default function ReportesPage() {
                     <p className="text-sm text-muted-foreground">No hay datos de cumplimiento disponibles</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={completionStats.map((stat) => ({
-                      name: stat.consultant,
-                      aTiempo: stat.onTime,
-                      retrasados: stat.delayed,
-                    }))}>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart
+                      data={completionStats.map((stat) => ({
+                        name: stat.consultant,
+                        aTiempo: stat.onTime,
+                        retrasados: stat.delayed,
+                      }))}
+                      margin={{ top: 24, right: 20, left: 10, bottom: 60 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
+                      <XAxis dataKey="name" tick={{ fontSize: 12, angle: -35, textAnchor: 'end' } as any} interval={0} />
+                      <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="aTiempo" fill="#10b981" name="A Tiempo" />
-                      <Bar dataKey="retrasados" fill="#dc2626" name="Retrasados" />
+                      <Bar dataKey="aTiempo" fill="#10b981" name="A Tiempo" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="aTiempo" position="top" style={{ fontSize: 11, fill: "#6b7280" }} />
+                      </Bar>
+                      <Bar dataKey="retrasados" fill="#dc2626" name="Retrasados" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="retrasados" position="top" style={{ fontSize: 11, fill: "#6b7280" }} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -2171,16 +2597,18 @@ export default function ReportesPage() {
                     <p className="text-sm text-muted-foreground">No hay hitos vencidos</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={Object.entries(overdueHitos).map(([name, vencidos]) => ({
-                      name,
-                      vencidos,
-                    }))}>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <BarChart
+                      data={Object.entries(overdueHitos).map(([name, vencidos]) => ({ name, vencidos }))}
+                      margin={{ top: 24, right: 20, left: 10, bottom: 60 }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
+                      <XAxis dataKey="name" tick={{ fontSize: 12, angle: -35, textAnchor: 'end' } as any} interval={0} />
+                      <YAxis allowDecimals={false} />
                       <Tooltip />
-                      <Bar dataKey="vencidos" fill="#dc2626" />
+                      <Bar dataKey="vencidos" fill="#dc2626" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="vencidos" position="top" style={{ fontSize: 11, fill: "#6b7280" }} />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 )}

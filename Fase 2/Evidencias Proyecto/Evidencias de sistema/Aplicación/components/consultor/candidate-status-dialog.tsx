@@ -44,7 +44,7 @@ export function CandidateStatusDialog({
       
       setFormData({
         status: initialStatus,
-        comment: candidate.rejection_reason || ""
+        comment: candidate.consultant_comment || ""
       })
     }
   }, [open, candidate])

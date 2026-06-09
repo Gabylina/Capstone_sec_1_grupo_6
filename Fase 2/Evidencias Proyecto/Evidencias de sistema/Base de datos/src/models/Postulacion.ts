@@ -12,6 +12,7 @@ interface PostulacionAttributes {
     expectativa_renta?: number;
     disponibilidad_postulacion?: string;
     comentario_no_presentado?: string;
+    comentario_candidato?: string;
     situacion_familiar?: string;
     valoracion?: number;
     fecha_envio?: Date;
@@ -22,7 +23,7 @@ interface PostulacionAttributes {
     id_portal_postulacion?: number;
 }
 
-interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' |
+interface PostulacionCreationAttributes extends Optional<PostulacionAttributes, 'id_postulacion' | 'motivacion' | 'expectativa_renta' | 'disponibilidad_postulacion' | 'comentario_no_presentado' | 'comentario_candidato' | 'situacion_familiar' | 'valoracion' | 'cv_postulacion' |
     'id_portal_postulacion' | 'id_estado_candidato'> { }
 
 // ===========================================
@@ -35,6 +36,7 @@ class Postulacion extends Model<PostulacionAttributes, PostulacionCreationAttrib
     public expectativa_renta?: number;
     public disponibilidad_postulacion?: string;
     public comentario_no_presentado?: string;
+    public comentario_candidato?: string;
     public situacion_familiar?: string;
     public valoracion?: number;
     public fecha_envio?: Date;
@@ -127,6 +129,16 @@ Postulacion.init({
             len: {
                 args: [0, 500],
                 msg: 'El comentario no puede exceder 500 caracteres'
+            }
+        }
+    },
+    comentario_candidato: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        validate: {
+            len: {
+                args: [0, 1000],
+                msg: 'El comentario del candidato no puede exceder 1000 caracteres'
             }
         }
     },

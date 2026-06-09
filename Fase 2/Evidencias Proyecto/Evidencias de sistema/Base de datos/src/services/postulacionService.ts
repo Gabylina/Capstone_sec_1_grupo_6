@@ -288,6 +288,7 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         valoracion?: number;
         comentario_no_presentado?: string;
+        comentario_candidato?: string;
         situacion_familiar?: string;
         cv_file?: Buffer;
     }, usuarioRut?: string) {
@@ -335,6 +336,7 @@ export class PostulacionService {
                 disponibilidad_postulacion: data.disponibilidad_postulacion,
                 valoracion: data.valoracion,
                 comentario_no_presentado: data.comentario_no_presentado,
+                comentario_candidato: data.comentario_candidato,
                 situacion_familiar: data.situacion_familiar,
                 cv_postulacion: data.cv_file
             }, { transaction });
@@ -573,6 +575,7 @@ export class PostulacionService {
         disponibilidad_postulacion?: string;
         situacion_familiar?: string;
         comentario_no_presentado?: string;
+        comentario_candidato?: string;
     }, usuarioRut?: string) {
         console.log('🔍 === SERVICIO updateValoracion ===');
         console.log('🔍 ID:', id);
@@ -607,6 +610,7 @@ export class PostulacionService {
             if (data.disponibilidad_postulacion !== undefined) updateData.disponibilidad_postulacion = data.disponibilidad_postulacion;
             if (data.situacion_familiar !== undefined) updateData.situacion_familiar = data.situacion_familiar;
             if (data.comentario_no_presentado !== undefined) updateData.comentario_no_presentado = data.comentario_no_presentado;
+            if (data.comentario_candidato !== undefined) updateData.comentario_candidato = data.comentario_candidato;
 
         console.log('🔍 Datos a actualizar:', updateData);
 
@@ -786,6 +790,7 @@ export class PostulacionService {
                 date: prof.CandidatoProfesion?.fecha_obtencion ? new Date(prof.CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0] : ''
             })) || [],
             consultant_comment: postulacion.comentario_no_presentado,
+            candidate_comments: postulacion.comentario_candidato || '',
             presentation_status: this.mapPresentationStatus(estado?.nombre_estado_candidato),
             rejection_reason: ultimoEstadoCliente?.comentario_rech_obs_cliente || undefined,
             // Campos del módulo 3 - Presentación de candidatos
@@ -804,7 +809,7 @@ export class PostulacionService {
                 is_current: !exp.fecha_fin_experiencia,
                 description: exp.descripcion_funciones_experiencia,
                 comments: '',
-                exit_reason: ''
+                exit_reason: exp.motivo_salida_experiencia || ''
             })) || [],
             education: candidato.postgradosCapacitaciones?.map((edu: any) => {
                 return {

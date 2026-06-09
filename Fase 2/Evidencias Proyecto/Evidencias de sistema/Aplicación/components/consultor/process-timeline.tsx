@@ -30,12 +30,7 @@ export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelinePro
     }
   }
 
-  const sortedHitos = [...hitos].sort((a, b) => {
-    if (a.start_date && b.start_date) {
-      return new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
-    }
-    return 0
-  })
+  const displayHitos = hitos
 
   return (
     <div className="space-y-6">
@@ -65,9 +60,9 @@ export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelinePro
       )}
 
       <div className={isCongelado ? "space-y-4 opacity-90" : "space-y-4"}>
-        {sortedHitos.map((hito, index) => (
+        {displayHitos.map((hito, index) => (
           <Card key={hito.id} className="relative">
-            {index < sortedHitos.length - 1 && <div className="absolute left-8 top-16 w-0.5 h-16 bg-border" />}
+            {index < displayHitos.length - 1 && <div className="absolute left-8 top-16 w-0.5 h-16 bg-border" />}
             <CardContent className="flex gap-4 p-6">
               <div className="flex-shrink-0 mt-1">{getStatusIcon(hito.status)}</div>
               <div className="flex-1 space-y-2">
@@ -127,7 +122,7 @@ export function ProcessTimeline({ process, hitos, readOnly }: ProcessTimelinePro
         ))}
       </div>
 
-      {sortedHitos.length === 0 && (
+      {displayHitos.length === 0 && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Clock className="h-12 w-12 text-muted-foreground mb-4" />

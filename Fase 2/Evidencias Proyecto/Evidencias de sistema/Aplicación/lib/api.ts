@@ -547,9 +547,33 @@ export const solicitudService = {
     return apiRequest('/api/solicitudes/reportes/fuentes-candidatos');
   },
 
-  // Obtener estadísticas generales de procesos
+  // Obtener estadísticas generales de procesos (legado - no se usa en las cards nuevas)
   async getProcessStats(): Promise<ApiResponse<{ activeProcesses: number; avgTimeToHire: number; totalCandidates: number; pausedCount: number }>> {
     return apiRequest('/api/solicitudes/reportes/estadisticas');
+  },
+
+  // KPIs para las 4 cards del dashboard (acumulado histórico, sin filtro de período)
+  async getSummaryCards(
+    year?: number | 'all',
+    serviceCode?: string,
+    consultant?: string
+  ): Promise<ApiResponse<{
+    totalProcesses: number;
+    closedProcesses: number;
+    closingTimes: { min: number | null; max: number | null; avg: number | null };
+    plazoStats: { withinDeadline: number; outsideDeadline: number; totalWithDeadline: number };
+    filters: {
+      availableYears: number[];
+      availableServices: Array<{ code: string; name: string }>;
+      availableConsultants: string[];
+    };
+  }>> {
+    const params = new URLSearchParams();
+    if (year && year !== 'all') params.append('year', year.toString());
+    if (serviceCode && serviceCode !== 'all') params.append('serviceCode', serviceCode);
+    if (consultant && consultant !== 'all') params.append('consultant', consultant);
+    const qs = params.toString();
+    return apiRequest(`/api/solicitudes/reportes/summary-cards${qs ? `?${qs}` : ''}`);
   },
 
   // Obtener distribución de estados de procesos para un período
@@ -574,16 +598,16 @@ export const solicitudService = {
     year: number,
     month: number,
     week?: number,
-    periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
+    periodType: 'week' | 'month' | 'quarter' | 'year' = 'month',
+    consultant?: string
   ): Promise<ApiResponse<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>>> {
     const params = new URLSearchParams({
       year: year.toString(),
       month: month.toString(),
       periodType,
     });
-    if (week) {
-      params.append('week', week.toString());
-    }
+    if (week) params.append('week', week.toString());
+    if (consultant && consultant !== 'all') params.append('consultant', consultant);
     return apiRequest(`/api/solicitudes/reportes/tiempo-promedio-servicio?${params.toString()}`);
   },
 
@@ -699,6 +723,10 @@ export const solicitudService = {
     ApiResponse<Record<string, number>>
   > {
     return apiRequest(`/api/solicitudes/reportes/retrasos-consultor`);
+  },
+
+  async getReporteCliente(clienteId: number): Promise<ApiResponse<any>> {
+    return apiRequest(`/api/solicitudes/reportes/reporte-cliente/${clienteId}`);
   },
 
   // Cambiar etapa de solicitud
@@ -1123,6 +1151,7 @@ export const postulacionService = {
     disponibilidad_postulacion?: string;
     valoracion?: number;
     comentario_no_presentado?: string;
+    comentario_candidato?: string;
     // Campos adicionales de postulación
     comentario_rech_obs_cliente?: string;
     situacion_familiar?: string;
@@ -1143,6 +1172,7 @@ export const postulacionService = {
       if (data.disponibilidad_postulacion) formData.append('disponibilidad_postulacion', data.disponibilidad_postulacion);
       if (data.valoracion) formData.append('valoracion', data.valoracion.toString());
       if (data.comentario_no_presentado) formData.append('comentario_no_presentado', data.comentario_no_presentado);
+      if (data.comentario_candidato) formData.append('comentario_candidato', data.comentario_candidato);
       if (data.comentario_rech_obs_cliente) formData.append('comentario_rech_obs_cliente', data.comentario_rech_obs_cliente);
       if (data.situacion_familiar) formData.append('situacion_familiar', data.situacion_familiar);
 
@@ -1176,6 +1206,7 @@ export const postulacionService = {
     if (data.disponibilidad_postulacion) payload.disponibilidad_postulacion = data.disponibilidad_postulacion;
     if (data.valoracion) payload.valoracion = data.valoracion;
     if (data.comentario_no_presentado) payload.comentario_no_presentado = data.comentario_no_presentado;
+    if (data.comentario_candidato) payload.comentario_candidato = data.comentario_candidato;
     if (data.comentario_rech_obs_cliente) payload.comentario_rech_obs_cliente = data.comentario_rech_obs_cliente;
     if (data.situacion_familiar) payload.situacion_familiar = data.situacion_familiar;
     
@@ -1200,6 +1231,7 @@ export const postulacionService = {
     disponibilidad_postulacion?: string;
     valoracion?: number;
     comentario_no_presentado?: string;
+    comentario_candidato?: string;
   }): Promise<ApiResponse<any>> {
     return apiRequest(`/api/postulaciones/${id}/valoracion`, {
       method: 'PUT',

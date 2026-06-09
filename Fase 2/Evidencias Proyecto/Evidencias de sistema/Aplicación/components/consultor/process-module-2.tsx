@@ -52,7 +52,7 @@ import { es } from "date-fns/locale"
 // Configurar español como idioma por defecto
 registerLocale("es", es)
 setDefaultLocale("es")
-import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Send, Eye } from "lucide-react"
+import { Plus, Edit, Trash2, Star, Globe, Settings, FileText, X, Loader2, History, Search, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Send, Eye, Download } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 
 import type { Process, Publication, Candidate, WorkExperience, Education, PortalResponses } from "@/lib/types"
@@ -74,6 +74,10 @@ import { CandidateForm } from "./candidate-form"
 import { getApprovalStatusBadgeClass } from "@/lib/approval-utils"
 import { EncuestaSatisfaccionPanel } from "./encuesta-satisfaccion-panel"
 import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
+import {
+  exportCandidatesToExcel,
+  supportsCandidateExcelExport,
+} from "@/lib/export-candidates-excel"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -260,6 +264,9 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
   const [showHistorialDialog, setShowHistorialDialog] = useState(false)
   const [historialCandidatos, setHistorialCandidatos] = useState<any[]>([])
   const [historialSearchTerm, setHistorialSearchTerm] = useState("")
+  const [candidateSearchTerm, setCandidateSearchTerm] = useState("")
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState("all")
+  const [candidatePortalFilter, setCandidatePortalFilter] = useState("all")
   const [historialLoading, setHistorialLoading] = useState(false)
   const [historialPagination, setHistorialPagination] = useState({
     currentPage: 1,
@@ -329,6 +336,51 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
   }, [processAny.tipo_servicio, process.service_type])
 
   const cargoLabel = (processAny.cargo || process.position_title || "Cargo del proceso") as string
+
+  const serviceTypeCode = useMemo(
+    () => (processAny.tipo_servicio || process.service_type || "").toString().toUpperCase(),
+    [processAny.tipo_servicio, process.service_type]
+  )
+
+  const canExportExcel = useMemo(
+    () => supportsCandidateExcelExport(serviceTypeCode),
+    [serviceTypeCode]
+  )
+
+  const candidatePortalOptions = useMemo(() => {
+    const portals = new Set<string>()
+    candidates.forEach((candidate) => {
+      if (candidate.source_portal?.trim()) {
+        portals.add(candidate.source_portal.trim())
+      }
+    })
+    return Array.from(portals).sort((a, b) => a.localeCompare(b, "es"))
+  }, [candidates])
+
+  const filteredCandidates = useMemo(() => {
+    const term = candidateSearchTerm.trim().toLowerCase()
+
+    return candidates.filter((candidate) => {
+      if (candidateStatusFilter !== "all") {
+        const status = candidate.presentation_status || "sin_estado"
+        if (status !== candidateStatusFilter) return false
+      }
+
+      if (candidatePortalFilter !== "all") {
+        if ((candidate.source_portal || "").trim() !== candidatePortalFilter) return false
+      }
+
+      if (term) {
+        const haystack = [candidate.name, candidate.email, candidate.phone, candidate.rut]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+        if (!haystack.includes(term)) return false
+      }
+
+      return true
+    })
+  }, [candidates, candidateSearchTerm, candidateStatusFilter, candidatePortalFilter])
 
   const defaultBolaNieve = useMemo(
     (): BolaNieveFormState => ({
@@ -1319,6 +1371,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
             disponibilidad_postulacion: formData.portal_responses?.availability || formData.availability,
             valoracion: formData.consultant_rating,
             comentario_no_presentado: formData.consultant_comment,
+            comentario_candidato: formData.candidate_comments || undefined,
             situacion_familiar: formData.portal_responses?.family_situation || undefined,
             cv_file: formData.cv_file || undefined
           }
@@ -1418,6 +1471,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
               start_date: exp.start_date,
               end_date: exp.end_date,
               description: exp.description,
+              exit_reason: exp.exit_reason,
             }))
           : undefined,
 
@@ -1472,6 +1526,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
             disponibilidad_postulacion: formData.portal_responses?.availability || formData.availability,
             valoracion: formData.consultant_rating,
             comentario_no_presentado: formData.consultant_comment,
+            comentario_candidato: formData.candidate_comments || undefined,
             // Campos adicionales de postulación
             situacion_familiar: formData.portal_responses?.family_situation || undefined,
             cv_file: formData.cv_file || undefined // El archivo CV se maneja por separado
@@ -1612,6 +1667,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
       licencia: candidate.licencia || false,
       source_portal: portalId,
       consultant_comment: candidate.consultant_comment || '',
+      candidate_comments: candidate.candidate_comments || '',
       // Agregar profesiones, educación y experiencia laboral
       professions: candidate.professions || [],
       education: candidate.education || [],
@@ -1854,6 +1910,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
             start_date: exp.start_date,
             end_date: exp.end_date,
             description: exp.description,
+            exit_reason: exp.exit_reason,
           })),
           
         // Enviar educación como array (vacío si no hay)
@@ -1917,7 +1974,8 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
           disponibilidad_postulacion: formData.portal_responses?.availability || formData.availability,
           situacion_familiar: formData.portal_responses?.family_situation || undefined,
           valoracion: formData.consultant_rating,
-          comentario_no_presentado: formData.consultant_comment
+          comentario_no_presentado: formData.consultant_comment,
+          comentario_candidato: formData.candidate_comments || undefined
         }
 
         console.log('📤 Datos de postulación a enviar:', postulacionData)
@@ -3106,6 +3164,27 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     setHistorialSearchTerm("")
   }
 
+  const handleExportCandidatesExcel = () => {
+    try {
+      exportCandidatesToExcel(filteredCandidates, {
+        serviceType: serviceTypeCode,
+        processLabel: cargoLabel,
+        processId: process.id,
+      })
+      showToast({
+        type: "success",
+        title: "Exportación exitosa",
+        description: `Se descargaron ${filteredCandidates.length} candidato(s) en Excel`,
+      })
+    } catch (error) {
+      showToast({
+        type: "error",
+        title: "Error",
+        description: error instanceof Error ? error.message : "No se pudo exportar a Excel",
+      })
+    }
+  }
+
   // Mostrar indicador de carga
 
   if (isLoading) {
@@ -3795,6 +3874,17 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
             <div className="flex gap-2">
 
+              {canExportExcel && (
+                <Button
+                  variant="outline"
+                  disabled={readOnly || isBlocked || filteredCandidates.length === 0}
+                  onClick={handleExportCandidatesExcel}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Descargar Excel
+                </Button>
+              )}
+
               {/* Botón para agregar desde historial */}
               <Button 
                 variant="outline" 
@@ -3898,6 +3988,46 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
             </Alert>
           )}
 
+          {candidates.length > 0 && (
+            <div className="flex flex-wrap gap-3 mb-4">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por nombre, email o teléfono..."
+                  value={candidateSearchTerm}
+                  onChange={(e) => setCandidateSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={candidateStatusFilter} onValueChange={setCandidateStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="agregado">Agregado</SelectItem>
+                  <SelectItem value="presentado">Presentado</SelectItem>
+                  <SelectItem value="no_presentado">No Presentado</SelectItem>
+                  <SelectItem value="rechazado">Rechazado</SelectItem>
+                  <SelectItem value="sin_estado">Sin Estado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={candidatePortalFilter} onValueChange={setCandidatePortalFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Portal" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los portales</SelectItem>
+                  {candidatePortalOptions.map((portal) => (
+                    <SelectItem key={portal} value={portal}>
+                      {portal}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Alerta cuando no hay candidatos presentados */}
           {candidates.length > 0 && !hasPresentedCandidates && !coordinadorMode && (
             <Alert className="mb-4 bg-yellow-50 border-yellow-200">
@@ -3909,6 +4039,11 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
           )}
 
           {candidates.length > 0 ? (
+            filteredCandidates.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
+                No hay candidatos que coincidan con los filtros activos.
+              </p>
+            ) : (
 
             <Table>
 
@@ -3934,7 +4069,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
               <TableBody>
 
-                {candidates.map((candidate) => (
+                {filteredCandidates.map((candidate) => (
 
                   <TableRow 
 
@@ -4116,6 +4251,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
 
             </Table>
 
+            )
           ) : (
 
             <div className="text-center py-8">

@@ -1,8 +1,9 @@
 import { Transaction, Sequelize } from 'sequelize';
 import sequelize from '@/config/database';
-import { EvaluacionPsicolaboral, EvaluacionTest, TestPsicolaboral, Postulacion, Solicitud, TipoServicio } from '@/models';
+import { EvaluacionPsicolaboral, EvaluacionTest, TestPsicolaboral, Postulacion, Solicitud, TipoServicio, HitoSolicitud } from '@/models';
 import { HitoHelperService } from './hitoHelperService';
 import { setDatabaseUser } from '@/utils/databaseUser';
+import { FechasLaborales } from '@/utils/fechasLaborales';
 
 /**
  * Función para convertir fecha a string SQL sin zona horaria
@@ -315,26 +316,43 @@ export class EvaluacionPsicolaboralService {
 
             await evaluacion.update(updateData, { transaction });
 
+            const postulacion = (evaluacion as any).get('postulacion') as any;
+            const solicitud = postulacion?.get('solicitud') as any;
+            const tipoServicio = solicitud?.get('tipoServicio') as any;
+            const codigoServicio = tipoServicio?.codigo_servicio as string | undefined;
+
             // Marcar el Hito 1 (Agendar entrevista/test) si se agregó la fecha por primera vez
-            if (marcarHito) {
-                const postulacion = (evaluacion as any).get('postulacion') as any;
-                if (postulacion) {
-                    const solicitud = postulacion.get('solicitud') as any;
-                    if (solicitud) {
-                        const tipoServicio = solicitud.get('tipoServicio') as any;
-                        if (tipoServicio) {
-                            const codigoServicio = tipoServicio.codigo_servicio;
-                            // Solo marcar para servicios de evaluación/test (ES, EP, TS)
-                            if (['ES', 'EP', 'TS'].includes(codigoServicio)) {
-                                await HitoHelperService.marcarHitoAgendarEntrevista(
-                                    solicitud.id_solicitud,
-                                    codigoServicio,
-                                    transaction
-                                );
-                            }
-                        }
-                    }
-                }
+            if (marcarHito && codigoServicio && ['ES', 'EP', 'TS'].includes(codigoServicio)) {
+                await HitoHelperService.marcarHitoAgendarEntrevista(
+                    solicitud.id_solicitud,
+                    codigoServicio,
+                    transaction
+                );
+            }
+
+            // Para ES: recalcular plazo_maximo_solicitud cuando cambia la fecha de entrevista
+            // El plazo correcto es fecha_entrevista + 2 días hábiles (no fecha_ingreso + 2)
+            if (
+                codigoServicio === 'ES' &&
+                data.fecha_evaluacion !== undefined &&
+                data.fecha_evaluacion !== null &&
+                solicitud
+            ) {
+                const fechaEntrevista = data.fecha_evaluacion instanceof Date
+                    ? data.fecha_evaluacion
+                    : new Date(data.fecha_evaluacion as string);
+
+                const nuevoPlazo = await FechasLaborales.sumarDiasHabiles(fechaEntrevista, 2);
+
+                await Solicitud.update(
+                    { plazo_maximo_solicitud: nuevoPlazo },
+                    { where: { id_solicitud: solicitud.id_solicitud }, transaction }
+                );
+
+                await HitoSolicitud.update(
+                    { fecha_limite: nuevoPlazo },
+                    { where: { id_solicitud: solicitud.id_solicitud, nombre_hito: 'Envío de informe' }, transaction }
+                );
             }
 
             await transaction.commit();

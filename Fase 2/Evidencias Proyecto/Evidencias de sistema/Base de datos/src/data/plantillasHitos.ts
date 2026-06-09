@@ -320,6 +320,30 @@ export function obtenerPlantillasPorServicio(codigoServicio: string): PlantillaH
     return PLANTILLAS_HITOS[codigoServicio] || [];
 }
 
+/** Índice de orden en el flujo del servicio (para línea de tiempo) */
+export function obtenerIndiceOrdenHito(codigoServicio: string, tipoAncla: string, nombreHito?: string): number {
+    const plantillas = PLANTILLAS_HITOS[codigoServicio] || [];
+    if (nombreHito) {
+        const byName = plantillas.findIndex(p => p.nombre_hito === nombreHito);
+        if (byName >= 0) return byName;
+    }
+    const byAncla = plantillas.findIndex(p => p.tipo_ancla === tipoAncla);
+    return byAncla >= 0 ? byAncla : 999;
+}
+
+/** Ordena hitos según la secuencia definida en plantillas, no por fecha límite */
+export function ordenarHitosPorFlujo<T extends { tipo_ancla?: string; nombre_hito?: string; id_hito_solicitud?: number }>(
+    hitos: T[],
+    codigoServicio: string
+): T[] {
+    return [...hitos].sort((a, b) => {
+        const ia = obtenerIndiceOrdenHito(codigoServicio, a.tipo_ancla || '', a.nombre_hito);
+        const ib = obtenerIndiceOrdenHito(codigoServicio, b.tipo_ancla || '', b.nombre_hito);
+        if (ia !== ib) return ia - ib;
+        return (a.id_hito_solicitud || 0) - (b.id_hito_solicitud || 0);
+    });
+}
+
 /**
  * Obtiene todos los códigos de servicio disponibles
  * @returns Array de códigos de servicio

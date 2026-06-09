@@ -18,9 +18,10 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight, KeyRound, UserPlus } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Building, Users, Phone, Mail, MapPin, User, X, Loader2, ChevronLeft, ChevronRight, KeyRound, UserPlus, FileText } from "lucide-react"
 import { CustomAlertDialog } from "@/components/CustomAlertDialog"
-import { clientService, comunaService, regionService, apiUtils } from "@/lib/api"
+import { clientService, comunaService, regionService, apiUtils, solicitudService } from "@/lib/api"
+import { descargarReportePDF } from "@/components/admin/ReporteClientePDF"
 import type { Client, ClientContact, Comuna, Region } from "@/lib/types"
 import { useFormValidation, validationSchemas, validateClientContacts } from "@/hooks/useFormValidation"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
@@ -143,6 +144,7 @@ export default function ClientesPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [generandoPdfClienteId, setGenerandoPdfClienteId] = useState<number | null>(null)
   const [comunas, setComunas] = useState<Comuna[]>([])
   const [regiones, setRegiones] = useState<Region[]>([])
   const [contactErrors, setContactErrors] = useState<{[key: string]: string}>({})
@@ -216,6 +218,11 @@ export default function ClientesPage() {
   const getClientProcessCount = (clientId: string) => {
     const client = clients.find((c) => c.id === clientId)
     return client?.processCount || 0
+  }
+
+  const getClientActiveProcessCount = (clientId: string) => {
+    const client = clients.find((c) => c.id === clientId)
+    return client?.activeProcessCount || 0
   }
 
   const addContact = () => {
@@ -878,44 +885,48 @@ export default function ClientesPage() {
               <span className="ml-2">Cargando clientes...</span>
             </div>
           ) : (
+          <div className="w-full overflow-x-auto lg:overflow-x-visible">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Empresa</TableHead>
-                <TableHead>Contacto Principal</TableHead>
-                <TableHead>Total Contactos</TableHead>
-                <TableHead>Procesos</TableHead>
-                <TableHead className="w-[70px]">Acciones</TableHead>
+                <TableHead className="min-w-[160px]">Empresa</TableHead>
+                <TableHead className="min-w-[240px]">Contacto Principal</TableHead>
+                <TableHead className="w-20 text-center">Contactos</TableHead>
+                <TableHead className="w-16 text-center">Total</TableHead>
+                <TableHead className="w-16 text-center">Activos</TableHead>
+                <TableHead className="w-[1%] whitespace-nowrap pl-1 pr-0 text-center">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
                 {clients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No se encontraron clientes
                     </TableCell>
                   </TableRow>
                 ) : (
                   clients.map((client) => {
                 const primaryContact = getPrimaryContact(client)
+                const totalProcesos = getClientProcessCount(client.id)
+                const activosProcesos = getClientActiveProcessCount(client.id)
                 return (
                   <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.name}</TableCell>
-                    <TableCell>
+                    <TableCell className="font-medium whitespace-normal">{client.name}</TableCell>
+                    <TableCell className="whitespace-normal">
                           {primaryContact ? (
                       <div className="space-y-1">
                         <div className="font-medium">{primaryContact.name}</div>
                         <div className="text-sm text-muted-foreground">{primaryContact.position}</div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {primaryContact.email}
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{primaryContact.email}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-3 w-3" />
+                          <Phone className="h-3 w-3 shrink-0" />
                           {primaryContact.phone}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
+                          <MapPin className="h-3 w-3 shrink-0" />
                           {primaryContact.city}
                         </div>
                       </div>
@@ -925,45 +936,81 @@ export default function ClientesPage() {
                             </div>
                           )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="secondary">
-                            {client.contacts?.length || 0} contacto{(client.contacts?.length || 0) !== 1 ? "s" : ""}
+                            {client.contacts?.length || 0}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {getClientProcessCount(client.id)} proceso{getClientProcessCount(client.id) !== 1 ? "s" : ""}
+                    <TableCell className="text-center">
+                      <Badge variant="outline" title="Total procesos">
+                        {totalProcesos}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                          <div className="flex flex-col gap-2 sm:flex-row">
+                    <TableCell className="text-center">
+                      <Badge variant="default" title="Procesos activos">
+                        {activosProcesos}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap pl-1 pr-0">
+                          <div className="flex flex-row items-center gap-1.5 flex-nowrap w-fit">
                             <Button
                               variant="outline"
                               size="sm"
+                              className="h-7 w-[8.25rem] shrink-0 px-2 text-xs justify-center"
                               onClick={() => openEditDialog(client)}
                             >
-                              <Edit className="h-4 w-4 mr-1" />
+                              <Edit className="h-3.5 w-3.5 mr-1 shrink-0" />
                               Editar
                             </Button>
                             {credencialByClientId[client.id] ? (
                               <Button
                                 variant="secondary"
                                 size="sm"
+                                className="h-7 w-[8.25rem] shrink-0 px-2 text-xs justify-center"
                                 onClick={() => openPortalAccessDialog(client, "manage")}
                               >
-                                <KeyRound className="h-4 w-4 mr-1" />
+                                <KeyRound className="h-3.5 w-3.5 mr-1 shrink-0" />
                                 Credenciales
                               </Button>
                             ) : (
                               <Button
                                 variant="default"
                                 size="sm"
+                                className="h-7 w-[8.25rem] shrink-0 px-2 text-xs justify-center"
                                 onClick={() => openPortalAccessDialog(client, "generate")}
                               >
-                                <UserPlus className="h-4 w-4 mr-1" />
+                                <UserPlus className="h-3.5 w-3.5 mr-1 shrink-0" />
                                 Generar usuario
                               </Button>
                             )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 w-[8.25rem] shrink-0 px-2 text-xs justify-center"
+                              disabled={generandoPdfClienteId === client.id}
+                              onClick={async () => {
+                                setGenerandoPdfClienteId(client.id)
+                                try {
+                                  const res = await solicitudService.getReporteCliente(client.id)
+                                  if (res.success && res.data) {
+                                    await descargarReportePDF(res.data)
+                                  } else {
+                                    showToast("No se pudo generar el reporte", "error")
+                                  }
+                                } catch {
+                                  showToast("Error al generar el reporte PDF", "error")
+                                } finally {
+                                  setGenerandoPdfClienteId(null)
+                                }
+                              }}
+                            >
+                              {generandoPdfClienteId === client.id ? (
+                                <Loader2 className="h-3.5 w-3.5 mr-1 shrink-0 animate-spin" />
+                              ) : (
+                                <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
+                              )}
+                              Reporte PDF
+                            </Button>
                           </div>
                     </TableCell>
                   </TableRow>
@@ -972,6 +1019,7 @@ export default function ClientesPage() {
                 )}
             </TableBody>
           </Table>
+          </div>
           )}
         </CardContent>
       </Card>

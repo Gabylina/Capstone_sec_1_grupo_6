@@ -1,4 +1,4 @@
-import { Transaction, Op } from 'sequelize';
+import { Transaction, Op, QueryTypes } from 'sequelize';
 import sequelize from '@/config/database';
 import { setDatabaseUser } from '@/utils/databaseUser';
 import { Cliente, Contacto, Comuna, Solicitud } from '@/models';
@@ -9,6 +9,43 @@ import { Cliente, Contacto, Comuna, Solicitud } from '@/models';
  */
 
 export class ClienteService {
+    /** Conteo de procesos activos (misma lógica que getReporteCliente) por id_cliente */
+    private static async getActiveProcessCountByClient(clientIds: number[]): Promise<Record<number, number>> {
+        if (clientIds.length === 0) return {};
+
+        const rows = await sequelize.query(`
+            WITH estado_actual AS (
+                SELECT DISTINCT ON (esh.id_solicitud)
+                    esh.id_solicitud,
+                    es.nombre_estado_solicitud
+                FROM estado_solicitud_hist esh
+                INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+            )
+            SELECT
+                co.id_cliente,
+                COUNT(DISTINCT s.id_solicitud)::integer AS activos
+            FROM solicitud s
+            INNER JOIN contacto co ON s.id_contacto = co.id_contacto
+            LEFT JOIN estado_actual ea ON ea.id_solicitud = s.id_solicitud
+            WHERE co.id_cliente = ANY(ARRAY[:clientIds]::int[])
+              AND COALESCE(ea.nombre_estado_solicitud, 'Creado') NOT IN (
+                'Cerrado', 'Cancelado', 'Cierre Extraordinario'
+              )
+            GROUP BY co.id_cliente
+        `, {
+            replacements: { clientIds },
+            type: QueryTypes.SELECT,
+            skipUserContext: true
+        } as any) as any[];
+
+        const map: Record<number, number> = {};
+        (Array.isArray(rows) ? rows : []).forEach((r: any) => {
+            map[Number(r.id_cliente)] = parseInt(r.activos, 10) || 0;
+        });
+        return map;
+    }
+
     /**
      * Obtener clientes paginados con filtros opcionales y orden
      */
@@ -140,11 +177,14 @@ export class ClienteService {
             conteoPorCliente[item.id_cliente] = parseInt(item.count);
         });
 
+        const activosPorCliente = await ClienteService.getActiveProcessCountByClient(clientIds);
+
         // Transformar al formato del frontend
         const transformedClients = rows.map(cliente => ({
             id: cliente.id_cliente.toString(),
             name: cliente.nombre_cliente,
             processCount: conteoPorCliente[cliente.id_cliente] || 0,
+            activeProcessCount: activosPorCliente[cliente.id_cliente] || 0,
             contacts: (cliente.get('contactos') as any[])?.map((contacto: any) => ({
                 id: contacto.id_contacto.toString(),
                 name: contacto.nombre_contacto,
@@ -218,11 +258,14 @@ export class ClienteService {
             conteoPorCliente[item.id_cliente] = parseInt(item.count);
         });
 
+        const activosPorCliente = await ClienteService.getActiveProcessCountByClient(clientIds);
+
         // Transformar al formato del frontend
         return clientes.map(cliente => ({
             id: cliente.id_cliente.toString(),
             name: cliente.nombre_cliente,
             processCount: conteoPorCliente[cliente.id_cliente] || 0,
+            activeProcessCount: activosPorCliente[cliente.id_cliente] || 0,
             contacts: (cliente.get('contactos') as any[])?.map((contacto: any) => ({
                 id: contacto.id_contacto.toString(),
                 name: contacto.nombre_contacto,

@@ -3,7 +3,7 @@ import sequelize from '@/config/database';
 import { setDatabaseUser } from '@/utils/databaseUser';
 import { HitoSolicitud, Solicitud, DescripcionCargo, Contacto, Usuario, Cliente, EstadoSolicitudHist, EstadoSolicitud } from '@/models';
 import { FechasLaborales } from '@/utils/fechasLaborales';
-import { obtenerPlantillasPorServicio } from '@/data/plantillasHitos';
+import { obtenerPlantillasPorServicio, ordenarHitosPorFlujo } from '@/data/plantillasHitos';
 import { Logger } from '@/utils/logger';
 
 function normalizarRut(rut: string | null | undefined): string {
@@ -78,7 +78,43 @@ export class HitoSolicitudService {
     // ===========================================
 
     /**
-     * Copiar plantillas a una solicitud específica
+     * Elimina hitos de otro servicio y regenera plantillas si no quedan hitos válidos
+     */
+    private static async asegurarHitosCoherentes(
+        idSolicitud: number,
+        codigoServicio: string,
+        usuarioRut?: string
+    ): Promise<void> {
+        const wrong = await HitoSolicitud.findAll({
+            where: {
+                id_solicitud: idSolicitud,
+                codigo_servicio: { [Op.ne]: codigoServicio }
+            }
+        });
+
+        if (wrong.length > 0) {
+            await HitoSolicitud.destroy({
+                where: { id_hito_solicitud: wrong.map(h => h.id_hito_solicitud) }
+            });
+            console.warn(
+                `⚠️ Eliminados ${wrong.length} hito(s) de otro servicio en solicitud ${idSolicitud} (esperado: ${codigoServicio})`
+            );
+        }
+
+        const correctCount = await HitoSolicitud.count({
+            where: { id_solicitud: idSolicitud, codigo_servicio: codigoServicio }
+        });
+
+        if (correctCount === 0) {
+            await this.copiarPlantillasASolicitud(idSolicitud, usuarioRut);
+            const solicitud = await Solicitud.findByPk(idSolicitud);
+            const fecha = solicitud?.fecha_ingreso_solicitud || new Date();
+            await this.activarHitosPorEvento(idSolicitud, 'inicio_proceso', fecha, usuarioRut);
+        }
+    }
+
+    /**
+     * Copiar plantillas a una solicitud específica (idempotente: no duplica ni mezcla servicios)
      */
     static async copiarPlantillasASolicitud(idSolicitud: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
@@ -90,16 +126,38 @@ export class HitoSolicitudService {
             }
 
             // Obtener la solicitud para saber el tipo de servicio
-            const solicitud = await Solicitud.findByPk(idSolicitud);
+            const solicitud = await Solicitud.findByPk(idSolicitud, { transaction });
             if (!solicitud) {
                 throw new Error('Solicitud no encontrada');
             }
 
+            const codigoServicio = solicitud.codigo_servicio;
+
+            // Eliminar hitos de otro servicio y evitar duplicar los correctos
+            const existing = await HitoSolicitud.findAll({
+                where: { id_solicitud: idSolicitud },
+                transaction
+            });
+            const wrong = existing.filter(h => h.codigo_servicio !== codigoServicio);
+            const correct = existing.filter(h => h.codigo_servicio === codigoServicio);
+
+            if (wrong.length > 0) {
+                await HitoSolicitud.destroy({
+                    where: { id_hito_solicitud: wrong.map(h => h.id_hito_solicitud) },
+                    transaction
+                });
+            }
+
+            if (correct.length > 0) {
+                await transaction.commit();
+                return correct;
+            }
+
             // Obtener plantillas del servicio
-            const plantillas = obtenerPlantillasPorServicio(solicitud.codigo_servicio);
+            const plantillas = obtenerPlantillasPorServicio(codigoServicio);
 
             if (plantillas.length === 0) {
-                console.log(`No hay plantillas para el servicio ${solicitud.codigo_servicio}`);
+                console.log(`No hay plantillas para el servicio ${codigoServicio}`);
                 await transaction.commit();
                 return [];
             }
@@ -153,10 +211,16 @@ export class HitoSolicitudService {
                 await setDatabaseUser(usuarioRut, transaction);
             }
 
-            // Buscar hitos pendientes con el tipo de ancla específico
+            const solicitud = await Solicitud.findByPk(idSolicitud, { transaction });
+            if (!solicitud) {
+                throw new Error('Solicitud no encontrada');
+            }
+
+            // Buscar hitos pendientes con el tipo de ancla específico (solo del servicio actual)
             const hitosPendientes = await HitoSolicitud.findAll({
                 where: {
                     id_solicitud: idSolicitud,
+                    codigo_servicio: solicitud.codigo_servicio,
                     tipo_ancla: tipoAncla,
                     fecha_base: { [Op.is]: null } as any
                 },
@@ -182,17 +246,26 @@ export class HitoSolicitudService {
     }
 
     /**
-     * Obtener hitos de una solicitud específica.
-     * No se filtran por estado de la solicitud: la línea de tiempo se mantiene visible
-     * aunque la solicitud esté Cerrada o finalizada.
+     * Obtener hitos de una solicitud específica (solo del servicio actual, orden del flujo).
      */
     static async getHitosBySolicitud(idSolicitud: number) {
+        const solicitud = await Solicitud.findByPk(idSolicitud, {
+            attributes: ['codigo_servicio']
+        });
+        if (!solicitud) return [];
+
+        await this.asegurarHitosCoherentes(idSolicitud, solicitud.codigo_servicio);
+
         const hitos = await HitoSolicitud.findAll({
-            where: { id_solicitud: idSolicitud },
-            order: [['fecha_limite', 'ASC']]
+            where: {
+                id_solicitud: idSolicitud,
+                codigo_servicio: solicitud.codigo_servicio
+            }
         });
 
-        return hitos.map(h => ({
+        const sorted = ordenarHitosPorFlujo(hitos, solicitud.codigo_servicio);
+
+        return sorted.map(h => ({
             ...h.toJSON(),
             dias_restantes: h.diasHabilesRestantes(),
             debe_avisar: h.debeAvisar()

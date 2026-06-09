@@ -44,6 +44,7 @@ interface WorkExperienceForm {
   start_date: string
   end_date: string
   description: string
+  exit_reason: string
   workExperienceId?: string // ID de la BD si es una experiencia laboral existente
   markedForDeletion?: boolean // Flag para marcar experiencia laboral para eliminación
 }
@@ -68,6 +69,7 @@ interface CandidateFormData {
   nacionalidad: string
   rubro: string
   consultant_comment: string
+  candidate_comments: string
   has_disability_credential: boolean
   licencia: boolean
   work_experience: WorkExperience[]
@@ -133,6 +135,7 @@ export function CandidateForm({
     nacionalidad: "",
     rubro: "",
     consultant_comment: "",
+    candidate_comments: "",
     has_disability_credential: false,
     licencia: false,
     work_experience: [],
@@ -159,7 +162,7 @@ export function CandidateForm({
   ])
   
   const [workExperienceForms, setWorkExperienceForms] = useState<WorkExperienceForm[]>([
-    { id: '1', company: '', position: '', start_date: '', end_date: '', description: '' }
+    { id: '1', company: '', position: '', start_date: '', end_date: '', description: '', exit_reason: '' }
   ])
 
   const [comunasFiltradas, setComunasFiltradas] = useState<any[]>([])
@@ -246,6 +249,7 @@ export function CandidateForm({
         nacionalidad: initialData.nacionalidad || "",
         rubro: initialData.rubro || "",
         consultant_comment: initialData.consultant_comment || "",
+        candidate_comments: initialData.candidate_comments || "",
         has_disability_credential: initialData.has_disability_credential || false,
         licencia: initialData.licencia || false,
         work_experience: [],
@@ -314,6 +318,7 @@ export function CandidateForm({
             start_date: normalizeDate(exp.start_date),
             end_date: normalizeDate(exp.end_date),
             description: exp.description || '',
+            exit_reason: exp.exit_reason || '',
             workExperienceId: workExperienceId, // ID para identificar experiencia laboral existente
             markedForDeletion: false
           }
@@ -519,6 +524,7 @@ export function CandidateForm({
       start_date: '',
       end_date: '',
       description: '',
+      exit_reason: '',
       markedForDeletion: false
     }])
   }
@@ -604,6 +610,7 @@ export function CandidateForm({
           start_date: '',
           end_date: '',
           description: '',
+          exit_reason: '',
           markedForDeletion: false
         }])
       } else {
@@ -2064,6 +2071,21 @@ export function CandidateForm({
                   </div>
                   <ValidationErrorDisplay error={errors[`work_experience_${form.id}_description`]} />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Motivo de Salida</Label>
+                  <Textarea
+                    value={form.exit_reason}
+                    onChange={(e) => updateWorkExperienceForm(form.id, 'exit_reason', e.target.value)}
+                    placeholder="Motivo de salida de la empresa (opcional)"
+                    maxLength={500}
+                    rows={2}
+                    className="bg-white"
+                  />
+                  <div className="text-sm text-muted-foreground text-right">
+                    {(form.exit_reason || "").length}/500 caracteres
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )
@@ -2243,6 +2265,22 @@ export function CandidateForm({
                 onClick={() => setFormData({ ...formData, consultant_rating: star })}
               />
             ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="candidate_comments">Comentarios del Candidato</Label>
+          <Textarea
+            id="candidate_comments"
+            value={formData.candidate_comments}
+            onChange={(e) => setFormData({ ...formData, candidate_comments: e.target.value })}
+            placeholder="Comentarios generales sobre el candidato (opcional)"
+            rows={4}
+            maxLength={1000}
+            className="bg-white"
+          />
+          <div className="text-sm text-muted-foreground text-right">
+            {(formData.candidate_comments || "").length}/1000 caracteres
           </div>
         </div>
       </div>

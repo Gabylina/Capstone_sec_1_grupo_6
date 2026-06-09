@@ -43,6 +43,8 @@ router.get('/reportes/procesos-cerrados-exitosos', (SolicitudController as any).
 router.get('/reportes/rendimiento-consultor', (SolicitudController as any).getConsultantPerformance);
 router.get('/reportes/cumplimiento-consultor', (SolicitudController as any).getConsultantCompletionStats);
 router.get('/reportes/retrasos-consultor', (SolicitudController as any).getConsultantOverdueHitos);
+router.get('/reportes/summary-cards', (SolicitudController as any).getSummaryCards);
+router.get('/reportes/reporte-cliente/:clienteId', (SolicitudController as any).getReporteCliente);
 
 // Obtener una solicitud específica
 router.get('/:id(\\d+)', SolicitudController.getById);

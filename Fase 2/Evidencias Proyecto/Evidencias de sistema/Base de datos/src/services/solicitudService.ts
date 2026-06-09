@@ -26,6 +26,7 @@ import { HitoSolicitudService } from './hitoSolicitudService';
 import { HitoHelperService } from './hitoHelperService';
 import { obtenerDuracionProceso } from '@/utils/duracionProcesos';
 import { FechasLaborales } from '@/utils/fechasLaborales';
+import FeriadosService from '@/services/feriadosService';
 
 /**
  * Servicio para gestión de Solicitudes
@@ -791,9 +792,15 @@ export class SolicitudService {
                 throw new Error('Solicitud no encontrada');
             }
 
+            // No permitir cambiar el tipo de proceso (dejaría hitos incoherentes)
+            if (data.service_type && data.service_type !== solicitud.codigo_servicio) {
+                throw new Error(
+                    'No se puede cambiar el tipo de proceso una vez creado. La línea de tiempo depende del tipo original.'
+                );
+            }
+
             // Actualizar campos de la solicitud
             if (data.contact_id) solicitud.id_contacto = data.contact_id;
-            if (data.service_type) solicitud.codigo_servicio = data.service_type;
             if (data.consultant_id) solicitud.rut_usuario = data.consultant_id;
             
             // Actualizar fecha de ingreso si se proporciona
@@ -808,10 +815,10 @@ export class SolicitudService {
                 solicitud.fecha_ingreso_solicitud = fechaIngreso;
             }
 
-            // Recalcular fecha límite si se cambia el servicio o la fecha de ingreso
+            // Recalcular fecha límite si se cambia la fecha de ingreso
             const fechaIngresoParaCalculo = data.fecha_ingreso_solicitud || solicitud.fecha_ingreso_solicitud;
-            if (data.service_type || data.fecha_ingreso_solicitud) {
-                const codigoServicio = data.service_type || solicitud.codigo_servicio;
+            if (data.fecha_ingreso_solicitud) {
+                const codigoServicio = solicitud.codigo_servicio;
                 const diasHabiles = obtenerDuracionProceso(codigoServicio);
                 const nuevaFecha = await FechasLaborales.sumarDiasHabiles(fechaIngresoParaCalculo, diasHabiles);
                 solicitud.plazo_maximo_solicitud = nuevaFecha;
@@ -1843,9 +1850,6 @@ export class SolicitudService {
             // Día de la semana del 1 de enero (0 = domingo, 1 = lunes, etc.)
             const jan1DayOfWeek = jan1.getDay();
             // Calcular el primer lunes del año
-            // Si el 1 de enero es domingo (0), el primer lunes es el 2 (1 día después)
-            // Si el 1 de enero es lunes (1), el primer lunes es el 1 (0 días después)
-            // Si el 1 de enero es martes (2), el primer lunes es el 8 (6 días después)
             const daysToFirstMonday = jan1DayOfWeek === 0 ? 1 : jan1DayOfWeek === 1 ? 0 : (8 - jan1DayOfWeek);
             const firstMondayOfYear = new Date(year, 0, 1 + daysToFirstMonday);
             
@@ -2055,14 +2059,24 @@ export class SolicitudService {
         year: number,
         month: number,
         week?: number,
-        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month'
+        periodType: 'week' | 'month' | 'quarter' | 'year' = 'month',
+        consultant?: string
     ): Promise<Array<{ serviceCode: string; serviceName: string; averageDays: number; sampleSize: number }>> {
         try {
             const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
 
             const runQuery = async (applyFilter: boolean) => {
+                const consultantCondition = consultant ? `AND u.nombre_usuario = :consultant` : '';
                 const query = `
-                WITH closures AS (
+                WITH estado_actual AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        es.nombre_estado_solicitud AS estado_actual
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                closures AS (
                     SELECT DISTINCT ON (esh.id_solicitud)
                         esh.id_solicitud,
                         esh.fecha_cambio_estado_solicitud AS fecha_cierre,
@@ -2081,9 +2095,12 @@ export class SolicitudService {
                         EXTRACT(EPOCH FROM (c.fecha_cierre - s.fecha_ingreso_solicitud)) / 86400 AS dias
                     FROM solicitud s
                     INNER JOIN closures c ON c.id_solicitud = s.id_solicitud
-                    WHERE s.codigo_servicio IN ('PC', 'HH', 'LL', 'FI', 'TR', 'ES', 'EP', 'TS', 'PP')
+                    INNER JOIN estado_actual ea ON ea.id_solicitud = s.id_solicitud AND ea.estado_actual = 'Cerrado'
+                    LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                    WHERE s.codigo_servicio IN ('PC', 'HH', 'LL', 'FI', 'TR', 'ES', 'EP', 'TS', 'PP', 'SC', 'CA')
                       AND c.fecha_cierre IS NOT NULL
                       AND s.fecha_ingreso_solicitud IS NOT NULL
+                      ${consultantCondition}
                 )
                 SELECT 
                     d.codigo_servicio,
@@ -2095,9 +2112,11 @@ export class SolicitudService {
                 
                 const startDateStr = startDate.toISOString().split('T')[0];
                 const endDateStr = endDate.toISOString().split('T')[0];
-                
+                const replacements: Record<string, any> = { startDate: startDateStr, endDate: endDateStr };
+                if (consultant) replacements.consultant = consultant;
+
                 return (await sequelize.query(query, {
-                    replacements: { startDate: startDateStr, endDate: endDateStr },
+                    replacements,
                     type: QueryTypes.SELECT,
                     skipUserContext: true
                 } as any)) as Array<{ codigo_servicio?: string; avg_days?: number; total?: number }>;
@@ -2230,6 +2249,7 @@ export class SolicitudService {
             deadline: string | null;
             closedAt: string | null;
             daysOpen: number | null;
+            businessDaysOpen: number | null;
             daysUntilDeadline: number | null;
             urgency: string;
         }>;
@@ -2239,6 +2259,14 @@ export class SolicitudService {
             averageCloseDays: number;
             cancelledCount: number;
         };
+        periodActiveSnapshot: Array<{
+            id: number;
+            serviceCode: string;
+            serviceName: string;
+            consultant: string;
+            statusAtEnd: string;
+            urgencyAtEnd: 'on_track' | 'overdue' | 'no_deadline';
+        }>;
     }> {
         try {
             const { startDate, endDate } = this.calculatePeriodRange(year, month, week, periodType);
@@ -2286,7 +2314,7 @@ export class SolicitudService {
                     FROM estado_solicitud_hist esh
                     INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
                     WHERE esh.id_solicitud = s.id_solicitud
-                      AND es.nombre_estado_solicitud = 'Cerrado'
+                      AND es.nombre_estado_solicitud IN ('Cerrado', 'Cierre Extraordinario')
                     ORDER BY esh.fecha_cambio_estado_solicitud DESC
                     LIMIT 1
                 ) cierre ON true
@@ -2411,17 +2439,40 @@ export class SolicitudService {
                 'En Revisión': { label: 'En Revisión', category: 'active' },
                 'Cerrado': { label: 'Completado', category: 'completed' },
                 'Completado': { label: 'Completado', category: 'completed' },
+                'Cierre Extraordinario': { label: 'Cierre Ext.', category: 'completed' },
                 'Congelado': { label: 'Pausado', category: 'paused' },
                 'Pausado': { label: 'Pausado', category: 'paused' },
                 'Cancelado': { label: 'Cancelado', category: 'cancelled' }
             };
 
+            // Helper to parse dates from PostgreSQL always as UTC, regardless of server timezone.
+            // pg may return DATE/TIMESTAMP WITHOUT TIME ZONE as a string without 'Z'.
+            // e.g. "2026-06-03 00:00:00" would be treated as local time by new Date(),
+            // causing different results on servers with different timezones.
+            const parseDbDate = (val: Date | string | null | undefined): Date | null => {
+                if (!val) return null;
+                if (val instanceof Date) return val;
+                const str = String(val).trim();
+                // Already has timezone info → parse as-is
+                if (str.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(str) || /[+-]\d{4}$/.test(str)) {
+                    return new Date(str);
+                }
+                // Normalize space separator to T, then append Z to force UTC
+                const normalized = str.replace(' ', 'T');
+                if (normalized.includes('T')) {
+                    // Datetime without timezone: "2026-06-03T00:00:00" → add Z
+                    return new Date(normalized + 'Z');
+                }
+                // Date-only: "2026-06-03" → midnight UTC
+                return new Date(normalized + 'T00:00:00.000Z');
+            };
+
             const now = new Date();
 
             const processes = rows.map(row => {
-                const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
-                const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
-                const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                const startDateValue = parseDbDate(row.fecha_ingreso_solicitud);
+                const deadlineValue = parseDbDate(row.plazo_maximo_solicitud);
+                const closedAtValue = parseDbDate(row.fecha_cierre);
                 const statusRaw = row.estado_actual || 'Creado';
                 const statusInfo = statusMapping[statusRaw] || { label: statusRaw, category: 'active' as const };
                 const isClosed = statusInfo.category === 'completed';
@@ -2505,6 +2556,33 @@ export class SolicitudService {
                 }
             });
 
+            // Pre-cargar feriados para cálculo síncrono de días hábiles (usa cache de 24h)
+            const currentYear = now.getFullYear();
+            const [holidaysThisYear, holidaysLastYear] = await Promise.all([
+                FeriadosService.obtenerFeriados(currentYear),
+                FeriadosService.obtenerFeriados(currentYear - 1),
+            ]);
+            const holidaySet = new Set(
+                [...holidaysThisYear, ...holidaysLastYear].map(h => h.fecha)
+            );
+
+            const calcBusinessDaysSync = (start: Date, end: Date): number => {
+                let count = 0;
+                const cur = new Date(start);
+                cur.setHours(0, 0, 0, 0);
+                const endDay = new Date(end);
+                endDay.setHours(0, 0, 0, 0);
+                while (cur < endDay) {
+                    const dow = cur.getDay();
+                    if (dow !== 0 && dow !== 6) {
+                        const key = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+                        if (!holidaySet.has(key)) count++;
+                    }
+                    cur.setDate(cur.getDate() + 1);
+                }
+                return count;
+            };
+
             // Calcular urgencias y procesos activos desde TODOS los procesos (sin filtro de período)
             let dueSoonCount = 0;
             let overdueCount = 0;
@@ -2515,9 +2593,9 @@ export class SolicitudService {
             const currentActiveProcesses: any[] = [];
 
             allActiveRows.forEach(row => {
-                const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
-                const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
-                const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                const startDateValue = parseDbDate(row.fecha_ingreso_solicitud);
+                const deadlineValue = parseDbDate(row.plazo_maximo_solicitud);
+                const closedAtValue = parseDbDate(row.fecha_cierre);
                 const statusRaw = row.estado_actual || 'Creado';
                 const statusInfo = statusMapping[statusRaw] || { label: statusRaw, category: 'active' as const };
                 const isClosed = statusInfo.category === 'completed' || statusInfo.category === 'cancelled';
@@ -2573,14 +2651,17 @@ export class SolicitudService {
                 
                 // Agregar a procesos activos actuales si está en curso
                 if (!isClosed && ['Iniciado', 'En Progreso', 'En Revisión'].includes(statusInfo.label)) {
-                    const startDateValue = row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud) : null;
-                    const deadlineValue = row.plazo_maximo_solicitud ? new Date(row.plazo_maximo_solicitud) : null;
-                    const closedAtValue = row.fecha_cierre ? new Date(row.fecha_cierre) : null;
+                    const startDateValue = parseDbDate(row.fecha_ingreso_solicitud);
+                    const deadlineValue = parseDbDate(row.plazo_maximo_solicitud);
+                    const closedAtValue = parseDbDate(row.fecha_cierre);
                     const referenceEnd = closedAtValue ?? now;
                     const daysOpen = startDateValue
                         ? Math.round((referenceEnd.getTime() - startDateValue.getTime()) / (1000 * 60 * 60 * 24))
                         : null;
-                    
+                    const businessDaysOpen = startDateValue
+                        ? calcBusinessDaysSync(startDateValue, referenceEnd)
+                        : null;
+
                     let daysUntilDeadline: number | null = null;
                     let urgency: 'no_deadline' | 'on_track' | 'due_soon' | 'overdue' | 'closed_on_time' | 'closed_overdue' = 'no_deadline';
                     
@@ -2610,10 +2691,64 @@ export class SolicitudService {
                         deadline: deadlineValue ? deadlineValue.toISOString() : null,
                         closedAt: null,
                         daysOpen,
+                        businessDaysOpen,
                         daysUntilDeadline,
                         urgency
                     });
                 }
+            });
+
+            // Snapshot: todos los procesos activos al FINAL del período
+            // (empezaron antes o durante el período y no estaban cerrados al final)
+            const endDateStr = endDate.toISOString().split('T')[0];
+            const snapshotRows = await sequelize.query(`
+                SELECT
+                    s.id_solicitud,
+                    s.codigo_servicio,
+                    s.plazo_maximo_solicitud,
+                    COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
+                    u.nombre_usuario AS consultor,
+                    estado_at_end.nombre_estado_solicitud AS estado_al_fin
+                FROM solicitud s
+                LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                LEFT JOIN LATERAL (
+                    SELECT es.nombre_estado_solicitud
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE esh.id_solicitud = s.id_solicitud
+                      AND esh.fecha_cambio_estado_solicitud <= :endDate
+                    ORDER BY esh.fecha_cambio_estado_solicitud DESC
+                    LIMIT 1
+                ) estado_at_end ON true
+                WHERE DATE(s.fecha_ingreso_solicitud) <= DATE(:endDate)
+                  AND (
+                    estado_at_end.nombre_estado_solicitud IS NULL
+                    OR estado_at_end.nombre_estado_solicitud NOT IN ('Cerrado', 'Cancelado', 'Cierre Extraordinario')
+                  )
+            `, {
+                replacements: { endDate: endDateStr },
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any[];
+
+            const periodActiveSnapshot = (Array.isArray(snapshotRows) ? snapshotRows : []).map((row: any) => {
+                const deadlineValue = parseDbDate(row.plazo_maximo_solicitud);
+                const endDateObj = new Date(endDateStr + 'T23:59:59');
+                let urgencyAtEnd: 'on_track' | 'overdue' | 'no_deadline' = 'no_deadline';
+                if (deadlineValue) {
+                    urgencyAtEnd = deadlineValue <= endDateObj ? 'overdue' : 'on_track';
+                }
+                const statusRaw = row.estado_al_fin || 'Creado';
+                const statusInfo = statusMapping[statusRaw] || { label: statusRaw, category: 'active' };
+                return {
+                    id: row.id_solicitud,
+                    serviceCode: row.codigo_servicio || 'sin_servicio',
+                    serviceName: row.nombre_servicio || row.codigo_servicio || 'Sin servicio',
+                    consultant: row.consultor || 'Sin asignar',
+                    statusAtEnd: statusInfo.label,
+                    urgencyAtEnd
+                };
             });
 
             return {
@@ -2629,7 +2764,8 @@ export class SolicitudService {
                     overdueProcessesDetails
                 },
                 currentActiveProcesses,
-                periodSummary
+                periodSummary,
+                periodActiveSnapshot
             };
         } catch (error: any) {
             console.error('Error al obtener overview de procesos:', error);
@@ -2923,11 +3059,11 @@ export class SolicitudService {
                         s.rut_usuario,
                         s.fecha_ingreso_solicitud,
                         s.plazo_maximo_solicitud,
-                        u.nombre_usuario AS consultor
+                        TRIM(u.nombre_usuario || ' ' || COALESCE(u.apellido_usuario, '')) AS consultor
                     FROM estado_solicitud_hist esh
                     INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
                     INNER JOIN solicitud s ON esh.id_solicitud = s.id_solicitud
-                    LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                    INNER JOIN usuario u ON s.rut_usuario = u.rut_usuario AND u.activo_usuario = true
                     WHERE es.nombre_estado_solicitud = 'Cerrado'
                       AND s.rut_usuario IS NOT NULL
                       AND s.fecha_ingreso_solicitud IS NOT NULL
@@ -2950,6 +3086,7 @@ export class SolicitudService {
                         s.rut_usuario,
                         COUNT(*) AS total_procesos
                     FROM solicitud s
+                    INNER JOIN usuario u ON s.rut_usuario = u.rut_usuario AND u.activo_usuario = true
                     WHERE s.rut_usuario IS NOT NULL
                     GROUP BY s.rut_usuario
                 )
@@ -3022,7 +3159,7 @@ export class SolicitudService {
                     END AS completion_rate
                 FROM hito_solicitud hs
                 INNER JOIN solicitud s ON hs.id_solicitud = s.id_solicitud
-                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                INNER JOIN usuario u ON s.rut_usuario = u.rut_usuario AND u.activo_usuario = true
                 WHERE hs.id_solicitud IS NOT NULL
                   AND hs.fecha_limite IS NOT NULL
                   AND s.rut_usuario IS NOT NULL
@@ -3048,6 +3185,141 @@ export class SolicitudService {
     }
 
     /**
+     * Obtener KPIs para las cards del dashboard de reportes.
+     * Sin filtro de período — trabaja con acumulado histórico o filtrado por año/servicio/consultor.
+     */
+    static async getSummaryCards(
+        year?: number,
+        serviceCode?: string,
+        consultant?: string
+    ): Promise<{
+        totalProcesses: number;
+        closedProcesses: number;
+        closingTimes: { min: number | null; max: number | null; avg: number | null };
+        plazoStats: { withinDeadline: number; outsideDeadline: number; totalWithDeadline: number };
+        filters: {
+            availableYears: number[];
+            availableServices: Array<{ code: string; name: string }>;
+            availableConsultants: string[];
+        };
+    }> {
+        try {
+            const conditions: string[] = [];
+            const replacements: Record<string, any> = {};
+
+            if (year) {
+                conditions.push(`EXTRACT(YEAR FROM s.fecha_ingreso_solicitud) = :year`);
+                replacements.year = year;
+            }
+            if (serviceCode) {
+                conditions.push(`s.codigo_servicio = :serviceCode`);
+                replacements.serviceCode = serviceCode;
+            }
+            if (consultant) {
+                conditions.push(`u.nombre_usuario = :consultant`);
+                replacements.consultant = consultant;
+            }
+
+            const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+            const kpiResult = await sequelize.query(`
+                SELECT
+                    COUNT(*)::integer AS total_procesos,
+                    COUNT(CASE WHEN est.nombre_estado_solicitud IN ('Cerrado', 'Cierre Extraordinario') THEN 1 END)::integer AS procesos_cerrados,
+                    MIN(CASE WHEN est.nombre_estado_solicitud IN ('Cerrado', 'Cierre Extraordinario') AND c.fecha_cierre IS NOT NULL
+                        THEN (DATE(c.fecha_cierre) - DATE(s.fecha_ingreso_solicitud)) END)::integer AS min_dias_cierre,
+                    MAX(CASE WHEN est.nombre_estado_solicitud IN ('Cerrado', 'Cierre Extraordinario') AND c.fecha_cierre IS NOT NULL
+                        THEN (DATE(c.fecha_cierre) - DATE(s.fecha_ingreso_solicitud)) END)::integer AS max_dias_cierre,
+                    ROUND(AVG(CASE WHEN est.nombre_estado_solicitud IN ('Cerrado', 'Cierre Extraordinario') AND c.fecha_cierre IS NOT NULL
+                        THEN (DATE(c.fecha_cierre) - DATE(s.fecha_ingreso_solicitud)) END))::integer AS avg_dias_cierre,
+                    COUNT(CASE WHEN s.plazo_maximo_solicitud IS NOT NULL
+                        AND est.nombre_estado_solicitud <> 'Cancelado'
+                        AND (
+                            (c.fecha_cierre IS NOT NULL AND c.fecha_cierre <= s.plazo_maximo_solicitud)
+                            OR (c.fecha_cierre IS NULL AND NOW() <= s.plazo_maximo_solicitud)
+                        ) THEN 1 END)::integer AS dentro_plazo,
+                    COUNT(CASE WHEN s.plazo_maximo_solicitud IS NOT NULL
+                        AND est.nombre_estado_solicitud <> 'Cancelado'
+                        AND (
+                            (c.fecha_cierre IS NOT NULL AND c.fecha_cierre > s.plazo_maximo_solicitud)
+                            OR (c.fecha_cierre IS NULL AND NOW() > s.plazo_maximo_solicitud)
+                        ) THEN 1 END)::integer AS fuera_plazo,
+                    COUNT(CASE WHEN s.plazo_maximo_solicitud IS NOT NULL
+                        AND est.nombre_estado_solicitud <> 'Cancelado'
+                        THEN 1 END)::integer AS total_con_plazo
+                FROM solicitud s
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                LEFT JOIN LATERAL (
+                    SELECT es.nombre_estado_solicitud
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE esh.id_solicitud = s.id_solicitud
+                    ORDER BY esh.fecha_cambio_estado_solicitud DESC
+                    LIMIT 1
+                ) est ON true
+                LEFT JOIN LATERAL (
+                    SELECT esh.fecha_cambio_estado_solicitud AS fecha_cierre
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE esh.id_solicitud = s.id_solicitud
+                      AND es.nombre_estado_solicitud IN ('Cerrado', 'Cierre Extraordinario')
+                    ORDER BY esh.fecha_cambio_estado_solicitud DESC
+                    LIMIT 1
+                ) c ON true
+                ${whereClause}
+            `, { replacements, type: QueryTypes.SELECT, skipUserContext: true } as any) as any[];
+
+            const row = Array.isArray(kpiResult) && kpiResult.length > 0 ? kpiResult[0] : {};
+
+            // --- Listas para los filtros del frontend ---
+            const yearsResult = await sequelize.query(`
+                SELECT DISTINCT EXTRACT(YEAR FROM fecha_ingreso_solicitud)::integer AS anio
+                FROM solicitud
+                WHERE fecha_ingreso_solicitud IS NOT NULL
+                ORDER BY anio DESC
+            `, { type: QueryTypes.SELECT, skipUserContext: true } as any) as any[];
+
+            const servicesResult = await sequelize.query(`
+                SELECT DISTINCT s.codigo_servicio AS code, COALESCE(ts.nombre_servicio, s.codigo_servicio) AS name
+                FROM solicitud s
+                LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
+                WHERE s.codigo_servicio IS NOT NULL
+                ORDER BY name
+            `, { type: QueryTypes.SELECT, skipUserContext: true } as any) as any[];
+
+            const consultantsResult = await sequelize.query(`
+                SELECT DISTINCT u.nombre_usuario AS consultor
+                FROM solicitud s
+                INNER JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                WHERE u.nombre_usuario IS NOT NULL
+                ORDER BY consultor
+            `, { type: QueryTypes.SELECT, skipUserContext: true } as any) as any[];
+
+            return {
+                totalProcesses: parseInt(row.total_procesos) || 0,
+                closedProcesses: parseInt(row.procesos_cerrados) || 0,
+                closingTimes: {
+                    min: row.min_dias_cierre !== null && row.min_dias_cierre !== undefined ? parseInt(row.min_dias_cierre) : null,
+                    max: row.max_dias_cierre !== null && row.max_dias_cierre !== undefined ? parseInt(row.max_dias_cierre) : null,
+                    avg: row.avg_dias_cierre !== null && row.avg_dias_cierre !== undefined ? parseInt(row.avg_dias_cierre) : null,
+                },
+                plazoStats: {
+                    withinDeadline: parseInt(row.dentro_plazo) || 0,
+                    outsideDeadline: parseInt(row.fuera_plazo) || 0,
+                    totalWithDeadline: parseInt(row.total_con_plazo) || 0,
+                },
+                filters: {
+                    availableYears: (Array.isArray(yearsResult) ? yearsResult : []).map((r: any) => parseInt(r.anio)).filter(Boolean),
+                    availableServices: (Array.isArray(servicesResult) ? servicesResult : []).map((r: any) => ({ code: r.code, name: r.name as string })),
+                    availableConsultants: (Array.isArray(consultantsResult) ? consultantsResult : []).map((r: any) => r.consultor).filter(Boolean),
+                },
+            };
+        } catch (error: any) {
+            throw new Error('Error al obtener KPIs del dashboard: ' + (error?.message || error));
+        }
+    }
+
+    /**
      * Obtener retrasos (hitos vencidos) por consultor
      * Retorna cantidad de hitos vencidos por consultor
      * Un hito está vencido si: fecha_limite < CURRENT_DATE AND fecha_cumplimiento IS NULL
@@ -3060,7 +3332,7 @@ export class SolicitudService {
                     COUNT(*)::integer AS vencidos
                 FROM hito_solicitud hs
                 INNER JOIN solicitud s ON hs.id_solicitud = s.id_solicitud
-                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                INNER JOIN usuario u ON s.rut_usuario = u.rut_usuario AND u.activo_usuario = true
                 WHERE hs.fecha_limite IS NOT NULL
                   AND hs.fecha_limite < CURRENT_DATE
                   AND hs.fecha_cumplimiento IS NULL
@@ -3084,6 +3356,572 @@ export class SolicitudService {
             return overdueHitos;
         } catch (error: any) {
             throw new Error('Error al obtener hitos vencidos por consultor');
+        }
+    }
+
+    /**
+     * Obtener datos para el reporte semanal PDF de un cliente
+     * Incluye procesos activos + cerrados exitosamente durante la semana actual
+     */
+    static async getReporteCliente(clienteId: number): Promise<{
+        cliente: { id: number; nombre: string };
+        semana: { inicio: string; fin: string };
+        resumen: Array<{ servicio: string; cantidad: number }>;
+        procesos: Array<{
+            id: number;
+            cargo: string;
+            codigoServicio: string;
+            nombreServicio: string;
+            consultor: string;
+            fechaSolicitud: string | null;
+            estadoActual: string;
+            fechaCierre: string | null;
+            cerradoEstaSemana: boolean;
+            hitos: Array<{
+                nombre: string;
+                tipoAncla: string;
+                fechaLimite: string | null;
+                fechaCumplimiento: string | null;
+                completado: boolean;
+            }>;
+            proximosPasosLL: string[];
+            proximosPasosCliente: string[];
+            candidatosPresentados: Array<{
+                nombre: string;
+                fechaEnvio: string | null;
+                respuestaCliente: string | null;
+                fechaRespuesta: string | null;
+                comentarioCliente: string | null;
+            }>;
+            seguimientoCandidatos: {
+                titulo: string;
+                candidatos: Array<{
+                    nombre: string;
+                    estadoContratacion: string | null;
+                    estadoInforme: string | null;
+                    fechaEnvioInforme: string | null;
+                    fechaRespuesta: string | null;
+                    comentarioCliente: string | null;
+                }>;
+            } | null;
+        }>;
+    }> {
+        try {
+            // Rango de la semana actual (lunes 00:00 → domingo 23:59)
+            const now = new Date();
+            const day = now.getDay();
+            const mondayOffset = day === 0 ? -6 : 1 - day;
+            const monday = new Date(now);
+            monday.setDate(now.getDate() + mondayOffset);
+            monday.setHours(0, 0, 0, 0);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23, 59, 59, 999);
+
+            const weekStart = monday.toISOString();
+            const weekEnd = sunday.toISOString();
+
+            // Obtener nombre del cliente
+            const clienteRow = await sequelize.query(
+                `SELECT id_cliente, nombre_cliente FROM cliente WHERE id_cliente = :clienteId LIMIT 1`,
+                { replacements: { clienteId }, type: QueryTypes.SELECT, skipUserContext: true } as any
+            ) as any[];
+            const clienteInfo = clienteRow[0] as any;
+            if (!clienteInfo) throw new Error('Cliente no encontrado');
+
+            // Obtener procesos activos + cerrados esta semana del cliente
+            const processRows = await sequelize.query(`
+                WITH estado_actual AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        es.nombre_estado_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cambio
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                ),
+                cierre AS (
+                    SELECT DISTINCT ON (esh.id_solicitud)
+                        esh.id_solicitud,
+                        esh.fecha_cambio_estado_solicitud AS fecha_cierre
+                    FROM estado_solicitud_hist esh
+                    INNER JOIN estado es ON esh.id_estado_solicitud = es.id_estado_solicitud
+                    WHERE es.nombre_estado_solicitud = 'Cerrado'
+                    ORDER BY esh.id_solicitud, esh.fecha_cambio_estado_solicitud DESC
+                )
+                SELECT
+                    s.id_solicitud,
+                    s.fecha_ingreso_solicitud,
+                    s.codigo_servicio,
+                    COALESCE(ts.nombre_servicio, s.codigo_servicio) AS nombre_servicio,
+                    car.nombre_cargo,
+                    TRIM(u.nombre_usuario || ' ' || COALESCE(u.apellido_usuario, '')) AS consultor,
+                    ea.nombre_estado_solicitud AS estado_actual,
+                    ci.fecha_cierre,
+                    CASE WHEN ci.fecha_cierre >= :weekStart AND ci.fecha_cierre <= :weekEnd THEN true ELSE false END AS cerrado_esta_semana
+                FROM solicitud s
+                INNER JOIN contacto co ON s.id_contacto = co.id_contacto
+                INNER JOIN cliente c ON co.id_cliente = c.id_cliente AND c.id_cliente = :clienteId
+                LEFT JOIN usuario u ON s.rut_usuario = u.rut_usuario
+                LEFT JOIN tiposervicio ts ON ts.codigo_servicio = s.codigo_servicio
+                LEFT JOIN LATERAL (
+                    SELECT dc.id_cargo
+                    FROM descripcioncargo dc
+                    WHERE dc.id_solicitud = s.id_solicitud
+                    ORDER BY dc.id_descripcioncargo DESC
+                    LIMIT 1
+                ) dc ON true
+                LEFT JOIN cargo car ON dc.id_cargo = car.id_cargo
+                LEFT JOIN estado_actual ea ON ea.id_solicitud = s.id_solicitud
+                LEFT JOIN cierre ci ON ci.id_solicitud = s.id_solicitud
+                WHERE
+                    ea.nombre_estado_solicitud NOT IN ('Cerrado', 'Cancelado', 'Cierre Extraordinario')
+                    OR (ci.fecha_cierre IS NOT NULL AND ci.fecha_cierre >= :weekStart AND ci.fecha_cierre <= :weekEnd)
+                ORDER BY s.fecha_ingreso_solicitud DESC
+            `, {
+                replacements: { clienteId, weekStart, weekEnd },
+                type: QueryTypes.SELECT,
+                skipUserContext: true
+            } as any) as any[];
+
+            const rows = Array.isArray(processRows) ? processRows : [];
+            const solicitudIds = rows.map((r: any) => r.id_solicitud);
+
+            const SERVICIOS_PRESENTADOS = new Set(['PC', 'LL', 'FI', 'HH', 'HS', 'TR', 'SC', 'CA']);
+            const SERVICIOS_CONTRATACION = new Set(['PC', 'SC', 'CA']);
+            const SERVICIOS_EVAL_STANDALONE = new Set(['ES', 'EP', 'TS']);
+            const ANCLAS_EVAL = new Set(['evaluacion_psicolaboral', 'test_psicolaboral', 'entrevista', 'evaluacion_potencial']);
+
+            const tituloSeccionEval = (tipoAncla: string, codigo: string): string => {
+                if (tipoAncla === 'test_psicolaboral' || codigo === 'TS') return 'Test psicolaboral';
+                if (tipoAncla === 'evaluacion_potencial' || codigo === 'EP') return 'Evaluación de potencial';
+                return 'Evaluación psicolaboral';
+            };
+
+            const toIso = (v: unknown): string | null => {
+                if (!v) return null;
+                const d = v instanceof Date ? v : new Date(v as string);
+                return Number.isNaN(d.getTime()) ? null : d.toISOString();
+            };
+
+            const feedbackM3 = new Set<number>();
+            const feedbackM5 = new Set<number>();
+            const informesPendientes = new Set<number>();
+            const presentadosBySolicitud = new Map<number, Array<{
+                nombre: string;
+                fechaEnvio: string | null;
+                respuestaCliente: string | null;
+                fechaRespuesta: string | null;
+                comentarioCliente: string | null;
+            }>>();
+            const contratacionBySolicitud = new Map<number, Array<{
+                nombre: string;
+                estadoContratacion: string;
+                estadoInforme: string | null;
+                fechaEnvioInforme: string | null;
+                fechaRespuesta: string | null;
+                comentarioCliente: string | null;
+            }>>();
+            const evalAprobadosBySolicitud = new Map<number, Array<{
+                nombre: string;
+                estadoInforme: string;
+                fechaEnvioInforme: string | null;
+            }>>();
+            const evalStandaloneBySolicitud = new Map<number, Array<{
+                nombre: string;
+                estadoInforme: string;
+                fechaEnvioInforme: string | null;
+            }>>();
+
+            const pushToMap = <T,>(map: Map<number, T[]>, id: number, item: T) => {
+                const list = map.get(id) ?? [];
+                list.push(item);
+                map.set(id, list);
+            };
+
+            if (solicitudIds.length > 0) {
+                const m3FeedbackRows = await sequelize.query(`
+                    SELECT DISTINCT p.id_solicitud
+                    FROM postulacion p
+                    INNER JOIN LATERAL (
+                        SELECT ecp.id_estado_cliente
+                        FROM estado_cliente_postulacion ecp
+                        WHERE ecp.id_postulacion = p.id_postulacion
+                        ORDER BY ecp.updated_at DESC
+                        LIMIT 1
+                    ) ult ON true
+                    INNER JOIN estado_cliente ec ON ec.id_estado_cliente = ult.id_estado_cliente
+                    WHERE p.id_solicitud IN (:ids)
+                      AND LOWER(TRIM(ec.nombre_estado)) = 'pendiente'
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                const m5FeedbackRows = await sequelize.query(`
+                    SELECT DISTINCT p.id_solicitud
+                    FROM postulacion p
+                    INNER JOIN LATERAL (
+                        SELECT ecp5.id_estado_cliente_postulacion_m5
+                        FROM estado_cliente_postulacion_m5 ecp5
+                        WHERE ecp5.id_postulacion = p.id_postulacion
+                        ORDER BY ecp5.updated_at DESC
+                        LIMIT 1
+                    ) ult ON true
+                    INNER JOIN estado_cliente_m5 ec5 ON ec5.id_estado_cliente_postulacion_m5 = ult.id_estado_cliente_postulacion_m5
+                    WHERE p.id_solicitud IN (:ids)
+                      AND LOWER(TRIM(ec5.nombre_estado)) = 'en espera de feedback'
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                const informesPendientesRows = await sequelize.query(`
+                    SELECT DISTINCT p.id_solicitud
+                    FROM evaluacion_psicolaboral ep
+                    INNER JOIN postulacion p ON p.id_postulacion = ep.id_postulacion
+                    WHERE p.id_solicitud IN (:ids)
+                      AND LOWER(TRIM(ep.estado_informe)) = 'pendiente'
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                const presentadosRows = await sequelize.query(`
+                    SELECT
+                        p.id_solicitud,
+                        TRIM(c.nombre_candidato || ' ' || c.primer_apellido_candidato || COALESCE(' ' || c.segundo_apellido_candidato, '')) AS nombre,
+                        p.fecha_envio,
+                        ec_m3.nombre_estado AS respuesta_cliente,
+                        ec_m3.fecha_feedback_cliente_m3 AS fecha_respuesta,
+                        ec_m3.comentario_rech_obs_cliente AS comentario_cliente
+                    FROM postulacion p
+                    INNER JOIN candidato c ON p.id_candidato = c.id_candidato
+                    INNER JOIN estado_candidato ecand ON p.id_estado_candidato = ecand.id_estado_candidato
+                    LEFT JOIN LATERAL (
+                        SELECT ec.nombre_estado, ecp.fecha_feedback_cliente_m3, ecp.comentario_rech_obs_cliente
+                        FROM estado_cliente_postulacion ecp
+                        INNER JOIN estado_cliente ec ON ec.id_estado_cliente = ecp.id_estado_cliente
+                        WHERE ecp.id_postulacion = p.id_postulacion
+                        ORDER BY ecp.updated_at DESC
+                        LIMIT 1
+                    ) ec_m3 ON true
+                    WHERE p.id_solicitud IN (:ids)
+                      AND LOWER(TRIM(ecand.nombre_estado_candidato)) = 'presentado'
+                    ORDER BY p.id_solicitud, p.fecha_envio NULLS LAST, nombre
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                const contratacionRows = await sequelize.query(`
+                    SELECT
+                        p.id_solicitud,
+                        TRIM(c.nombre_candidato || ' ' || c.primer_apellido_candidato || COALESCE(' ' || c.segundo_apellido_candidato, '')) AS nombre,
+                        ec5.nombre_estado AS estado_contratacion,
+                        ecp5.fecha_feedback_cliente_m5 AS fecha_respuesta,
+                        ecp5.comentario_modulo5_cliente AS comentario_cliente,
+                        ep.estado_informe,
+                        ep.fecha_envio_informe
+                    FROM postulacion p
+                    INNER JOIN candidato c ON p.id_candidato = c.id_candidato
+                    INNER JOIN LATERAL (
+                        SELECT ecp5.id_estado_cliente_postulacion_m5, ecp5.fecha_feedback_cliente_m5, ecp5.comentario_modulo5_cliente
+                        FROM estado_cliente_postulacion_m5 ecp5
+                        WHERE ecp5.id_postulacion = p.id_postulacion
+                        ORDER BY ecp5.updated_at DESC
+                        LIMIT 1
+                    ) ecp5 ON true
+                    INNER JOIN estado_cliente_m5 ec5 ON ec5.id_estado_cliente_postulacion_m5 = ecp5.id_estado_cliente_postulacion_m5
+                    LEFT JOIN LATERAL (
+                        SELECT ep.estado_informe, ep.fecha_envio_informe
+                        FROM evaluacion_psicolaboral ep
+                        WHERE ep.id_postulacion = p.id_postulacion
+                        ORDER BY ep.id_evaluacion_psicolaboral DESC
+                        LIMIT 1
+                    ) ep ON true
+                    WHERE p.id_solicitud IN (:ids)
+                    ORDER BY p.id_solicitud, nombre
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                const evalAprobadosRows = await sequelize.query(`
+                    SELECT
+                        p.id_solicitud,
+                        TRIM(c.nombre_candidato || ' ' || c.primer_apellido_candidato || COALESCE(' ' || c.segundo_apellido_candidato, '')) AS nombre,
+                        ep.estado_informe,
+                        ep.fecha_envio_informe
+                    FROM postulacion p
+                    INNER JOIN candidato c ON p.id_candidato = c.id_candidato
+                    INNER JOIN LATERAL (
+                        SELECT ec.nombre_estado
+                        FROM estado_cliente_postulacion ecp
+                        INNER JOIN estado_cliente ec ON ec.id_estado_cliente = ecp.id_estado_cliente
+                        WHERE ecp.id_postulacion = p.id_postulacion
+                        ORDER BY ecp.updated_at DESC
+                        LIMIT 1
+                    ) ec_m3 ON LOWER(TRIM(ec_m3.nombre_estado)) = 'aprobado'
+                    INNER JOIN LATERAL (
+                        SELECT ep.estado_informe, ep.fecha_envio_informe
+                        FROM evaluacion_psicolaboral ep
+                        WHERE ep.id_postulacion = p.id_postulacion
+                        ORDER BY ep.id_evaluacion_psicolaboral DESC
+                        LIMIT 1
+                    ) ep ON true
+                    WHERE p.id_solicitud IN (:ids)
+                    ORDER BY p.id_solicitud, nombre
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                const evalStandaloneRows = await sequelize.query(`
+                    SELECT DISTINCT ON (p.id_postulacion)
+                        p.id_solicitud,
+                        TRIM(c.nombre_candidato || ' ' || c.primer_apellido_candidato || COALESCE(' ' || c.segundo_apellido_candidato, '')) AS nombre,
+                        ep.estado_informe,
+                        ep.fecha_envio_informe
+                    FROM evaluacion_psicolaboral ep
+                    INNER JOIN postulacion p ON p.id_postulacion = ep.id_postulacion
+                    INNER JOIN candidato c ON p.id_candidato = c.id_candidato
+                    WHERE p.id_solicitud IN (:ids)
+                    ORDER BY p.id_postulacion, ep.id_evaluacion_psicolaboral DESC
+                `, {
+                    replacements: { ids: solicitudIds },
+                    type: QueryTypes.SELECT,
+                    skipUserContext: true
+                } as any) as any[];
+
+                (Array.isArray(m3FeedbackRows) ? m3FeedbackRows : []).forEach((r: any) => feedbackM3.add(r.id_solicitud));
+                (Array.isArray(m5FeedbackRows) ? m5FeedbackRows : []).forEach((r: any) => feedbackM5.add(r.id_solicitud));
+                (Array.isArray(informesPendientesRows) ? informesPendientesRows : []).forEach((r: any) => informesPendientes.add(r.id_solicitud));
+
+                (Array.isArray(presentadosRows) ? presentadosRows : []).forEach((r: any) => {
+                    pushToMap(presentadosBySolicitud, r.id_solicitud, {
+                        nombre: r.nombre,
+                        fechaEnvio: toIso(r.fecha_envio),
+                        respuestaCliente: r.respuesta_cliente ?? null,
+                        fechaRespuesta: toIso(r.fecha_respuesta),
+                        comentarioCliente: r.comentario_cliente?.trim() ? r.comentario_cliente.trim() : null,
+                    });
+                });
+
+                (Array.isArray(contratacionRows) ? contratacionRows : []).forEach((r: any) => {
+                    pushToMap(contratacionBySolicitud, r.id_solicitud, {
+                        nombre: r.nombre,
+                        estadoContratacion: r.estado_contratacion,
+                        estadoInforme: r.estado_informe ?? null,
+                        fechaEnvioInforme: toIso(r.fecha_envio_informe),
+                        fechaRespuesta: toIso(r.fecha_respuesta),
+                        comentarioCliente: r.comentario_cliente?.trim() ? r.comentario_cliente.trim() : null,
+                    });
+                });
+
+                (Array.isArray(evalAprobadosRows) ? evalAprobadosRows : []).forEach((r: any) => {
+                    pushToMap(evalAprobadosBySolicitud, r.id_solicitud, {
+                        nombre: r.nombre,
+                        estadoInforme: r.estado_informe,
+                        fechaEnvioInforme: toIso(r.fecha_envio_informe),
+                    });
+                });
+
+                (Array.isArray(evalStandaloneRows) ? evalStandaloneRows : []).forEach((r: any) => {
+                    pushToMap(evalStandaloneBySolicitud, r.id_solicitud, {
+                        nombre: r.nombre,
+                        estadoInforme: r.estado_informe,
+                        fechaEnvioInforme: toIso(r.fecha_envio_informe),
+                    });
+                });
+            }
+
+            // Mapeo de acciones del cliente según tipo_ancla del hito completado (fallback)
+            const CLIENT_ACTIONS: Record<string, string> = {
+                primera_presentacion: 'Revisar candidatos presentados y dar feedback',
+                evaluacion_psicolaboral: 'Revisar informes psicolaborales y seleccionar candidato final',
+                contratacion: 'Confirmar selección final y coordinar contratación',
+                publicacion: 'Revisar candidatos presentados y dar feedback',
+                publicacion_portales: 'Revisar perfiles entregados',
+                entrevista: 'Revisar informe psicolaboral enviado',
+                evaluacion_potencial: 'Revisar informe de evaluación de potencial enviado',
+                test_psicolaboral: 'Revisar resultado del test psicolaboral',
+            };
+
+            // Procesos que NO requieren respuesta formal del cliente (solo reciben el informe)
+            const SOLO_INFORME = new Set(['ES', 'EP', 'TS', 'PP']);
+
+            const procesos = await Promise.all(rows.map(async (row: any) => {
+                const codigoServicio = (row.codigo_servicio || '').toUpperCase();
+
+                // Hitos del servicio correcto (auto-repara si hay mezcla)
+                const hitosDb = await HitoSolicitudService.getHitosBySolicitud(row.id_solicitud);
+                const hitos = hitosDb.map((h: any) => ({
+                    nombre: h.nombre_hito,
+                    tipoAncla: h.tipo_ancla,
+                    fechaLimite: h.fecha_limite ? new Date(h.fecha_limite).toISOString() : null,
+                    fechaCumplimiento: h.fecha_cumplimiento ? new Date(h.fecha_cumplimiento).toISOString() : null,
+                    completado: !!h.fecha_cumplimiento,
+                }));
+
+                // Próximos pasos LL = próximos 2 hitos no completados
+                const proximosPasosLL = hitos
+                    .filter(h => !h.completado)
+                    .slice(0, 2)
+                    .map(h => h.nombre);
+
+                // Próximos pasos Cliente — basado en estados reales de feedback en BD
+                const proximosPasosCliente: string[] = [];
+
+                if (feedbackM5.has(row.id_solicitud)) {
+                    proximosPasosCliente.push('Confirmar selección final y coordinar contratación');
+                }
+                if (feedbackM3.has(row.id_solicitud)) {
+                    proximosPasosCliente.push('Revisar candidatos presentados y dar feedback');
+                }
+
+                if (proximosPasosCliente.length === 0) {
+                    if (SOLO_INFORME.has(codigoServicio)) {
+                        const todosCompletados = hitos.length > 0 && hitos.every(h => h.completado);
+                        const ultimoHito = hitos[hitos.length - 1];
+                        if (todosCompletados || (ultimoHito?.completado)) {
+                            const accion = CLIENT_ACTIONS[ultimoHito?.tipoAncla] ?? 'Revisar documento enviado';
+                            proximosPasosCliente.push(accion);
+                        }
+                    } else {
+                        const hitosCompletados = hitos.filter(h => h.completado);
+                        const ultimoCompletado = hitosCompletados[hitosCompletados.length - 1];
+                        const hayPendientes = hitos.some(h => !h.completado);
+
+                        if (ultimoCompletado && hayPendientes) {
+                            const accion = CLIENT_ACTIONS[ultimoCompletado.tipoAncla];
+                            if (accion) proximosPasosCliente.push(accion);
+                        }
+                    }
+                }
+
+                const hitoPendiente = hitos.find(h => !h.completado);
+                const anclaActual = hitoPendiente?.tipoAncla ?? hitos[hitos.length - 1]?.tipoAncla ?? '';
+                const m5List = contratacionBySolicitud.get(row.id_solicitud) ?? [];
+                const enEtapaContratacion = SERVICIOS_CONTRATACION.has(codigoServicio)
+                    && (anclaActual === 'contratacion' || m5List.length > 0);
+                const enEtapaEvalPsicolaboral = (['PC', 'SC'].includes(codigoServicio) && anclaActual === 'evaluacion_psicolaboral' && !enEtapaContratacion)
+                    || (SERVICIOS_EVAL_STANDALONE.has(codigoServicio) && ANCLAS_EVAL.has(anclaActual));
+
+                let seguimientoCandidatos: {
+                    titulo: string;
+                    candidatos: Array<{
+                        nombre: string;
+                        estadoContratacion: string | null;
+                        estadoInforme: string | null;
+                        fechaEnvioInforme: string | null;
+                        fechaRespuesta: string | null;
+                        comentarioCliente: string | null;
+                    }>;
+                } | null = null;
+
+                if (enEtapaContratacion && m5List.length > 0) {
+                    seguimientoCandidatos = {
+                        titulo: 'Seguimiento de contratación',
+                        candidatos: m5List.map(c => ({
+                            nombre: c.nombre,
+                            estadoContratacion: c.estadoContratacion,
+                            estadoInforme: c.estadoInforme,
+                            fechaEnvioInforme: c.fechaEnvioInforme,
+                            fechaRespuesta: c.fechaRespuesta,
+                            comentarioCliente: c.comentarioCliente,
+                        })),
+                    };
+                } else if (enEtapaEvalPsicolaboral) {
+                    const evalList = ['PC', 'SC'].includes(codigoServicio)
+                        ? (evalAprobadosBySolicitud.get(row.id_solicitud) ?? [])
+                        : (evalStandaloneBySolicitud.get(row.id_solicitud) ?? []);
+
+                    if (evalList.length > 0) {
+                        seguimientoCandidatos = {
+                            titulo: tituloSeccionEval(anclaActual, codigoServicio),
+                            candidatos: evalList.map(c => ({
+                                nombre: c.nombre,
+                                estadoContratacion: null,
+                                estadoInforme: c.estadoInforme,
+                                fechaEnvioInforme: c.fechaEnvioInforme,
+                                fechaRespuesta: null,
+                                comentarioCliente: null,
+                            })),
+                        };
+                    }
+                }
+
+                // Próximos pasos LL — si el cliente debe responder, LL espera
+                let proximosPasosLLFinal = proximosPasosLL;
+                if (feedbackM3.has(row.id_solicitud) || feedbackM5.has(row.id_solicitud)) {
+                    proximosPasosLLFinal = ['Esperando respuesta del cliente'];
+                } else if (enEtapaEvalPsicolaboral && !enEtapaContratacion) {
+                    proximosPasosLLFinal = [
+                        'Realizando entrevistas psicolaborales con los candidatos aprobados',
+                        ...proximosPasosLL,
+                    ].slice(0, 2);
+                } else if (informesPendientes.has(row.id_solicitud)) {
+                    proximosPasosLLFinal = ['Elaborar y enviar informe psicolaboral', ...proximosPasosLL].slice(0, 2);
+                }
+
+                const estadoMap: Record<string, string> = {
+                    'En Progreso': 'En Progreso',
+                    'Creado': 'Iniciado',
+                    'Iniciado': 'Iniciado',
+                    'Cerrado': 'Completado',
+                    'Congelado': 'Pausado',
+                    'Cancelado': 'Cancelado',
+                    'Cierre Extraordinario': 'Cierre Extraordinario',
+                };
+
+                return {
+                    id: row.id_solicitud,
+                    cargo: row.nombre_cargo || 'Sin cargo',
+                    codigoServicio,
+                    nombreServicio: row.nombre_servicio || codigoServicio,
+                    consultor: row.consultor || 'Sin asignar',
+                    fechaSolicitud: row.fecha_ingreso_solicitud ? new Date(row.fecha_ingreso_solicitud).toISOString() : null,
+                    estadoActual: estadoMap[row.estado_actual] || row.estado_actual || 'En Progreso',
+                    fechaCierre: row.fecha_cierre ? new Date(row.fecha_cierre).toISOString() : null,
+                    cerradoEstaSemana: row.cerrado_esta_semana === true || row.cerrado_esta_semana === 't',
+                    hitos,
+                    proximosPasosLL: proximosPasosLLFinal,
+                    proximosPasosCliente,
+                    candidatosPresentados: SERVICIOS_PRESENTADOS.has(codigoServicio)
+                        ? (presentadosBySolicitud.get(row.id_solicitud) ?? [])
+                        : [],
+                    seguimientoCandidatos,
+                };
+            }));
+
+            // Resumen agrupado por tipo de servicio
+            const resumenMap = new Map<string, number>();
+            procesos.forEach(p => {
+                const key = p.nombreServicio;
+                resumenMap.set(key, (resumenMap.get(key) ?? 0) + 1);
+            });
+            const resumen = Array.from(resumenMap.entries())
+                .map(([servicio, cantidad]) => ({ servicio, cantidad }))
+                .sort((a, b) => b.cantidad - a.cantidad);
+
+            const fmt = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+
+            return {
+                cliente: { id: clienteId, nombre: clienteInfo.nombre_cliente },
+                semana: { inicio: fmt(monday), fin: fmt(sunday) },
+                resumen,
+                procesos,
+            };
+        } catch (error: any) {
+            console.error('Error al generar reporte cliente:', error);
+            throw new Error('Error al generar reporte de cliente');
         }
     }
 }

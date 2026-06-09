@@ -576,7 +576,8 @@ export class SolicitudController {
             const week = req.query.week ? parseInt(req.query.week as string) : undefined;
             const periodType = (req.query.periodType as 'week' | 'month' | 'quarter' | 'year') || 'month';
 
-            const resultado = await SolicitudService.getAverageProcessTimeByService(year, month, week, periodType);
+            const consultant = req.query.consultant as string | undefined;
+            const resultado = await SolicitudService.getAverageProcessTimeByService(year, month, week, periodType, consultant);
 
             Logger.info(`Tiempo promedio por servicio obtenido (${resultado.length} servicios)`);
             return sendSuccess(res, resultado, 'Tiempo promedio por servicio obtenido exitosamente');
@@ -674,6 +675,40 @@ export class SolicitudController {
         } catch (error: any) {
             Logger.error('Error al obtener hitos vencidos por consultor:', error);
             return sendError(res, 'Error al obtener hitos vencidos por consultor', 500);
+        }
+    }
+
+    /**
+     * GET /api/solicitudes/reportes/summary-cards
+     * KPIs globales para las 4 cards del dashboard (sin filtro de período)
+     * Query params opcionales: year, serviceCode, consultant
+     */
+    static async getSummaryCards(req: Request, res: Response): Promise<Response> {
+        try {
+            const yearRaw = req.query.year as string | undefined;
+            const year = yearRaw && yearRaw !== 'all' ? parseInt(yearRaw) : undefined;
+            const serviceCode = req.query.serviceCode as string | undefined;
+            const consultant = req.query.consultant as string | undefined;
+
+            const resultado = await SolicitudService.getSummaryCards(year, serviceCode, consultant);
+            return sendSuccess(res, resultado, 'KPIs del dashboard obtenidos exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al obtener KPIs del dashboard:', error);
+            return sendError(res, 'Error al obtener KPIs del dashboard', 500);
+        }
+    }
+
+    static async getReporteCliente(req: Request, res: Response): Promise<Response> {
+        try {
+            const clienteId = parseInt(req.params.clienteId);
+            if (isNaN(clienteId)) {
+                return sendError(res, 'ID de cliente inválido', 400);
+            }
+            const resultado = await SolicitudService.getReporteCliente(clienteId);
+            return sendSuccess(res, resultado, 'Reporte de cliente generado exitosamente');
+        } catch (error: any) {
+            Logger.error('Error al generar reporte de cliente:', error);
+            return sendError(res, 'Error al generar reporte de cliente', 500);
         }
     }
 

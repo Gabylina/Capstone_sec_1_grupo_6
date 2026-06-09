@@ -842,6 +842,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
               <Select
                 value={formData.service_type}
                 onValueChange={(value) => setFormData({ ...formData, service_type: value as ServiceType })}
+                disabled={isEditMode}
                     required
               >
                 <SelectTrigger>
@@ -855,6 +856,11 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit }: Cre
                   ))}
                 </SelectContent>
               </Select>
+              {isEditMode && (
+                <p className="text-xs text-muted-foreground">
+                  El tipo de servicio no se puede modificar después de crear el proceso.
+                </p>
+              )}
             </div>
           </div>
 
