@@ -270,6 +270,8 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
   
   // Estados para finalizar solicitud (similar a Longlist)
   const [processStatus, setProcessStatus] = useState<string>((process.estado_solicitud || process.status) as string)
+  const isBlocked = isProcessBlocked(processStatus)
+  const canEdit = !readOnly && !isBlocked
   const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
   const [loadingEstados, setLoadingEstados] = useState(false)
   const [showStatusChange, setShowStatusChange] = useState(false)
@@ -284,7 +286,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
   const [isSavingContract, setIsSavingContract] = useState(false)
 
   const handleContractSubmit = async () => {
-    if (!selectedCandidate) return
+    if (!canEdit || !selectedCandidate) return
 
     // Validar comentarios obligatorios para estados específicos
     const requiresComments = contractForm.hiring_status === "no_seleccionado" || contractForm.hiring_status === "rechazo_carta_oferta"
@@ -453,9 +455,6 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
     setShowContractDialog(true)
   }
 
-  // Verificar si el proceso está bloqueado (estado final)
-  const isBlocked = isProcessBlocked(processStatus)
-
   // Función para obtener el label dinámico según el estado seleccionado
   const getReasonLabel = (): string => {
     if (!selectedEstado) {
@@ -523,7 +522,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
   // Función para cambiar estado de la solicitud (finalizar)
   const handleProcessClosure = async () => {
     // Validar que el proceso no esté bloqueado
-    if (isBlocked) {
+    if (!canEdit) {
       showToast({
         type: "error",
         title: "Acción Bloqueada",
@@ -590,6 +589,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
 
   // Función para abrir el dialog de contratación
   const handleOpenContratacionDialog = (candidate: Candidate | ContractedCandidate, action: "contratado" | "no_contratado") => {
+    if (!canEdit) return
     setSelectedCandidate(candidate as Candidate)
     setContratacionAction(action)
     
@@ -613,7 +613,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
 
   // Función para guardar la contratación
   const handleSaveContratacion = async () => {
-    if (!selectedCandidate) return
+    if (!canEdit || !selectedCandidate) return
 
     // Validaciones antes de guardar
     // Validar que las observaciones no excedan 500 caracteres
@@ -821,9 +821,9 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
       },
       aceptacion_carta_oferta: {
         label: "Aceptación de oferta",
-        variant: "default" as const,
-        className: "bg-green-100 text-green-800 border-green-300",
-        icon: <CheckCircle className="mr-1 h-3 w-3" />
+        variant: "outline" as const,
+        className: "bg-sky-100 text-sky-800 border-sky-300",
+        icon: <MessageSquare className="mr-1 h-3 w-3" />
       },
       rechazo_carta_oferta: {
         label: "Rechazo de oferta",
@@ -845,7 +845,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
       }
     }
 
-    const config = statusConfig[status]
+    const config = statusConfig[status] ?? statusConfig.en_espera_feedback
     return (
       <Badge variant={config.variant} className={config.className}>
         {config.icon}
@@ -989,7 +989,21 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                         )}
                       </TableCell>
                       <TableCell>
-                        {getHiringStatusBadge(hiringStatus as HiringStatus)}
+                        <div className="flex flex-col gap-1">
+                          {getHiringStatusBadge(hiringStatus as HiringStatus)}
+                          {candidateData.contratacion_status && (
+                            <Badge
+                              variant={candidateData.contratacion_status === "contratado" ? "default" : "destructive"}
+                              className={
+                                candidateData.contratacion_status === "contratado"
+                                  ? "w-fit bg-emerald-100 text-emerald-800 border-emerald-300"
+                                  : "w-fit bg-orange-100 text-orange-800 border-orange-300"
+                              }
+                            >
+                              {candidateData.contratacion_status === "contratado" ? "Confirmado: Contratado" : "Confirmado: No contratado"}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {candidate.client_response_date ? (
@@ -1007,7 +1021,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                             size="sm" 
                             variant="outline"
                             onClick={() => openContractDialog(candidate)}
-                            disabled={readOnly}
+                            disabled={!canEdit}
                           >
                             {contractedCandidate ? "Editar" : "Gestionar"}
                           </Button>
@@ -1035,8 +1049,8 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
       {contractedCandidates.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Resumen de Contrataciones</CardTitle>
-            <CardDescription>Estado detallado de todos los candidatos en proceso</CardDescription>
+            <CardTitle>Seguimiento detallado</CardTitle>
+            <CardDescription>Avance de cada candidato en el proceso de contratación</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="mb-6 p-4 bg-white dark:bg-slate-800 rounded-lg shadow-md border border-border">
@@ -1059,7 +1073,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                   variant="default"
                   className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                   onClick={() => setShowStatusChange(!showStatusChange)}
-                  disabled={readOnly || isBlocked || loadingEstados}
+                  disabled={!canEdit || loadingEstados}
                 >
                   {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
                   </Button>
@@ -1078,10 +1092,10 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           <Badge 
                             variant={candidate.contratacion_status === "contratado" ? "default" : "destructive"}
                             className={candidate.contratacion_status === "contratado" 
-                              ? "bg-green-100 text-green-800 border-green-300" 
+                              ? "bg-emerald-100 text-emerald-800 border-emerald-300" 
                               : "bg-orange-100 text-orange-800 border-orange-300"}
                           >
-                            {candidate.contratacion_status === "contratado" ? "Contratado" : "No Contratado"}
+                            {candidate.contratacion_status === "contratado" ? "Confirmado: Contratado" : "Confirmado: No contratado"}
                           </Badge>
                         )}
                       </div>
@@ -1127,16 +1141,16 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
 
                   {/* Sección de gestión de contratación para candidatos con "aceptacion_carta_oferta" */}
                   {candidate.hiring_status === "aceptacion_carta_oferta" && !candidate.contratacion_status && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg space-y-4">
-                      <h4 className="font-medium text-green-800">Gestión de Contratación</h4>
-                      <p className="text-sm text-green-600">El candidato ha aceptado la oferta. Define el estado final de contratación.</p>
+                    <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg space-y-4">
+                      <h4 className="font-medium text-sky-800">Pendiente: confirmar contratación</h4>
+                      <p className="text-sm text-sky-700">El candidato aceptó la oferta, pero aún no está contratado. Define el resultado final.</p>
                       
                       <div className="flex gap-3">
                         <Button 
                           size="sm" 
                           variant="outline"
                           className="border-green-300 text-green-700 hover:bg-green-100"
-                          disabled={readOnly}
+                          disabled={!canEdit}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
@@ -1150,7 +1164,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm" 
                           variant="outline"
                           className="border-red-300 text-red-700 hover:bg-red-100"
-                          disabled={readOnly}
+                          disabled={!canEdit}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
@@ -1175,7 +1189,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm"
                           variant="ghost"
                           className="text-green-700 hover:text-green-800 hover:bg-green-100"
-                          disabled={readOnly}
+                          disabled={!canEdit}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "contratado")
@@ -1223,7 +1237,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
                           size="sm" 
                           variant="ghost"
                           className="text-orange-700 hover:text-orange-800 hover:bg-orange-100"
-                          disabled={readOnly}
+                          disabled={!canEdit}
                           onClick={() => {
                             const fullCandidate = candidates.find(c => c.id === candidate.id)
                             if (fullCandidate) handleOpenContratacionDialog(fullCandidate, "no_contratado")
@@ -1426,13 +1440,13 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
             <Button 
               variant="outline" 
               onClick={() => setShowContractDialog(false)}
-              disabled={readOnly || isSavingContract}
+              disabled={!canEdit || isSavingContract}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleContractSubmit}
-              disabled={readOnly || isSavingContract}
+              disabled={!canEdit || isSavingContract}
             >
               {isSavingContract && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingContract ? "Guardando..." : "Guardar Estado"}
@@ -1530,7 +1544,7 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
             </Button>
             <Button
               onClick={handleProcessClosure}
-              disabled={readOnly || !selectedEstado || isBlocked}
+              disabled={!canEdit || !selectedEstado}
             >
               Actualizar Estado
             </Button>
@@ -1745,13 +1759,13 @@ export function ProcessModule5({ process, readOnly = false }: ProcessModule5Prop
             <Button 
               variant="outline" 
               onClick={() => setShowContratacionDialog(false)}
-              disabled={readOnly || isSavingContratacion}
+              disabled={!canEdit || isSavingContratacion}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleSaveContratacion}
-              disabled={readOnly || isSavingContratacion}
+              disabled={!canEdit || isSavingContratacion}
               className={contratacionAction === "no_contratado" ? "bg-orange-600 hover:bg-orange-700" : ""}
             >
               {isSavingContratacion ? (

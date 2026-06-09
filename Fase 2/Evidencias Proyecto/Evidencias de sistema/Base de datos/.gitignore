@@ -84,6 +84,8 @@ uploads/
 # Database
 *.sqlite
 *.db
+backups/
+*.dump
 
 # IDE
 .vscode/

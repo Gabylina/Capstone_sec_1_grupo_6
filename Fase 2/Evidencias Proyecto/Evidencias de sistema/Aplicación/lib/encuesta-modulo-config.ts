@@ -5,11 +5,11 @@ export const ENCUESTA_EXCLUDED_SERVICES = ["ES", "EP", "FI"] as const
 const MODULO_FINAL_ENCUESTA: Record<string, number> = {
   PP: 2,
   LL: 3,
-  HH: 3,
-  HS: 3,
   TR: 3,
   TS: 4,
   PC: 5,
+  HH: 5,
+  HS: 5,
   SC: 5,
   CA: 5,
 }

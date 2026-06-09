@@ -27,6 +27,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useProcessView, isProcessViewOnly } from "@/lib/process-view-context"
+import { isProcesoCompletoOrHeadhunting } from "@/lib/approval-utils"
 
 // Función helper para procesar mensajes de error de la API y convertirlos en mensajes amigables
 const processApiErrorMessage = (errorMessage: string | undefined | null, defaultMessage: string): string => {
@@ -102,7 +103,7 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
   })
   const [feedbackDateError, setFeedbackDateError] = useState<string>("")
 
-  // Estados para finalizar solicitud (solo Long List)
+  // Estados para finalizar solicitud en M3 (LL, FI, TR)
   const [processStatus, setProcessStatus] = useState<ProcessStatus>((process.estado_solicitud || process.status) as ProcessStatus)
   const [estadosDisponibles, setEstadosDisponibles] = useState<any[]>([])
   const [loadingEstados, setLoadingEstados] = useState(false)
@@ -157,22 +158,25 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
     loadData()
   }, [process.id, viewOnlyMode, processView?.sharedCandidates])
 
-  // Cargar estados de solicitud disponibles para finalización (LL, FI, HH, TR) — omitir en solo lectura
+  // Cargar estados de solicitud disponibles para finalización en M3 (LL, FI, TR) — omitir en solo lectura
   useEffect(() => {
     if (viewOnlyMode) return
 
     const loadEstados = async () => {
-      // Cargar estados si es Long List, Filtro Inteligente, Head Hunting o Targeted Recruitment
       const serviceType = (process.service_type as string)?.toLowerCase() || ""
       const processAny = process as any
       const tipoServicio = processAny.tipo_servicio?.toLowerCase() || serviceType
-      
+      const codigo = (processAny.tipo_servicio || process.service_type || "").toString()
+
+      if (isProcesoCompletoOrHeadhunting(codigo)) {
+        return
+      }
+
       const shouldLoadEstados = serviceType === "long_list" || serviceType === "ll" || 
                                serviceType === "filtro_inteligente" || serviceType === "fi" ||
-                               serviceType === "headhunting" || serviceType === "hs" || serviceType === "hh" ||
                                serviceType === "talent_retention" || serviceType === "tr" ||
                                tipoServicio === "ll" || tipoServicio === "fi" || 
-                               tipoServicio === "hh" || tipoServicio === "hs" || tipoServicio === "tr"
+                               tipoServicio === "tr"
       
       if (!shouldLoadEstados) {
         return
@@ -731,19 +735,22 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
     processAny.etapa.includes("Módulo 5")
   )
   
-  // Solo PC y TR pueden avanzar al módulo 4 (SC y CA van a Entrevista Técnica)
-  const canAdvanceToModule4 = !isSC && (serviceType === "proceso_completo" || serviceType === "pc" || 
+  const codigoServicio = (processAny.tipo_servicio || process.service_type || "").toString()
+  const isPCorHH = isProcesoCompletoOrHeadhunting(codigoServicio) ||
+    serviceType === "proceso_completo" || serviceType === "pc" ||
+    serviceType === "headhunting" || serviceType === "hs" || serviceType === "hh"
+
+  // PC, HH y TR pueden avanzar al módulo 4 (SC y CA van a Entrevista Técnica)
+  const canAdvanceToModule4 = !isSC && (isPCorHH ||
                               serviceType === "talent_retention" || serviceType === "tr") && 
                               hasApproved && !hasApprovedWithoutFeedback
   
-  // Los procesos que terminan en módulo 3: LL, FI, HH (siempre terminan aquí)
-  // TR también termina aquí si no puede avanzar al módulo 4
+  // Los procesos que terminan en módulo 3: LL y FI. TR solo si no puede avanzar a M4.
   const isLongListOrFI = serviceType === "long_list" || serviceType === "ll" || 
                          serviceType === "filtro_inteligente" || serviceType === "fi"
-  const isHeadHunting = serviceType === "headhunting" || serviceType === "hs" || serviceType === "hh"
   const isTRThatEndsHere = (serviceType === "talent_retention" || serviceType === "tr") && !canAdvanceToModule4
   
-  const processEndsHere = isLongListOrFI || isHeadHunting || isTRThatEndsHere
+  const processEndsHere = isLongListOrFI || isTRThatEndsHere
   
 
   // Mostrar indicador de carga
@@ -798,7 +805,7 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
                       : "Pasa al Módulo Entrevista Técnica en cualquier momento."
                     : canAdvanceToModule4
                       ? "Estados sincronizados. Puedes avanzar al Módulo 4 para evaluación psicolaboral."
-                      : (hasApproved && hasApprovedWithoutFeedback) && (isSC || serviceType === "proceso_completo" || serviceType === "pc" || serviceType === "talent_retention" || serviceType === "tr")
+                      : (hasApproved && hasApprovedWithoutFeedback) && (isSC || isPCorHH || serviceType === "talent_retention" || serviceType === "tr")
                         ? "Hay candidatos aprobados sin fecha de feedback del cliente. Completa esta información antes de avanzar."
                         : "Completa la información de los candidatos para habilitar el avance al siguiente módulo."}
               </p>
@@ -863,7 +870,7 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
         </Card>
       )}
 
-      {hasApproved && hasApprovedWithoutFeedback && (isSC || serviceType === "proceso_completo" || serviceType === "pc" || 
+      {hasApproved && hasApprovedWithoutFeedback && (isSC || isPCorHH || 
        serviceType === "talent_retention" || serviceType === "tr") && (
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="pt-6">
@@ -883,7 +890,7 @@ export function ProcessModule3({ process, readOnly = false, clientViewOnly = fal
         </Card>
       )}
 
-      {/* Finalizar Solicitud - Para procesos que terminan en módulo 3 (LL, FI, HH, TR) */}
+      {/* Finalizar Solicitud - Solo procesos que terminan en módulo 3 (LL, FI, TR sin avance a M4) */}
       {processEndsHere && (
         <Card>
           <CardHeader>

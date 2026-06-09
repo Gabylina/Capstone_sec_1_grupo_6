@@ -256,8 +256,8 @@ export class SolicitudService {
             // Ejecutar en segundo plano sin bloquear
             Promise.all(
                 transformedSolicitudes
-                    .filter(s => s.tipo_servicio === 'PC')
-                    .map(s => this.verificarYActualizarEtapaModulo5(s.id_solicitud, 'PC'))
+                    .filter(s => ['PC', 'HH', 'HS'].includes(s.tipo_servicio))
+                    .map(s => this.verificarYActualizarEtapaModulo5(s.id_solicitud, s.tipo_servicio))
             ).catch(error => {
                 console.error('Error al verificar etapas módulo 5 en getSolicitudes:', error);
             });
@@ -503,8 +503,8 @@ export class SolicitudService {
             // Ejecutar en segundo plano sin bloquear
             Promise.all(
                 transformedSolicitudes
-                    .filter(s => s.tipo_servicio === 'PC')
-                    .map(s => this.verificarYActualizarEtapaModulo5(s.id_solicitud, 'PC'))
+                    .filter(s => ['PC', 'HH', 'HS'].includes(s.tipo_servicio))
+                    .map(s => this.verificarYActualizarEtapaModulo5(s.id_solicitud, s.tipo_servicio))
             ).catch(error => {
                 console.error('Error al verificar etapas módulo 5 en getAllSolicitudes:', error);
             });
@@ -560,7 +560,8 @@ export class SolicitudService {
      * @returns true si la etapa fue modificada
      */
     private static async verificarYActualizarEtapaModulo5(idSolicitud: number, codigoServicio: string): Promise<boolean> {
-        if (codigoServicio !== 'PC') {
+        const codigosConModulo5 = new Set(['PC', 'HH', 'HS']);
+        if (!codigosConModulo5.has(codigoServicio)) {
             return false;
         }
 

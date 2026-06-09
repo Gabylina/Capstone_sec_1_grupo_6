@@ -9,6 +9,13 @@ export function resolveSolicitudServiceCode(solicitud: {
   return String(solicitud.tipo_servicio_nombre || "").trim()
 }
 
+/** Proceso Completo y Headhunting comparten el flujo M1–M5 (evaluación psicolaboral y cierre). */
+export function isProcesoCompletoOrHeadhunting(codigoServicio?: string | null): boolean {
+  if (!codigoServicio) return false
+  const t = String(codigoServicio).toUpperCase().trim()
+  return t === "PC" || t === "HH" || t === "HS"
+}
+
 /** Procesos que requieren aprobación de coordinadora antes de presentar candidatos */
 export function requiresCoordinatorApproval(codigoServicio?: string | null): boolean {
   if (!codigoServicio) return false

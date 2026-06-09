@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { config } from '@/config';
@@ -83,6 +85,19 @@ function getTransporter(): Transporter | null {
   return transporter;
 }
 
+const BRAND = {
+  primary: '#00bcd4',
+  primaryDark: '#0891b2',
+  secondary: '#1e3a8a',
+  background: '#f1f5f9',
+  card: '#ffffff',
+  muted: '#64748b',
+  border: '#e2e8f0',
+  text: '#1e3a8a',
+};
+
+const LOGO_CID = 'llconsulting-logo';
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -91,7 +106,24 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function buildNewSolicitudHtml(data: NewSolicitudEmailData): string {
+function resolveLogoPath(): string | null {
+  const candidates = [
+    path.join(process.cwd(), 'assets', 'email', 'llconsulting-logo.png'),
+    path.join(process.cwd(), '..', 'Aplicación', 'public', 'images', 'llconsulting-logo.png'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function getLogoSrc(frontendUrl: string, hasEmbeddedLogo: boolean): string {
+  if (hasEmbeddedLogo) return `cid:${LOGO_CID}`;
+  const base = frontendUrl.replace(/\/$/, '');
+  return `${base}/images/llconsulting-logo.png`;
+}
+
+function buildNewSolicitudHtml(data: NewSolicitudEmailData, logoSrc: string): string {
   const rows = [
     ['Solicitud', `#${data.solicitudId}`],
     ['Cargo', data.cargo],
@@ -107,45 +139,95 @@ function buildNewSolicitudHtml(data: NewSolicitudEmailData): string {
 
   const tableRows = rows
     .map(
-      ([label, value]) =>
-        `<tr><td style="padding:8px 12px;color:#64748b;font-size:14px;border-bottom:1px solid #e2e8f0;">${escapeHtml(label)}</td>` +
-        `<td style="padding:8px 12px;font-size:14px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(value)}</strong></td></tr>`
+      ([label, value], index) => {
+        const isLast = index === rows.length - 1;
+        const border = isLast ? 'none' : `1px solid ${BRAND.border}`;
+        return (
+          `<tr>` +
+          `<td style="padding:12px 16px;color:${BRAND.muted};font-size:14px;border-bottom:${border};width:42%;vertical-align:top;">${escapeHtml(label)}</td>` +
+          `<td style="padding:12px 16px;color:${BRAND.text};font-size:14px;font-weight:600;border-bottom:${border};vertical-align:top;">${escapeHtml(value)}</td>` +
+          `</tr>`
+        );
+      }
     )
     .join('');
 
   return `
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="100%" style="max-width:560px;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <tr><td style="background:#1e40af;padding:24px 28px;">
-          <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">Nueva solicitud asignada</h1>
-        </td></tr>
-        <tr><td style="padding:28px;">
-          <p style="margin:0 0 16px;color:#334155;font-size:15px;line-height:1.5;">
-            Hola <strong>${escapeHtml(data.consultorNombre)}</strong>,
-          </p>
-          <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.5;">
-            Se te ha asignado una nueva solicitud en LL Consulting. Revisa el detalle a continuación:
-          </p>
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;border:1px solid #e2e8f0;border-radius:6px;">
-            ${tableRows}
-          </table>
-          <table cellpadding="0" cellspacing="0"><tr><td>
-            <a href="${escapeHtml(data.link)}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:15px;font-weight:600;">
-              Ver solicitud
-            </a>
-          </td></tr></table>
-          <p style="margin:24px 0 0;color:#94a3b8;font-size:12px;line-height:1.4;">
-            Si el botón no funciona, copia este enlace en tu navegador:<br>
-            <a href="${escapeHtml(data.link)}" style="color:#2563eb;word-break:break-all;">${escapeHtml(data.link)}</a>
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nueva solicitud #${data.solicitudId}</title>
+</head>
+<body style="margin:0;padding:0;background:${BRAND.background};font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.background};padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:${BRAND.card};border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(30,58,138,0.08);border:1px solid ${BRAND.border};">
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding:32px 32px 20px;background:${BRAND.card};">
+              <img src="${escapeHtml(logoSrc)}" alt="LL Consulting" width="220" style="display:block;max-width:220px;height:auto;margin:0 auto;" />
+            </td>
+          </tr>
+          <!-- Franja de acento -->
+          <tr>
+            <td style="height:4px;background:linear-gradient(90deg,${BRAND.secondary} 0%,${BRAND.primary} 100%);font-size:0;line-height:0;">&nbsp;</td>
+          </tr>
+          <!-- Título -->
+          <tr>
+            <td align="center" style="padding:28px 32px 8px;background:${BRAND.card};">
+              <h1 style="margin:0;color:${BRAND.secondary};font-size:22px;font-weight:700;line-height:1.3;">Nueva solicitud asignada</h1>
+              <p style="margin:10px 0 0;color:${BRAND.muted};font-size:14px;line-height:1.5;">Se te ha cargado un nuevo proceso de reclutamiento</p>
+            </td>
+          </tr>
+          <!-- Cuerpo -->
+          <tr>
+            <td style="padding:8px 32px 24px;">
+              <p style="margin:0 0 20px;color:${BRAND.text};font-size:15px;line-height:1.6;">
+                Hola <strong style="color:${BRAND.secondary};">${escapeHtml(data.consultorNombre)}</strong>,
+              </p>
+              <p style="margin:0 0 24px;color:${BRAND.muted};font-size:15px;line-height:1.6;">
+                Revisa el detalle de la solicitud y accede a la plataforma para comenzar su gestión.
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.background};border-radius:10px;border:1px solid ${BRAND.border};margin-bottom:28px;">
+                ${tableRows}
+              </table>
+              <!-- Botón centrado -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 24px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" bgcolor="${BRAND.primary}" style="border-radius:8px;background:${BRAND.primary};">
+                          <a href="${escapeHtml(data.link)}" target="_blank" style="display:inline-block;padding:14px 36px;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;letter-spacing:0.2px;border-radius:8px;background:${BRAND.primary};">
+                            Ver solicitud
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;color:${BRAND.muted};font-size:12px;line-height:1.6;text-align:center;">
+                Si el botón no funciona, copia este enlace en tu navegador:<br>
+                <a href="${escapeHtml(data.link)}" style="color:${BRAND.primaryDark};word-break:break-all;text-decoration:underline;">${escapeHtml(data.link)}</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Pie -->
+          <tr>
+            <td align="center" style="padding:20px 32px 28px;background:${BRAND.background};border-top:1px solid ${BRAND.border};">
+              <p style="margin:0;color:${BRAND.muted};font-size:12px;line-height:1.5;">
+                LL Consulting · Plataforma de Reclutamiento<br>
+                Este es un mensaje automático, por favor no respondas a este correo.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>`;
@@ -265,6 +347,9 @@ export async function sendNewSolicitudEmail(data: NewSolicitudEmailData): Promis
   }
 
   const subject = `Nueva solicitud #${data.solicitudId} – ${data.cargo}`;
+  const logoPath = resolveLogoPath();
+  const frontendUrl = config.server.frontendUrl;
+  const logoSrc = getLogoSrc(frontendUrl, Boolean(logoPath));
 
   try {
     await transport.sendMail({
@@ -272,7 +357,10 @@ export async function sendNewSolicitudEmail(data: NewSolicitudEmailData): Promis
       to: data.consultorEmail,
       subject,
       text: buildNewSolicitudText(data),
-      html: buildNewSolicitudHtml(data),
+      html: buildNewSolicitudHtml(data, logoSrc),
+      attachments: logoPath
+        ? [{ filename: 'llconsulting-logo.png', path: logoPath, cid: LOGO_CID }]
+        : undefined,
     });
     Logger.info(`Correo enviado: nueva solicitud #${data.solicitudId} → ${data.consultorEmail}`);
   } catch (error) {

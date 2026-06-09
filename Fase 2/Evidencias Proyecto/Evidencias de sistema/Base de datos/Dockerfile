@@ -35,6 +35,7 @@ RUN npm ci --only=production
 # Copiar código compilado desde builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/database ./database
+COPY --from=builder /app/assets ./assets
 
 # Crear directorio para uploads
 RUN mkdir -p uploads logs

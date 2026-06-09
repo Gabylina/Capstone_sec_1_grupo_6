@@ -9,9 +9,11 @@ import {
     CandidatoPostgradoCapacitacion,
     Institucion,
     Comuna,
+    Region,
     Nacionalidad,
     Rubro,
-    Postulacion
+    Postulacion,
+    PortalPostulacion,
 } from '@/models';
 import { setDatabaseUser } from '@/utils/databaseUser';
 
@@ -264,7 +266,14 @@ export class CandidatoService {
                 {
                     model: Comuna,
                     as: 'comuna',
-                    attributes: ['id_comuna', 'nombre_comuna']
+                    attributes: ['id_comuna', 'nombre_comuna'],
+                    include: [
+                        {
+                            model: Region,
+                            as: 'region',
+                            attributes: ['id_region', 'nombre_region']
+                        }
+                    ]
                 },
                 {
                     model: Nacionalidad,
@@ -297,7 +306,27 @@ export class CandidatoService {
                 {
                     model: Postulacion,
                     as: 'postulaciones',
-                    attributes: ['id_postulacion', 'valoracion', 'motivacion', 'expectativa_renta', 'disponibilidad_postulacion', 'comentario_no_presentado', 'id_estado_candidato']
+                    attributes: [
+                        'id_postulacion',
+                        'valoracion',
+                        'motivacion',
+                        'expectativa_renta',
+                        'disponibilidad_postulacion',
+                        'comentario_no_presentado',
+                        'situacion_familiar',
+                        'id_estado_candidato',
+                        'id_portal_postulacion'
+                    ],
+                    separate: true,
+                    limit: 1,
+                    order: [['id_postulacion', 'DESC']],
+                    include: [
+                        {
+                            model: PortalPostulacion,
+                            as: 'portalPostulacion',
+                            attributes: ['id_portal_postulacion', 'nombre_portal_postulacion']
+                        }
+                    ]
                 }
             ]
         });
@@ -306,7 +335,9 @@ export class CandidatoService {
             return null;
         }
 
-        return this.transformCandidato(candidato);
+        const transformed = this.transformCandidato(candidato);
+        await this.fillInstitutionNamesForCandidato(transformed, candidato);
+        return transformed;
     }
 
     /**
@@ -1171,21 +1202,47 @@ export class CandidatoService {
      * Transformar candidato a formato frontend
      */
     private static transformCandidato(candidato: any) {
+        const latestPostulacion = candidato.postulaciones?.[0];
+        const portal = latestPostulacion?.portalPostulacion;
+        const birthDate = candidato.fecha_nacimiento_candidato;
+        const birthDateStr = birthDate
+            ? (birthDate instanceof Date ? birthDate.toISOString().split('T')[0] : String(birthDate).split('T')[0])
+            : '';
+
         return {
             id: candidato.id_candidato.toString(),
+            id_candidato: candidato.id_candidato,
             name: candidato.getNombreCompleto(),
+            nombre: candidato.nombre_candidato || '',
+            primer_apellido: candidato.primer_apellido_candidato || '',
+            segundo_apellido: candidato.segundo_apellido_candidato || '',
             email: candidato.email_candidato,
             phone: candidato.telefono_candidato,
             rut: candidato.rut_candidato || undefined,
-            birth_date: candidato.fecha_nacimiento_candidato?.toISOString().split('T')[0],
+            birth_date: birthDateStr,
             age: candidato.edad_candidato,
             comuna: candidato.comuna?.nombre_comuna || '',
+            region: candidato.comuna?.region?.nombre_region || '',
             nacionalidad: candidato.nacionalidad?.nombre_nacionalidad || '',
             rubro: candidato.rubro?.nombre_rubro || '',
             profession: candidato.profesiones?.[0]?.nombre_profesion || '',
+            profession_institution: '',
+            profession_date: candidato.profesiones?.[0]?.CandidatoProfesion?.fecha_obtencion
+                ? new Date(candidato.profesiones[0].CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0]
+                : '',
+            professions: candidato.profesiones?.map((prof: any) => ({
+                id_profesion: prof.id_profesion,
+                profession: prof.nombre_profesion,
+                institution: '',
+                id_institucion: prof.CandidatoProfesion?.id_institucion,
+                date: prof.CandidatoProfesion?.fecha_obtencion
+                    ? new Date(prof.CandidatoProfesion.fecha_obtencion).toISOString().split('T')[0]
+                    : ''
+            })) || [],
             english_level: candidato.nivel_ingles,
             software_tools: candidato.software_herramientas,
             has_disability_credential: candidato.discapacidad,
+            licencia: candidato.licencia,
             work_experience: candidato.experiencias?.map((exp: any) => ({
                 id: exp.id_experiencia.toString(),
                 company: exp.empresa,
@@ -1199,15 +1256,83 @@ export class CandidatoService {
             })) || [],
             education: candidato.postgradosCapacitaciones?.map((edu: any) => ({
                 id: edu.id_postgradocapacitacion.toString(),
+                id_postgradocapacitacion: edu.id_postgradocapacitacion,
                 type: 'postgrado',
                 title: edu.nombre_postgradocapacitacion,
-                institution: '', // Se puede obtener por separado si es necesario
+                institution: '',
+                id_institucion: null,
                 start_date: '',
-                completion_date: edu.CandidatoPostgradoCapacitacion?.fecha_obtencion?.toISOString().split('T')[0] || '',
+                completion_date: edu.CandidatoPostgradoCapacitacion?.fecha_obtencion
+                    ? new Date(edu.CandidatoPostgradoCapacitacion.fecha_obtencion).toISOString().split('T')[0]
+                    : '',
                 observations: ''
             })) || [],
-            consultant_rating: candidato.postulaciones?.[0]?.valoracion || 3
+            consultant_rating: latestPostulacion?.valoracion || 3,
+            consultant_comment: latestPostulacion?.comentario_no_presentado || '',
+            source_portal: portal?.nombre_portal_postulacion || '',
+            portal_responses: {
+                motivation: latestPostulacion?.motivacion || '',
+                salary_expectation: latestPostulacion?.expectativa_renta?.toString() || '',
+                availability: latestPostulacion?.disponibilidad_postulacion || '',
+                family_situation: latestPostulacion?.situacion_familiar || '',
+                rating: latestPostulacion?.valoracion || 3,
+                english_level: candidato.nivel_ingles || '',
+                has_driving_license: false,
+                software_tools: candidato.software_herramientas || '',
+            },
         };
+    }
+
+    /**
+     * Llenar nombres de instituciones en los datos transformados del candidato
+     */
+    private static async fillInstitutionNamesForCandidato(transformedData: any, candidato: any): Promise<void> {
+        if (candidato.profesiones?.[0]?.CandidatoProfesion?.id_institucion) {
+            const institucionProfesion = await Institucion.findByPk(candidato.profesiones[0].CandidatoProfesion.id_institucion);
+            if (institucionProfesion) {
+                transformedData.profession_institution = institucionProfesion.nombre_institucion;
+            }
+        }
+
+        if (candidato.profesiones && transformedData.professions) {
+            for (let i = 0; i < candidato.profesiones.length; i++) {
+                const prof = candidato.profesiones[i];
+                if (prof.CandidatoProfesion?.id_institucion && transformedData.professions[i]) {
+                    const institucionProf = await Institucion.findByPk(prof.CandidatoProfesion.id_institucion);
+                    if (institucionProf) {
+                        transformedData.professions[i].institution = institucionProf.nombre_institucion;
+                        transformedData.professions[i].id_institucion = institucionProf.id_institucion;
+                    }
+                }
+            }
+        }
+
+        if (candidato.postgradosCapacitaciones && transformedData.education) {
+            for (let i = 0; i < candidato.postgradosCapacitaciones.length; i++) {
+                const edu = candidato.postgradosCapacitaciones[i];
+                const throughData = await CandidatoPostgradoCapacitacion.findOne({
+                    where: {
+                        id_candidato: candidato.id_candidato,
+                        id_postgradocapacitacion: edu.id_postgradocapacitacion
+                    }
+                });
+
+                if (throughData && transformedData.education[i]) {
+                    if (throughData.id_institucion) {
+                        const institucion = await Institucion.findByPk(throughData.id_institucion);
+                        if (institucion) {
+                            transformedData.education[i].institution = institucion.nombre_institucion;
+                            transformedData.education[i].id_institucion = throughData.id_institucion;
+                        }
+                    }
+
+                    if (throughData.fecha_obtencion) {
+                        transformedData.education[i].completion_date =
+                            new Date(throughData.fecha_obtencion).toISOString().split('T')[0];
+                    }
+                }
+            }
+        }
     }
 
     /**

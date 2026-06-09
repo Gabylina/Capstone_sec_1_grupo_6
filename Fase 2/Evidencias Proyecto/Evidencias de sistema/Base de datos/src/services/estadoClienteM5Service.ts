@@ -11,6 +11,72 @@ import { Logger } from '@/utils/logger';
 import { setDatabaseUser } from '@/utils/databaseUser';
 
 export default class EstadoClienteM5Service {
+
+    /** Estados intermedios del módulo 5 (tabla estado_cliente_m5) */
+    private static readonly FRONTEND_TO_DB_ESTADO: Record<string, string> = {
+        en_espera_feedback: 'En espera de feedback',
+        no_seleccionado: 'No seleccionado',
+        envio_carta_oferta: 'Envío de carta oferta',
+        aceptacion_carta_oferta: 'Aceptación carta oferta',
+        rechazo_carta_oferta: 'Rechazo carta oferta',
+    };
+
+    private static readonly DB_TO_FRONTEND_ESTADO: Record<string, string> = {
+        'En espera de feedback': 'en_espera_feedback',
+        'No seleccionado': 'no_seleccionado',
+        'Envío de carta oferta': 'envio_carta_oferta',
+        'Aceptación carta oferta': 'aceptacion_carta_oferta',
+        'Rechazo carta oferta': 'rechazo_carta_oferta',
+    };
+
+    /**
+     * Resolver ID de estado_cliente_m5 por clave del frontend (evita desfase de IDs en BD)
+     */
+    private static async resolveEstadoIdByFrontendKey(
+        hiringStatus: string,
+        transaction?: Transaction
+    ): Promise<number> {
+        const nombreEstado = this.FRONTEND_TO_DB_ESTADO[hiringStatus];
+        if (!nombreEstado) {
+            throw new Error(`Estado de contratación no válido: ${hiringStatus}`);
+        }
+
+        const estado = await EstadoClienteM5.findOne({
+            where: { nombre_estado: nombreEstado },
+            transaction,
+        });
+
+        if (!estado) {
+            throw new Error(`Estado no configurado en BD: ${nombreEstado}`);
+        }
+
+        return estado.id_estado_cliente_postulacion_m5;
+    }
+
+    /**
+     * Eliminar registro de contratación creado solo como stub (sin confirmación real)
+     */
+    private static async clearContratacionStubIfNeeded(
+        id_postulacion: number,
+        transaction: Transaction
+    ): Promise<void> {
+        const contratacion = await Contratacion.findOne({
+            where: { id_postulacion },
+            transaction,
+        });
+
+        if (!contratacion) return;
+
+        const tieneConfirmacionReal =
+            Boolean(contratacion.fecha_ingreso_contratacion) ||
+            Boolean(contratacion.observaciones_contratacion?.trim()) ||
+            Boolean(contratacion.encuesta_satisfaccion?.trim());
+
+        if (!tieneConfirmacionReal) {
+            await contratacion.destroy({ transaction });
+            Logger.info(`[DEBUG] Eliminado stub de contratación para postulación ${id_postulacion}`);
+        }
+    }
     
     /**
      * Obtener todos los estados del módulo 5
@@ -379,14 +445,18 @@ export default class EstadoClienteM5Service {
                 fecha_ultimo_cambio_m5: estado.fecha_feedback_cliente_m5,
                 // Mapear estado del módulo 5 (SIEMPRE desde estado_cliente_m5, no desde Contratacion)
                 hiring_status: this.mapEstadoToFrontend(estadoData.estadoClienteM5?.nombre_estado),
-                // Estado final de contratación (si existe registro en Contratacion)
+                // Estado final solo tras aceptación de oferta + confirmación explícita en tabla Contratacion
                 contratacion_status: (() => {
-                    const contratacion = contratacionMap.get(estadoData.id_postulacion);
-                    if (contratacion) {
-                        // id_estado_contratacion: 1 = Contratado, 2 = No contratado
-                        return contratacion.id_estado_contratacion === 1 ? 'contratado' : 'no_contratado';
+                    const hiringStatus = this.mapEstadoToFrontend(estadoData.estadoClienteM5?.nombre_estado);
+                    // El estado final (Contratado / No contratado) solo aplica tras aceptación de oferta
+                    if (hiringStatus !== 'aceptacion_carta_oferta') {
+                        return null;
                     }
-                    return null;
+                    const contratacion = contratacionMap.get(estadoData.id_postulacion);
+                    if (!contratacion) {
+                        return null;
+                    }
+                    return contratacion.id_estado_contratacion === 1 ? 'contratado' : 'no_contratado';
                 })(),
                 // Mapear fecha de respuesta del cliente (fecha de feedback real)
                 client_response_date: fechaFeedback ? 
@@ -430,18 +500,12 @@ export default class EstadoClienteM5Service {
     /**
      * Mapear estado de la base de datos al formato del frontend
      */
-    private static mapEstadoToFrontend(nombreEstado: string): string {
-        const estadosMap: { [key: string]: string } = {
-            'En espera de feedback': 'en_espera_feedback',
-            'No seleccionado': 'no_seleccionado',
-            'Envío de carta oferta': 'envio_carta_oferta',
-            'Aceptación carta oferta': 'aceptacion_carta_oferta',
-            'Rechazo carta oferta': 'rechazo_carta_oferta',
-            'Contratado': 'contratado',
-            'No contratado': 'no_contratado'
-        };
-        
-        return estadosMap[nombreEstado] || 'en_espera_feedback';
+    private static mapEstadoToFrontend(nombreEstado?: string): string {
+        if (!nombreEstado) return 'en_espera_feedback';
+        const mapped = this.DB_TO_FRONTEND_ESTADO[nombreEstado];
+        if (mapped) return mapped;
+        Logger.warn(`[M5] Estado no mapeado en estado_cliente_m5: "${nombreEstado}"`);
+        return 'en_espera_feedback';
     }
 
     /**
@@ -518,25 +582,19 @@ export default class EstadoClienteM5Service {
             }
             
             // Para los demás estados (en_espera_feedback, no_seleccionado, etc.)
-            // Mapear estados del frontend a IDs de la base de datos (módulo 5)
-            const estadosMap: { [key: string]: number } = {
-                'en_espera_feedback': 1,
-                'no_seleccionado': 2,
-                'envio_carta_oferta': 3,
-                'aceptacion_carta_oferta': 4,
-                'rechazo_carta_oferta': 5
-            };
-
-            const id_estado_cliente_postulacion_m5 = estadosMap[data.hiring_status];
-            if (!id_estado_cliente_postulacion_m5) {
-                throw new Error(`Estado de contratación no válido: ${data.hiring_status}. Estados válidos: ${Object.keys(estadosMap).join(', ')}, contratado, no_contratado`);
-            }
+            const id_estado_cliente_postulacion_m5 = await this.resolveEstadoIdByFrontendKey(
+                data.hiring_status,
+                transaction
+            );
 
             // IMPORTANTE: NO convertir la fecha a Date object para evitar problemas de zona horaria
             // Pasarla directamente como string en formato YYYY-MM-DD
             const fechaFeedback = data.client_response_date || null;
             
-            Logger.info(`[DEBUG] Estado mapeado: ${id_estado_cliente_postulacion_m5}, Fecha: ${fechaFeedback}`);
+            Logger.info(`[DEBUG] Estado resuelto: ${id_estado_cliente_postulacion_m5} (${data.hiring_status}), Fecha: ${fechaFeedback}`);
+
+            // Al cambiar a aceptación u otro estado intermedio, quitar stubs de contratación no confirmados
+            await this.clearContratacionStubIfNeeded(id_postulacion, transaction);
             
             // Actualizar estado en módulo 5
             await this.cambiarEstado(id_postulacion, {

@@ -23,6 +23,7 @@ import type { Hito } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 
 import { serviceTypeLabels, processStatusLabels } from "@/lib/utils"
+import { isProcesoCompletoOrHeadhunting } from "@/lib/approval-utils"
 import { ProcessViewProvider, useProcessView } from "@/lib/process-view-context"
 
 interface ProcessPageProps {
@@ -86,28 +87,23 @@ function ProcessPageContent({
 
     // Mapeo de etapas a módulos según el tipo de servicio
     if (etapa === 'Módulo 5: Seguimiento Posterior a la Evaluación Psicolaboral') {
-      // PC, SC y CA tienen módulo 5 (cierre)
-      if (serviceType === 'PC' || serviceType === 'SC' || serviceType === 'CA') {
+      if (isProcesoCompletoOrHeadhunting(serviceType) || serviceType === 'SC' || serviceType === 'CA') {
         return 'modulo-5'
       }
-      // Si no es PC, no debería estar en módulo 5, pero por seguridad:
-      // TS y ES tienen módulo 4, LL y HH tienen módulo 3
       if (serviceType === 'TS' || serviceType === 'ES') {
         return 'modulo-4'
       }
-      if (serviceType === 'LL' || serviceType === 'HH') {
+      if (serviceType === 'LL') {
         return 'modulo-3'
       }
       return 'modulo-1'
     }
 
     if (etapa === 'Módulo 4: Evaluación Psicolaboral') {
-      // PC, SC, TS y ES tienen módulo 4 (CA no tiene M4)
-      if (serviceType === 'PC' || serviceType === 'SC' || serviceType === 'TS' || serviceType === 'ES') {
+      if (isProcesoCompletoOrHeadhunting(serviceType) || serviceType === 'SC' || serviceType === 'TS' || serviceType === 'ES') {
         return 'modulo-4'
       }
-      // LL y HH no tienen módulo 4, mostrar módulo 3 como máximo
-      if (serviceType === 'LL' || serviceType === 'HH') {
+      if (serviceType === 'LL') {
         return 'modulo-3'
       }
       return 'modulo-1'
@@ -174,7 +170,7 @@ function ProcessPageContent({
     if (isViewOnlyMode || !process || isLoading || activeTab !== "modulo-4") return
     const serviceType = process.tipo_servicio || process.service_type
     const currentStage = process.etapa || process.stage
-    if (serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+    if (isProcesoCompletoOrHeadhunting(serviceType) && currentStage === "Módulo 4: Evaluación Psicolaboral") {
       checkCandidatesWithReportStatus(parseInt(id))
     }
   }, [activeTab, process, isLoading, id, isViewOnlyMode])
@@ -265,7 +261,7 @@ function ProcessPageContent({
       })
     )
 
-    if (!isViewOnlyMode && serviceType === "PC" && currentStage === "Módulo 4: Evaluación Psicolaboral") {
+    if (!isViewOnlyMode && isProcesoCompletoOrHeadhunting(serviceType) && currentStage === "Módulo 4: Evaluación Psicolaboral") {
       tasks.push(checkCandidatesWithReportStatus(processId))
     } else {
       setHasCandidatesWithReportStatus(false)
@@ -462,7 +458,7 @@ function ProcessPageContent({
       })
     }
 
-    if (serviceType === "PC" || serviceType === "SC" || serviceType === "TS" || serviceType === "ES" || serviceType === "EP") {
+    if (isProcesoCompletoOrHeadhunting(serviceType) || serviceType === "SC" || serviceType === "TS" || serviceType === "ES" || serviceType === "EP") {
       modules.push({ 
         id: "modulo-4", 
         label: "Evaluación Psicolaboral", 
@@ -472,7 +468,7 @@ function ProcessPageContent({
       })
     }
 
-    if (serviceType === "PC" || serviceType === "SC" || serviceType === "CA") {
+    if (isProcesoCompletoOrHeadhunting(serviceType) || serviceType === "SC" || serviceType === "CA") {
       // El módulo 5 (cierre) está habilitado si:
       // 1. Ya estás en el módulo 5, O
       // 2. (SC/PC) Estás en el módulo 4 Y hay candidatos con estado de informe definido.
@@ -727,7 +723,7 @@ function ProcessPageContent({
                 )}
 
               {activeTab === "modulo-4" &&
-                (process.tipo_servicio === "PC" ||
+                (isProcesoCompletoOrHeadhunting(process.tipo_servicio) ||
                   process.tipo_servicio === "SC" ||
                   process.tipo_servicio === "TS" ||
                   process.tipo_servicio === "ES" ||
@@ -736,7 +732,7 @@ function ProcessPageContent({
                 )}
 
               {activeTab === "modulo-5" &&
-                (process.tipo_servicio === "PC" ||
+                (isProcesoCompletoOrHeadhunting(process.tipo_servicio) ||
                   process.tipo_servicio === "SC" ||
                   process.tipo_servicio === "CA") && (
                   <ProcessModule5 process={process} readOnly={viewOnly} />

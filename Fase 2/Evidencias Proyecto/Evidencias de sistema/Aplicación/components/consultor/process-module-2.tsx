@@ -268,6 +268,7 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("all")
   const [candidatePortalFilter, setCandidatePortalFilter] = useState("all")
   const [historialLoading, setHistorialLoading] = useState(false)
+  const [historialSelectingId, setHistorialSelectingId] = useState<string | null>(null)
   const [historialPagination, setHistorialPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -3109,59 +3110,70 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     }
   }, [historialSearchTerm, showHistorialDialog])
   
-  // Seleccionar candidato del historial y prellenar el formulario
-  const handleSelectHistorialCandidate = (candidato: any) => {
-    console.log("Candidato seleccionado del historial:", candidato)
-    
-    // Buscar el portal "Interno" en la lista de portales
-    const portalInterno = portalesDB.find((p: any) => 
-      p.nombre?.toLowerCase() === 'interno'
-    )
-    console.log("Portal Interno encontrado:", portalInterno)
-    
-    // Preparar datos iniciales para el formulario
-    // Los campos vienen del backend con esta estructura (transformCandidatoBasico):
-    // id, name, nombre, primer_apellido, segundo_apellido, email, phone, rut, edad, comuna, nacionalidad, profesion
-    const initialData = {
-      // ¡IMPORTANTE! Guardar el ID del candidato existente para no crear uno nuevo
-      candidatoExistenteId: candidato.id || candidato.id_candidato,
-      nombre: candidato.nombre || "",
-      primer_apellido: candidato.primer_apellido || "",
-      segundo_apellido: candidato.segundo_apellido || "",
-      email: candidato.email || "",
-      phone: candidato.phone || "",
-      rut: candidato.rut || "",
-      birth_date: "", // No viene en el historial básico
-      age: candidato.edad || 0,
-      region: "", // No viene en el historial básico
-      comuna: candidato.comuna || "",
-      nacionalidad: candidato.nacionalidad || "",
-      rubro: "",
-      has_disability_credential: false,
-      licencia: false,
-      consultant_rating: 3,
-      // Asignar automáticamente el portal "Interno" si existe
-      source_portal: portalInterno ? portalInterno.id.toString() : "",
-      professions: [], // No viene en el historial básico
-      education: [],
-      work_experience: [],
-      portal_responses: {
-        motivation: "",
-        salary_expectation: "",
-        availability: "",
-        family_situation: "",
-        rating: 3,
-        english_level: "",
-        software_tools: "",
+  // Seleccionar candidato del historial y prellenar el formulario con datos completos
+  const handleSelectHistorialCandidate = async (candidato: any) => {
+    const candidatoId = candidato.id || candidato.id_candidato
+    if (!candidatoId) return
+
+    setHistorialSelectingId(String(candidatoId))
+    try {
+      const response = await candidatoService.getById(parseInt(String(candidatoId), 10))
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "No se pudo cargar el candidato")
       }
+
+      const full = response.data
+      const portalInterno = portalesDB.find((p: any) =>
+        p.nombre?.toLowerCase() === 'interno'
+      )
+
+      const initialData = {
+        candidatoExistenteId: full.id || full.id_candidato,
+        nombre: full.nombre || "",
+        primer_apellido: full.primer_apellido || "",
+        segundo_apellido: full.segundo_apellido || "",
+        email: full.email || "",
+        phone: full.phone || "",
+        rut: full.rut || "",
+        birth_date: full.birth_date || "",
+        age: full.age || 0,
+        region: full.region || "",
+        comuna: full.comuna || "",
+        nacionalidad: full.nacionalidad || "",
+        rubro: full.rubro || "",
+        has_disability_credential: full.has_disability_credential || false,
+        licencia: full.licencia || false,
+        consultant_rating: full.consultant_rating || full.portal_responses?.rating || 3,
+        consultant_comment: full.consultant_comment || "",
+        source_portal: portalInterno ? portalInterno.id.toString() : "",
+        professions: full.professions || [],
+        education: full.education || [],
+        work_experience: full.work_experience || [],
+        portal_responses: {
+          motivation: full.portal_responses?.motivation || "",
+          salary_expectation: full.portal_responses?.salary_expectation || "",
+          availability: full.portal_responses?.availability || "",
+          family_situation: full.portal_responses?.family_situation || "",
+          rating: full.portal_responses?.rating || full.consultant_rating || 3,
+          english_level: full.portal_responses?.english_level || full.english_level || "",
+          software_tools: full.portal_responses?.software_tools || full.software_tools || "",
+        }
+      }
+
+      setInitialDataFromHistorial(initialData)
+      setShowHistorialDialog(false)
+      setShowAddCandidate(true)
+      setHistorialSearchTerm("")
+    } catch (error: any) {
+      console.error("Error al cargar candidato del historial:", error)
+      showToast({
+        type: "error",
+        title: "Error",
+        description: error.message || "No se pudieron cargar los datos completos del candidato",
+      })
+    } finally {
+      setHistorialSelectingId(null)
     }
-    
-    console.log("Datos iniciales preparados:", initialData)
-    
-    setInitialDataFromHistorial(initialData)
-    setShowHistorialDialog(false)
-    setShowAddCandidate(true)
-    setHistorialSearchTerm("")
   }
 
   const handleExportCandidatesExcel = () => {
@@ -4442,9 +4454,17 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                       <TableCell>
                         <Button
                           size="sm"
+                          disabled={historialSelectingId !== null}
                           onClick={() => handleSelectHistorialCandidate(candidato)}
                         >
-                          Seleccionar
+                          {historialSelectingId === String(candidato.id || candidato.id_candidato) ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Cargando...
+                            </>
+                          ) : (
+                            "Seleccionar"
+                          )}
                         </Button>
                       </TableCell>
                     </TableRow>

@@ -554,6 +554,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const isBlocked = isProcessBlocked(processStatus)
+  const canEdit = !readOnly && !isBlocked
 
   // Función para obtener el label dinámico según el estado seleccionado
   const getReasonLabel = (): string => {
@@ -622,7 +623,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   // Función para cambiar estado de la solicitud (finalizar)
   const handleStatusChange = async (estadoId: string) => {
     // Validar que el proceso no esté bloqueado
-    if (isBlocked) {
+    if (!canEdit) {
       showToast({
         type: "error",
         title: "Acción Bloqueada",
@@ -816,6 +817,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
 
 
   const openInterviewDialog = (candidate: Candidate) => {
+    if (!canEdit) return
     setSelectedCandidate(candidate)
     
     // Cargar datos existentes desde evaluaciones de BD
@@ -863,6 +865,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const openTestDialog = async (candidate: Candidate) => {
+    if (!canEdit) return
     setSelectedCandidate(candidate)
     setIsEditingSingleTest(false)
     
@@ -907,6 +910,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const openEditTestDialog = async (candidate: Candidate, testId: string) => {
+    if (!canEdit) return
     setSelectedCandidate(candidate)
     setIsEditingSingleTest(true)
     
@@ -952,7 +956,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const handleSaveInterview = async () => {
-    if (!selectedCandidate) return
+    if (!canEdit || !selectedCandidate) return
     
     // Validar que la fecha de entrevista no sea anterior a la fecha de feedback del módulo 3
     // Aplicar para todos los estados: programada, realizada, cancelada
@@ -1081,7 +1085,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const handleSaveTest = async () => {
-    if (!selectedCandidate) return
+    if (!canEdit || !selectedCandidate) return
 
     // Establecer el flag ANTES de validar para que las validaciones se muestren
     setHasAttemptedSubmitTest(true)
@@ -1406,6 +1410,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   // openEditTestDialog ya no es necesario - ahora se usa openTestDialog que carga todos los tests
 
   const handleDeleteTest = (candidate: Candidate, testId: string) => {
+    if (!canEdit) return
     // Si estamos en el diálogo de tests, marcar para eliminación
     if (showTestDialog && selectedCandidate?.id === candidate.id) {
       // Marcar el test para eliminación (no eliminar inmediatamente)
@@ -1429,7 +1434,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const confirmDeleteTest = async () => {
-    if (!deleteConfirm.candidateId || deleteConfirm.testIndex === undefined) return
+    if (!canEdit || !deleteConfirm.candidateId || deleteConfirm.testIndex === undefined) return
 
     try {
       const { evaluacionPsicolaboralService } = await import('@/lib/api')
@@ -1494,6 +1499,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
 
 
   const openReferencesDialog = async (candidate: Candidate) => {
+    if (!canEdit) return
     setSelectedCandidate(candidate)
     
     // Cargar referencias existentes del candidato
@@ -1756,6 +1762,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const openReportDialog = (candidate: Candidate) => {
+    if (!canEdit) return
     setSelectedCandidate(candidate)
     
     // Buscar la evaluación existente para este candidato
@@ -1791,7 +1798,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const handleSaveReport = async () => {
-    if (!selectedCandidate) return
+    if (!canEdit || !selectedCandidate) return
 
     // Validar que la fecha de envío del informe sea obligatoria
     if (!reportForm.report_sent_date || reportForm.report_sent_date.trim() === "") {
@@ -1945,7 +1952,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
 
 
   const handleAddReference = async () => {
-    if (!selectedCandidate) return
+    if (!canEdit || !selectedCandidate) return
 
     // Establecer el flag ANTES de validar para que las validaciones se muestren
     setHasAttemptedSubmitReference(true)
@@ -2208,7 +2215,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
   }
 
   const confirmDeleteReference = async () => {
-    if (!deleteConfirm.candidateId || !deleteConfirm.referenceId) return
+    if (!canEdit || !deleteConfirm.candidateId || !deleteConfirm.referenceId) return
 
     try {
       const response = await referenciaLaboralService.delete(Number(deleteConfirm.referenceId))
@@ -2242,6 +2249,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
 
   // Función para avanzar candidatos al módulo 5
   const handleAdvanceToModule5 = async () => {
+    if (!canEdit) return
     if (candidatesWithRealizedInterview.length === 0) {
       showToast({
         type: "error",
@@ -2449,7 +2457,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                 variant="default"
                 className="hover:opacity-90 hover:scale-105 transition-all duration-200"
                 onClick={() => setShowStatusChange(!showStatusChange)}
-                disabled={loadingEstados || isBlocked}
+                disabled={loadingEstados || !canEdit}
               >
                 {loadingEstados ? "Cargando..." : "Finalizar Solicitud"}
               </Button>
@@ -2527,7 +2535,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                     </div>
                     <Button 
                       onClick={handleAdvanceToModule5}
-                      disabled={readOnly || !canAdvanceToModule5 || isAdvancingToModule5}
+                      disabled={!canEdit || !canAdvanceToModule5 || isAdvancingToModule5}
                       className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
                     >
                       {isAdvancingToModule5 && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -2903,6 +2911,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                                             <Button
                                               variant="outline"
                                               size="sm"
+                                              disabled={!canEdit}
                                               onClick={() => {
                                                 // El test.id en candidateTests es el id_test_psicolaboral (tipo de test)
                                                 // que es lo que necesitamos para buscar el test en la evaluación
@@ -2914,6 +2923,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                                             <Button
                                               variant="outline"
                                               size="sm"
+                                              disabled={!canEdit}
                                               onClick={() => handleDeleteTest(candidate, test.id || `test-${candidate.id}-${index}`)}
                                             >
                                               <Trash2 className="h-4 w-4" />
@@ -2938,7 +2948,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                           <Button
                             onClick={() => openInterviewDialog(candidate)}
                             size="sm"
-                            disabled={readOnly}
+                            disabled={!canEdit}
                           >
                             <Calendar className="mr-2 h-4 w-4" />
                             Editar Estado de Entrevista
@@ -2952,7 +2962,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                                     <Button 
                                       onClick={() => openTestDialog(candidate)} 
                                       size="sm"
-                                      disabled={readOnly || !hasEvaluation}
+                                      disabled={!canEdit || !hasEvaluation}
                                     >
                                       <Plus className="mr-2 h-4 w-4" />
                                       Agregar Test
@@ -2977,7 +2987,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                                       variant="outline" 
                                       onClick={() => openReferencesDialog(candidate)} 
                                       size="sm"
-                                      disabled={readOnly || !hasEvaluation}
+                                      disabled={!canEdit || !hasEvaluation}
                                     >
                                       <Building className="mr-2 h-4 w-4" />
                                       Agregar Referencias
@@ -3004,7 +3014,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                                 variant="outline" 
                                 onClick={() => openReportDialog(candidate)} 
                                 size="sm"
-                                disabled={readOnly || !isRealized}
+                                disabled={!canEdit || !isRealized}
                               >
                                 <FileText className="mr-2 h-4 w-4" />
                                 Gestionar Estado del Informe
@@ -3339,13 +3349,13 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                 setShowInterviewDialog(false)
                 clearAllErrors()
               }}
-              disabled={readOnly || isSavingInterview}
+              disabled={!canEdit || isSavingInterview}
             >
               Cancelar
             </Button>
             <Button 
               onClick={handleSaveInterview}
-              disabled={readOnly || isSavingInterview}
+              disabled={!canEdit || isSavingInterview}
             >
               {isSavingInterview && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingInterview ? "Guardando..." : "Guardar"}
@@ -3391,7 +3401,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">{isEditingSingleTest ? "Editar Test" : "Agregar Tests"}</CardTitle>
                 {!isEditingSingleTest && (
-                  <Button type="button" variant="outline" size="sm" onClick={addTestForm}>
+                  <Button type="button" variant="outline" size="sm" disabled={!canEdit} onClick={addTestForm}>
                     <Plus className="mr-2 h-4 w-4" />
                     Agregar Otro Test
                   </Button>
@@ -3436,6 +3446,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                               type="button"
                               variant="outline"
                               size="sm"
+                              disabled={!canEdit}
                               onClick={() => {
                                 // Deshacer la eliminación
                                 setTestForms(forms => 
@@ -3456,6 +3467,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                               type="button"
                               variant="ghost"
                               size="sm"
+                              disabled={!canEdit}
                               onClick={() => {
                                 if (isExistingTest && form.testId) {
                                   // Si es un test existente, marcarlo para eliminación
@@ -3481,7 +3493,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                           <Select
                             value={form.test_name}
                             onValueChange={(value) => updateTestForm(form.id, "test_name", value)}
-                            disabled={readOnly || isMarkedForDeletion}
+                            disabled={!canEdit || isMarkedForDeletion}
                           >
                             <SelectTrigger className={`bg-white ${errors[`test_name_${form.id}`] ? "border-destructive" : ""}`}>
                               <SelectValue placeholder="Seleccionar test" />
@@ -3505,7 +3517,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                             placeholder="Ej: Alto dominio en habilidades de liderazgo, muestra capacidad para..."
                             rows={4}
                             maxLength={300}
-                            disabled={readOnly || isMarkedForDeletion}
+                            disabled={!canEdit || isMarkedForDeletion}
                             className={`bg-white min-h-[100px] ${errors[`test_result_${form.id}`] ? "border-destructive" : ""}`}
                           />
                           <div className="text-sm text-muted-foreground text-right">
@@ -3533,7 +3545,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
             }}>
               Cerrar
             </Button>
-            <Button onClick={handleSaveTest} disabled={readOnly || isSavingTest}>
+            <Button onClick={handleSaveTest} disabled={!canEdit || isSavingTest}>
               {isSavingTest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingTest ? "Guardando..." : "Guardar Tests"}
             </Button>
@@ -3569,7 +3581,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Agregar Referencias Laborales</CardTitle>
-                <Button type="button" variant="outline" size="sm" onClick={addReferenceForm}>
+                <Button type="button" variant="outline" size="sm" disabled={!canEdit} onClick={addReferenceForm}>
                   <Plus className="mr-2 h-4 w-4" />
                   Agregar Otra Referencia
                 </Button>
@@ -3802,7 +3814,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
             </Button>
             <Button
               onClick={handleAddReference}
-              disabled={readOnly || isSavingReference}
+              disabled={!canEdit || isSavingReference}
             >
               {isSavingReference && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingReference ? "Guardando..." : "Guardar Referencias"}
@@ -3991,7 +4003,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
             </Button>
             <Button 
               onClick={handleSaveReport} 
-              disabled={readOnly || !reportForm.report_status || isSavingReport}
+              disabled={!canEdit || !reportForm.report_status || isSavingReport}
             >
               {isSavingReport && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isSavingReport ? "Guardando..." : "Guardar Estado del Informe"}
@@ -4022,7 +4034,8 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
               Cancelar
             </Button>
             <Button 
-              variant="destructive" 
+              variant="destructive"
+              disabled={!canEdit}
               onClick={deleteConfirm.type === 'test' ? confirmDeleteTest : confirmDeleteReference}
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -4092,7 +4105,7 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
               </Button>
               <Button
                 onClick={() => handleStatusChange(selectedEstado)}
-                disabled={readOnly || !selectedEstado || isSavingStatus}
+                disabled={!canEdit || !selectedEstado || isSavingStatus}
               >
                 {isSavingStatus && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSavingStatus ? "Actualizando..." : "Actualizar Estado"}
