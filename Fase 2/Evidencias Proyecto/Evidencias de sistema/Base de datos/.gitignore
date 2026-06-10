@@ -86,6 +86,7 @@ uploads/
 *.db
 backups/
 *.dump
+scripts/BACKUP_DIGITAL_OCEAN.md
 
 # IDE
 .vscode/
