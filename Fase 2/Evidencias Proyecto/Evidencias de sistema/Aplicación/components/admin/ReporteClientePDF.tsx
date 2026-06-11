@@ -83,38 +83,37 @@ const C = {
 
 /** Reserva superior para el encabezado fijo + separación con el contenido */
 const PAGE_TOP_PADDING = 74
-/** Altura útil conservadora (A4 ≈ 842pt − encabezado − pie) */
-const PAGE_USABLE_HEIGHT = 640
-/** Margen de seguridad antes de forzar proceso entero en una hoja */
-const PAGE_FIT_SAFETY = 48
+/** Altura útil real de A4 (842pt − paddingTop 74 − paddingBottom 52 − footer ~36) */
+const PAGE_USABLE_HEIGHT = 680
+/** Margen de seguridad: solo usar wrap={false} si el proceso cabe con holgura */
+const PAGE_FIT_SAFETY = 200
 
 function estimateProcesoHeight(proceso: ProcesoPDF): number {
   const presentados = proceso.candidatosPresentados ?? []
   const seguimiento = proceso.seguimientoCandidatos?.candidatos ?? []
   const hasPasos = !proceso.cerradoEstaSemana
 
-  // Estimación generosa (redondeo hacia arriba) para no aplicar wrap={false} si no cabe
-  const headerH = 82
+  const headerH = 90
   const bodyPad = 32
-  const hitosH = 28 + proceso.hitos.length * 20
+  const hitosH = 28 + proceso.hitos.length * 24
   const sectionTitleH = 32
-  const pasosH = 100
+  const pasosH = 120
 
   let h = headerH + bodyPad + hitosH
 
   if (presentados.length > 0) {
     h += sectionTitleH
     for (const c of presentados) {
-      h += 44
-      if (c.comentarioCliente?.trim()) h += 20
+      h += 52
+      if (c.comentarioCliente?.trim()) h += 24
     }
   }
 
   if (seguimiento.length > 0) {
     h += sectionTitleH
     for (const c of seguimiento) {
-      h += 44
-      if (c.comentarioCliente?.trim()) h += 20
+      h += 52
+      if (c.comentarioCliente?.trim()) h += 24
     }
   }
 
@@ -122,9 +121,6 @@ function estimateProcesoHeight(proceso: ProcesoPDF): number {
   return h
 }
 
-function procesoFitsOnePage(proceso: ProcesoPDF): boolean {
-  return estimateProcesoHeight(proceso) <= PAGE_USABLE_HEIGHT - PAGE_FIT_SAFETY
-}
 
 function buildResumenProcesos(
   procesos: ProcesoPDF[],
@@ -332,12 +328,12 @@ const s = StyleSheet.create({
   hitoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 7,
+    marginBottom: 10,
   },
   hitoIndicator: { width: 18, paddingTop: 2, alignItems: "center" },
   hitoDot: { width: 8, height: 8, borderRadius: 4 },
   hitoContent: { flex: 1, paddingLeft: 4 },
-  hitoLine: { fontSize: 9, lineHeight: 1.5 },
+  hitoLine: { fontSize: 9, lineHeight: 1.3 },
   hitoFechaInline: { fontSize: 9, color: C.muted },
 
   pasosContainer: { flexDirection: "row", marginTop: 10 },
@@ -365,9 +361,11 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  candidatoNombre: { color: C.navy, fontSize: 9, fontFamily: "Helvetica-Bold", lineHeight: 1.5 },
-  candidatoDetalle: { color: C.muted, fontSize: 8, marginTop: 3, lineHeight: 1.45 },
-  candidatoComentario: { color: "#1e293b", fontSize: 8, marginTop: 3, lineHeight: 1.45 },
+  candidatoNombreBox: { paddingBottom: 3 },
+  candidatoDetalleBox: { paddingTop: 2 },
+  candidatoNombre: { color: C.navy, fontSize: 9, fontFamily: "Helvetica-Bold" },
+  candidatoDetalle: { color: C.muted, fontSize: 8 },
+  candidatoComentario: { color: "#1e293b", fontSize: 8 },
 
   footer: {
     position: "absolute",
@@ -495,7 +493,7 @@ function HitoTimeline({ hitos }: { hitos: HitoPDF[] }) {
   if (hitos.length === 0) return null
 
   return (
-    <View wrap={false}>
+    <View>
       <Text style={s.hitosTitle}>Avance del proceso</Text>
       {hitos.map((h, i) => {
         const dotColor = h.completado ? C.green : C.border
@@ -503,7 +501,7 @@ function HitoTimeline({ hitos }: { hitos: HitoPDF[] }) {
         const fechaTxt = hitoFechaTexto(h)
 
         return (
-          <View key={i} style={s.hitoRow}>
+          <View key={i} style={s.hitoRow} wrap={false}>
             <View style={s.hitoIndicator}>
               <View style={[s.hitoDot, { backgroundColor: dotColor }]} />
             </View>
@@ -523,19 +521,22 @@ function HitoTimeline({ hitos }: { hitos: HitoPDF[] }) {
 }
 
 function CandidatoRowPresentado({ c }: { c: CandidatoPresentadoPDF }) {
+  const partes = [`Enviado: ${fmtDate(c.fechaEnvio)}`]
+  partes.push(`Respuesta de cliente: ${c.respuestaCliente?.trim() || "Sin respuesta"}`)
+  if (c.fechaRespuesta) partes.push(`Fecha: ${fmtDate(c.fechaRespuesta)}`)
+  const detalle = partes.join(" · ")
   return (
-    <View wrap={false} style={s.candidatoRow}>
-      <Text style={s.candidatoNombre}>{c.nombre}</Text>
-      <Text style={s.candidatoDetalle}>
-        Enviado: {fmtDate(c.fechaEnvio)}
-        {" · "}
-        Respuesta de cliente: {c.respuestaCliente?.trim() || "Sin respuesta"}
-        {c.fechaRespuesta ? ` · Fecha: ${fmtDate(c.fechaRespuesta)}` : ""}
-      </Text>
+    <View style={s.candidatoRow}>
+      <View style={s.candidatoNombreBox}>
+        <Text style={s.candidatoNombre}>{c.nombre}</Text>
+      </View>
+      <View style={s.candidatoDetalleBox}>
+        <Text style={s.candidatoDetalle}>{detalle}</Text>
+      </View>
       {c.comentarioCliente?.trim() ? (
-        <Text style={s.candidatoComentario}>
-          Comentario: {c.comentarioCliente.trim()}
-        </Text>
+        <View style={s.candidatoDetalleBox}>
+          <Text style={s.candidatoComentario}>Comentario: {c.comentarioCliente.trim()}</Text>
+        </View>
       ) : null}
     </View>
   )
@@ -543,13 +544,17 @@ function CandidatoRowPresentado({ c }: { c: CandidatoPresentadoPDF }) {
 
 function CandidatoRowSeguimiento({ c }: { c: SeguimientoCandidatoPDF }) {
   return (
-    <View wrap={false} style={s.candidatoRow}>
-      <Text style={s.candidatoNombre}>{c.nombre}</Text>
-      <Text style={s.candidatoDetalle}>{buildDetalleSeguimiento(c)}</Text>
+    <View style={s.candidatoRow}>
+      <View style={s.candidatoNombreBox}>
+        <Text style={s.candidatoNombre}>{c.nombre}</Text>
+      </View>
+      <View style={s.candidatoDetalleBox}>
+        <Text style={s.candidatoDetalle}>{buildDetalleSeguimiento(c)}</Text>
+      </View>
       {c.comentarioCliente?.trim() ? (
-        <Text style={s.candidatoComentario}>
-          Comentario: {c.comentarioCliente.trim()}
-        </Text>
+        <View style={s.candidatoDetalleBox}>
+          <Text style={s.candidatoComentario}>Comentario: {c.comentarioCliente.trim()}</Text>
+        </View>
       ) : null}
     </View>
   )
@@ -562,8 +567,8 @@ function CandidatosPresentadosSection({ items }: { items: CandidatoPresentadoPDF
 
   return (
     <View style={s.candidatosSection}>
-      <View wrap={false} minPresenceAhead={90}>
-        <Text style={s.hitosTitle} minPresenceAhead={90}>
+      <View minPresenceAhead={60}>
+        <Text style={s.hitosTitle}>
           Presentación inicial de candidatos
         </Text>
         <CandidatoRowPresentado c={first} />
@@ -601,8 +606,8 @@ function SeguimientoCandidatosSection({ seccion }: { seccion: SeguimientoCandida
 
   return (
     <View style={s.candidatosSection}>
-      <View wrap={false} minPresenceAhead={90}>
-        <Text style={s.hitosTitle} minPresenceAhead={90}>
+      <View minPresenceAhead={60}>
+        <Text style={s.hitosTitle}>
           {seccion.titulo}
         </Text>
         <CandidatoRowSeguimiento c={first} />
@@ -627,7 +632,7 @@ function ProximosPasosSection({ proceso }: { proceso: ProcesoPDF }) {
           <Text style={s.pasosEmpty}>Sin acciones pendientes</Text>
         ) : (
           proceso.proximosPasosLL.map((paso, i) => (
-            <View key={i} style={s.pasosItem}>
+            <View key={i} style={s.pasosItem} wrap={false}>
               <Text style={s.pasosBullet}>›</Text>
               <Text style={s.pasosText}>{paso}</Text>
             </View>
@@ -655,13 +660,19 @@ function ProximosPasosSection({ proceso }: { proceso: ProcesoPDF }) {
 }
 
 function ProcesoCardBlock({ proceso }: { proceso: ProcesoPDF }) {
-  const fitsOnePage = procesoFitsOnePage(proceso)
   const ec = estadoColor(proceso.estadoActual)
   const cerrado = proceso.cerradoEstaSemana
   const nombreServicio = formatServiceName(proceso.nombreServicio)
-
+  const estimatedH = estimateProcesoHeight(proceso)
+  // Si cabe en una hoja: minPresenceAhead asegura que arranque en hoja con espacio,
+  // wrap={false} asegura que no se corte. Si es muy largo (> hoja): fluye normal.
+  const fitsOnOnePage = estimatedH < PAGE_USABLE_HEIGHT - 50
   return (
-    <View style={s.procesoBlock} wrap={fitsOnePage ? false : undefined}>
+    <View
+      style={s.procesoBlock}
+      wrap={fitsOnOnePage ? false : undefined}
+      minPresenceAhead={fitsOnOnePage ? estimatedH : 150}
+    >
       <View style={[s.procesoShell, cerrado ? s.procesoShellCerrado : {}]}>
         <View wrap={false} style={[s.procesoHeader, cerrado ? s.procesoHeaderCerrado : {}]}>
           <View style={{ flex: 1, paddingRight: 8 }}>
