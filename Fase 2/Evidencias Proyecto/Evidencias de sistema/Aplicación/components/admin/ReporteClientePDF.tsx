@@ -305,7 +305,7 @@ const s = StyleSheet.create({
   hitoIndicator: { width: 18, paddingTop: 2, alignItems: "center" },
   hitoDot: { width: 8, height: 8, borderRadius: 4 },
   hitoContent: { flex: 1, paddingLeft: 4 },
-  hitoLine: { fontSize: 9, lineHeight: 1.3 },
+  hitoLine: { fontSize: 9, lineHeight: 1.5 },
   hitoFechaInline: { fontSize: 9, color: C.muted },
 
   pasosContainer: {
@@ -652,7 +652,7 @@ function ProximosPasosSection({ proceso }: { proceso: ProcesoPDF }) {
           <Text style={s.pasosEmpty}>Sin acciones pendientes</Text>
         ) : (
           proceso.proximosPasosLL.map((paso, i) => (
-            <View key={i} style={s.pasosItem} wrap={false}>
+            <View key={i} style={s.pasosItem}>
               <Text style={s.pasosBullet}>›</Text>
               <Text style={s.pasosText}>{paso}</Text>
             </View>
@@ -691,10 +691,7 @@ function ProcesoCardBlock({
   const ec = estadoColor(proceso.estadoActual)
   const cerrado = proceso.cerradoEstaSemana
   const nombreServicio = formatServiceName(proceso.nombreServicio)
-  const estimatedH = estimateProcesoHeight(proceso)
-  // Si cabe en una hoja: minPresenceAhead asegura que arranque en hoja con espacio,
-  // wrap={false} asegura que no se corte. Si es muy largo (> hoja): fluye normal.
-  const fitsOnOnePage = estimatedH < PAGE_USABLE_HEIGHT - 50
+
   return (
     <View style={s.procesoBlock} break={breakBefore}>
       <View style={[s.procesoShell, cerrado ? s.procesoShellCerrado : {}]}>
