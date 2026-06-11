@@ -190,9 +190,13 @@ export class SatisfaccionClienteService {
         let respondidas = 0;
         let sinRespuesta = 0;
         const calidadScores: number[] = [];
+        const comunicacionScores: number[] = [];
+        const calidadCandidatosScores: number[] = [];
         const tiempoScores: number[] = [];
-        const apoyoScores: number[] = [];
+        const acompanamientoScores: number[] = [];
         const notaScores: number[] = [];
+        let volveriaSi = 0;
+        let volveriaNo = 0;
 
         const byClient = new Map<
             number,
@@ -205,8 +209,13 @@ export class SatisfaccionClienteService {
                 respondidas += 1;
                 notaScores.push(parsed.notaTotal);
                 if (parsed.calidad !== undefined) calidadScores.push(parsed.calidad);
+                if (parsed.comunicacion !== undefined) comunicacionScores.push(parsed.comunicacion);
+                if (parsed.calidad_candidatos !== undefined) calidadCandidatosScores.push(parsed.calidad_candidatos);
                 if (parsed.tiempo !== undefined) tiempoScores.push(parsed.tiempo);
-                if (parsed.apoyo !== undefined) apoyoScores.push(parsed.apoyo);
+                if (parsed.acompanamiento !== undefined) acompanamientoScores.push(parsed.acompanamiento);
+                else if (parsed.apoyo !== undefined) acompanamientoScores.push(parsed.apoyo);
+                if (parsed.volveria_trabajar === true) volveriaSi += 1;
+                if (parsed.volveria_trabajar === false) volveriaNo += 1;
 
                 const prev = byClient.get(row.idCliente) || {
                     nombre: row.nombreCliente,
@@ -278,9 +287,16 @@ export class SatisfaccionClienteService {
                 codigo_servicio: row.codigoServicio,
                 respondida,
                 nota_total: parsed.notaTotal ?? null,
-                calidad: parsed.calidad ?? null,
+                comunicacion: parsed.comunicacion ?? null,
+                calidad_candidatos: parsed.calidad_candidatos ?? parsed.calidad ?? null,
                 tiempo: parsed.tiempo ?? null,
-                apoyo: parsed.apoyo ?? null,
+                acompanamiento: parsed.acompanamiento ?? parsed.apoyo ?? null,
+                volveria_trabajar: parsed.volveria_trabajar ?? null,
+                motivo_no: parsed.motivo_no ?? null,
+                /** @deprecated */
+                calidad: parsed.calidad ?? parsed.calidad_candidatos ?? null,
+                /** @deprecated */
+                apoyo: parsed.apoyo ?? parsed.acompanamiento ?? null,
             };
         });
 
@@ -358,20 +374,35 @@ export class SatisfaccionClienteService {
                 nota_total: avg(notaScores),
             },
             dimensiones: [
-                { clave: 'calidad', etiqueta: 'Calidad', promedio: avg(calidadScores), escala_max: 5 },
+                {
+                    clave: 'comunicacion',
+                    etiqueta: 'Comunicación clara y oportuna',
+                    promedio: avg(comunicacionScores.length ? comunicacionScores : calidadScores),
+                    escala_max: 5,
+                },
+                {
+                    clave: 'calidad_candidatos',
+                    etiqueta: 'Calidad de candidatos vs perfil',
+                    promedio: avg(calidadCandidatosScores.length ? calidadCandidatosScores : calidadScores),
+                    escala_max: 5,
+                },
                 {
                     clave: 'tiempo',
-                    etiqueta: 'Tiempo',
+                    etiqueta: 'Tiempo de respuesta del equipo',
                     promedio: avg(tiempoScores),
                     escala_max: 5,
                 },
                 {
-                    clave: 'apoyo',
-                    etiqueta: 'Sensación de apoyo / expertise',
-                    promedio: avg(apoyoScores),
+                    clave: 'acompanamiento',
+                    etiqueta: 'Acompañamiento del consultor',
+                    promedio: avg(acompanamientoScores),
                     escala_max: 5,
                 },
             ],
+            recontratacion: {
+                volveria_si: volveriaSi,
+                volveria_no: volveriaNo,
+            },
             ranking: {
                 mas_satisfechos: top,
                 menos_satisfechos: bottom,

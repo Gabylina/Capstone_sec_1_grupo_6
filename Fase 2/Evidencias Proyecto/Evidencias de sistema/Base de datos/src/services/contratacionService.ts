@@ -219,12 +219,33 @@ export class ContratacionService {
             if (typeof encuesta === 'string') {
                 payload = encuesta.trim();
             } else {
-                const { buildEncuestaSatisfaccionJson } = await import('@/utils/encuestaSatisfaccion');
-                payload = buildEncuestaSatisfaccionJson({
-                    calidad: Number(encuesta.calidad),
-                    tiempo: Number(encuesta.tiempo),
-                    apoyo: Number(encuesta.apoyo ?? encuesta.sensacion_apoyo),
-                });
+                const {
+                    buildEncuestaSatisfaccionJson,
+                    buildEncuestaSatisfaccionJsonLegacy,
+                } = await import('@/utils/encuestaSatisfaccion');
+
+                if (
+                    encuesta.comunicacion !== undefined &&
+                    encuesta.calidad_candidatos !== undefined &&
+                    encuesta.acompanamiento !== undefined
+                ) {
+                    payload = buildEncuestaSatisfaccionJson({
+                        comunicacion: Number(encuesta.comunicacion),
+                        calidad_candidatos: Number(encuesta.calidad_candidatos),
+                        tiempo: Number(encuesta.tiempo),
+                        acompanamiento: Number(encuesta.acompanamiento),
+                        volveria_trabajar: encuesta.volveria_trabajar === true
+                            || encuesta.volveria_trabajar === 'true'
+                            || encuesta.volveria_trabajar === 'si',
+                        motivo_no: typeof encuesta.motivo_no === 'string' ? encuesta.motivo_no : undefined,
+                    });
+                } else {
+                    payload = buildEncuestaSatisfaccionJsonLegacy({
+                        calidad: Number(encuesta.calidad),
+                        tiempo: Number(encuesta.tiempo),
+                        apoyo: Number(encuesta.apoyo ?? encuesta.sensacion_apoyo),
+                    });
+                }
             }
 
             await contratacion.update({

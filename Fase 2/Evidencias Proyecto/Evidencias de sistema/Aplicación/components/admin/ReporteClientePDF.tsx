@@ -82,45 +82,9 @@ const C = {
 }
 
 /** Reserva superior para el encabezado fijo + separación con el contenido */
-const PAGE_TOP_PADDING = 74
-/** Altura útil real de A4 (842pt − paddingTop 74 − paddingBottom 52 − footer ~36) */
-const PAGE_USABLE_HEIGHT = 680
-/** Margen de seguridad: solo usar wrap={false} si el proceso cabe con holgura */
-const PAGE_FIT_SAFETY = 200
-
-function estimateProcesoHeight(proceso: ProcesoPDF): number {
-  const presentados = proceso.candidatosPresentados ?? []
-  const seguimiento = proceso.seguimientoCandidatos?.candidatos ?? []
-  const hasPasos = !proceso.cerradoEstaSemana
-
-  const headerH = 90
-  const bodyPad = 32
-  const hitosH = 28 + proceso.hitos.length * 24
-  const sectionTitleH = 32
-  const pasosH = 120
-
-  let h = headerH + bodyPad + hitosH
-
-  if (presentados.length > 0) {
-    h += sectionTitleH
-    for (const c of presentados) {
-      h += 52
-      if (c.comentarioCliente?.trim()) h += 24
-    }
-  }
-
-  if (seguimiento.length > 0) {
-    h += sectionTitleH
-    for (const c of seguimiento) {
-      h += 52
-      if (c.comentarioCliente?.trim()) h += 24
-    }
-  }
-
-  if (hasPasos) h += pasosH
-  return h
-}
-
+const PAGE_TOP_PADDING = 82
+/** Reserva inferior para el pie fijo */
+const PAGE_BOTTOM_PADDING = 62
 
 function buildResumenProcesos(
   procesos: ProcesoPDF[],
@@ -142,7 +106,7 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica",
     backgroundColor: C.white,
     paddingTop: PAGE_TOP_PADDING,
-    paddingBottom: 52,
+    paddingBottom: PAGE_BOTTOM_PADDING,
   },
   header: {
     position: "absolute",
@@ -303,9 +267,9 @@ const s = StyleSheet.create({
     borderBottomColor: C.border,
   },
   procesoHeaderCerrado: { backgroundColor: C.greenLight },
-  procesoCargo: { color: C.navy, fontSize: 12, fontFamily: "Helvetica-Bold", lineHeight: 1.35 },
-  procesoServicio: { color: C.cyan, fontSize: 9, marginTop: 3 },
-  procesoMeta: { color: C.muted, fontSize: 8, marginTop: 4 },
+  procesoCargo: { color: C.navy, fontSize: 12, fontFamily: "Helvetica-Bold", lineHeight: 1.5 },
+  procesoServicio: { color: C.cyan, fontSize: 9, lineHeight: 1.5 },
+  procesoMeta: { color: C.muted, fontSize: 8, lineHeight: 1.5 },
   estadoBadge: {
     borderRadius: 4,
     paddingHorizontal: 7,
@@ -314,21 +278,29 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica-Bold",
   },
 
-  procesoBody: { paddingHorizontal: 14, paddingVertical: 14 },
+  procesoBody: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 16,
+    flexDirection: "column",
+  },
   procesoBodyCerrado: { backgroundColor: C.greenLight },
 
+  sectionTitleWrap: {
+    marginBottom: 10,
+    paddingBottom: 2,
+  },
   hitosTitle: {
     color: C.muted,
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   hitoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 10,
+    marginBottom: 8,
+    paddingBottom: 2,
   },
   hitoIndicator: { width: 18, paddingTop: 2, alignItems: "center" },
   hitoDot: { width: 8, height: 8, borderRadius: 4 },
@@ -336,36 +308,74 @@ const s = StyleSheet.create({
   hitoLine: { fontSize: 9, lineHeight: 1.3 },
   hitoFechaInline: { fontSize: 9, color: C.muted },
 
-  pasosContainer: { flexDirection: "row", marginTop: 10 },
-  pasosBox: { flex: 1, borderRadius: 5, paddingHorizontal: 10, paddingVertical: 8, marginRight: 4 },
-  pasosBoxLast: { marginRight: 0, marginLeft: 4 },
-  pasosBoxLL: { backgroundColor: C.navyLight },
-  pasosBoxCliente: { backgroundColor: C.cyanLight },
+  pasosContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 14,
+  },
+  pasosBox: {
+    flex: 1,
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+    flexDirection: "column",
+  },
+  pasosBoxLL: {
+    backgroundColor: C.navyLight,
+    marginRight: 5,
+  },
+  pasosBoxCliente: {
+    backgroundColor: C.cyanLight,
+    marginLeft: 5,
+  },
+  pasosBoxLast: {},
+  pasosBoxTitleWrap: {
+    marginBottom: 8,
+    paddingBottom: 2,
+  },
   pasosBoxTitle: {
     fontSize: 8,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 6,
-    lineHeight: 1.4,
+    lineHeight: 1.5,
   },
   pasosBoxTitleLL: { color: C.navy },
   pasosBoxTitleCliente: { color: "#0e7490" },
-  pasosItem: { flexDirection: "row", alignItems: "flex-start", marginBottom: 5 },
-  pasosBullet: { fontSize: 8, color: C.cyan, lineHeight: 1.4, marginRight: 4, width: 8 },
-  pasosText: { fontSize: 8, color: "#1e293b", flex: 1, lineHeight: 1.4 },
-  pasosEmpty: { fontSize: 8, color: C.muted, fontStyle: "italic" },
+  pasosItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+    paddingBottom: 2,
+  },
+  pasosBullet: {
+    fontSize: 8,
+    color: C.cyan,
+    lineHeight: 1.6,
+    marginRight: 6,
+    width: 10,
+  },
+  pasosText: { fontSize: 8, color: "#1e293b", flex: 1, lineHeight: 1.6 },
+  pasosEmpty: { fontSize: 8, color: C.muted, fontStyle: "italic", lineHeight: 1.6 },
 
-  candidatosSection: { marginTop: 12 },
+  candidatosSection: { marginTop: 16, flexDirection: "column" },
   candidatoRow: {
-    marginBottom: 8,
-    paddingBottom: 8,
+    flexDirection: "column",
+    marginBottom: 10,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  candidatoNombreBox: { paddingBottom: 3 },
-  candidatoDetalleBox: { paddingTop: 2 },
-  candidatoNombre: { color: C.navy, fontSize: 9, fontFamily: "Helvetica-Bold" },
-  candidatoDetalle: { color: C.muted, fontSize: 8 },
-  candidatoComentario: { color: "#1e293b", fontSize: 8 },
+  candidatoNombreWrap: { marginBottom: 5, paddingBottom: 1 },
+  candidatoNombre: {
+    color: C.navy,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    lineHeight: 1.6,
+  },
+  candidatoDetalleWrap: { marginBottom: 3, paddingBottom: 1 },
+  candidatoDetalle: { color: C.muted, fontSize: 8, lineHeight: 1.55 },
+  candidatoComentarioWrap: { marginTop: 2, paddingTop: 1 },
+  candidatoComentario: { color: "#1e293b", fontSize: 8, lineHeight: 1.55 },
 
   footer: {
     position: "absolute",
@@ -435,6 +445,14 @@ function SectionTitle({ label }: { label: string }) {
   )
 }
 
+function SectionHeading({ label }: { label: string }) {
+  return (
+    <View style={s.sectionTitleWrap}>
+      <Text style={s.hitosTitle}>{label.toUpperCase()}</Text>
+    </View>
+  )
+}
+
 async function loadLogoSrc(): Promise<string> {
   const res = await fetch("/images/llconsulting-logo.png")
   if (!res.ok) throw new Error("No se pudo cargar el logo")
@@ -493,49 +511,57 @@ function HitoTimeline({ hitos }: { hitos: HitoPDF[] }) {
   if (hitos.length === 0) return null
 
   return (
-    <View>
-      <Text style={s.hitosTitle}>Avance del proceso</Text>
-      {hitos.map((h, i) => {
-        const dotColor = h.completado ? C.green : C.border
-        const textColor = h.completado ? C.green : C.navy
-        const fechaTxt = hitoFechaTexto(h)
+    <View style={{ flexDirection: "column" }}>
+      <SectionHeading label="Avance del proceso" />
+      {hitos.map((h, i) => (
+        <HitoRow key={i} hito={h} />
+      ))}
+    </View>
+  )
+}
 
-        return (
-          <View key={i} style={s.hitoRow} wrap={false}>
-            <View style={s.hitoIndicator}>
-              <View style={[s.hitoDot, { backgroundColor: dotColor }]} />
-            </View>
-            <View style={s.hitoContent}>
-              <Text style={[s.hitoLine, { color: textColor }]}>
-                {h.nombre}
-                {fechaTxt ? (
-                  <Text style={s.hitoFechaInline}> · {fechaTxt}</Text>
-                ) : null}
-              </Text>
-            </View>
-          </View>
-        )
-      })}
+function HitoRow({ hito }: { hito: HitoPDF }) {
+  const dotColor = hito.completado ? C.green : C.border
+  const textColor = hito.completado ? C.green : C.navy
+  const fechaTxt = hitoFechaTexto(hito)
+
+  return (
+    <View style={s.hitoRow}>
+      <View style={s.hitoIndicator}>
+        <View style={[s.hitoDot, { backgroundColor: dotColor }]} />
+      </View>
+      <View style={s.hitoContent}>
+        <Text style={[s.hitoLine, { color: textColor }]}>
+          {hito.nombre}
+          {fechaTxt ? <Text style={s.hitoFechaInline}> · {fechaTxt}</Text> : null}
+        </Text>
+      </View>
     </View>
   )
 }
 
 function CandidatoRowPresentado({ c }: { c: CandidatoPresentadoPDF }) {
-  const partes = [`Enviado: ${fmtDate(c.fechaEnvio)}`]
-  partes.push(`Respuesta de cliente: ${c.respuestaCliente?.trim() || "Sin respuesta"}`)
-  if (c.fechaRespuesta) partes.push(`Fecha: ${fmtDate(c.fechaRespuesta)}`)
-  const detalle = partes.join(" · ")
+  const detalle = [
+    `Enviado: ${fmtDate(c.fechaEnvio)}`,
+    `Respuesta de cliente: ${c.respuestaCliente?.trim() || "Sin respuesta"}`,
+    c.fechaRespuesta ? `Fecha: ${fmtDate(c.fechaRespuesta)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ")
+
   return (
-    <View style={s.candidatoRow}>
-      <View style={s.candidatoNombreBox}>
+    <View wrap={false} style={s.candidatoRow}>
+      <View style={s.candidatoNombreWrap}>
         <Text style={s.candidatoNombre}>{c.nombre}</Text>
       </View>
-      <View style={s.candidatoDetalleBox}>
+      <View style={s.candidatoDetalleWrap}>
         <Text style={s.candidatoDetalle}>{detalle}</Text>
       </View>
       {c.comentarioCliente?.trim() ? (
-        <View style={s.candidatoDetalleBox}>
-          <Text style={s.candidatoComentario}>Comentario: {c.comentarioCliente.trim()}</Text>
+        <View style={s.candidatoComentarioWrap}>
+          <Text style={s.candidatoComentario}>
+            Comentario: {c.comentarioCliente.trim()}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -543,17 +569,23 @@ function CandidatoRowPresentado({ c }: { c: CandidatoPresentadoPDF }) {
 }
 
 function CandidatoRowSeguimiento({ c }: { c: SeguimientoCandidatoPDF }) {
+  const detalle = buildDetalleSeguimiento(c)
+
   return (
-    <View style={s.candidatoRow}>
-      <View style={s.candidatoNombreBox}>
+    <View wrap={false} style={s.candidatoRow}>
+      <View style={s.candidatoNombreWrap}>
         <Text style={s.candidatoNombre}>{c.nombre}</Text>
       </View>
-      <View style={s.candidatoDetalleBox}>
-        <Text style={s.candidatoDetalle}>{buildDetalleSeguimiento(c)}</Text>
-      </View>
+      {detalle ? (
+        <View style={s.candidatoDetalleWrap}>
+          <Text style={s.candidatoDetalle}>{detalle}</Text>
+        </View>
+      ) : null}
       {c.comentarioCliente?.trim() ? (
-        <View style={s.candidatoDetalleBox}>
-          <Text style={s.candidatoComentario}>Comentario: {c.comentarioCliente.trim()}</Text>
+        <View style={s.candidatoComentarioWrap}>
+          <Text style={s.candidatoComentario}>
+            Comentario: {c.comentarioCliente.trim()}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -563,17 +595,10 @@ function CandidatoRowSeguimiento({ c }: { c: SeguimientoCandidatoPDF }) {
 function CandidatosPresentadosSection({ items }: { items: CandidatoPresentadoPDF[] }) {
   if (items.length === 0) return null
 
-  const [first, ...rest] = items
-
   return (
     <View style={s.candidatosSection}>
-      <View minPresenceAhead={60}>
-        <Text style={s.hitosTitle}>
-          Presentación inicial de candidatos
-        </Text>
-        <CandidatoRowPresentado c={first} />
-      </View>
-      {rest.map((c, i) => (
+      <SectionHeading label="Presentación inicial de candidatos" />
+      {items.map((c, i) => (
         <CandidatoRowPresentado key={i} c={c} />
       ))}
     </View>
@@ -602,17 +627,10 @@ function buildDetalleSeguimiento(c: SeguimientoCandidatoPDF): string {
 function SeguimientoCandidatosSection({ seccion }: { seccion: SeguimientoCandidatosPDF | null }) {
   if (!seccion || seccion.candidatos.length === 0) return null
 
-  const [first, ...rest] = seccion.candidatos
-
   return (
     <View style={s.candidatosSection}>
-      <View minPresenceAhead={60}>
-        <Text style={s.hitosTitle}>
-          {seccion.titulo}
-        </Text>
-        <CandidatoRowSeguimiento c={first} />
-      </View>
-      {rest.map((c, i) => (
+      <SectionHeading label={seccion.titulo} />
+      {seccion.candidatos.map((c, i) => (
         <CandidatoRowSeguimiento key={i} c={c} />
       ))}
     </View>
@@ -625,9 +643,11 @@ function ProximosPasosSection({ proceso }: { proceso: ProcesoPDF }) {
   return (
     <View wrap={false} style={s.pasosContainer}>
       <View style={[s.pasosBox, s.pasosBoxLL]}>
-        <Text style={[s.pasosBoxTitle, s.pasosBoxTitleLL]}>
-          Próximos pasos LLConsulting
-        </Text>
+        <View style={s.pasosBoxTitleWrap}>
+          <Text style={[s.pasosBoxTitle, s.pasosBoxTitleLL]}>
+            Próximos pasos LLConsulting
+          </Text>
+        </View>
         {proceso.proximosPasosLL.length === 0 ? (
           <Text style={s.pasosEmpty}>Sin acciones pendientes</Text>
         ) : (
@@ -641,9 +661,11 @@ function ProximosPasosSection({ proceso }: { proceso: ProcesoPDF }) {
       </View>
 
       <View style={[s.pasosBox, s.pasosBoxCliente, s.pasosBoxLast]}>
-        <Text style={[s.pasosBoxTitle, s.pasosBoxTitleCliente]}>
-          Próximos pasos cliente
-        </Text>
+        <View style={s.pasosBoxTitleWrap}>
+          <Text style={[s.pasosBoxTitle, s.pasosBoxTitleCliente]}>
+            Próximos pasos cliente
+          </Text>
+        </View>
         {proceso.proximosPasosCliente.length === 0 ? (
           <Text style={s.pasosEmpty}>Sin acciones requeridas</Text>
         ) : (
@@ -659,7 +681,13 @@ function ProximosPasosSection({ proceso }: { proceso: ProcesoPDF }) {
   )
 }
 
-function ProcesoCardBlock({ proceso }: { proceso: ProcesoPDF }) {
+function ProcesoCardBlock({
+  proceso,
+  breakBefore = false,
+}: {
+  proceso: ProcesoPDF
+  breakBefore?: boolean
+}) {
   const ec = estadoColor(proceso.estadoActual)
   const cerrado = proceso.cerradoEstaSemana
   const nombreServicio = formatServiceName(proceso.nombreServicio)
@@ -668,20 +696,22 @@ function ProcesoCardBlock({ proceso }: { proceso: ProcesoPDF }) {
   // wrap={false} asegura que no se corte. Si es muy largo (> hoja): fluye normal.
   const fitsOnOnePage = estimatedH < PAGE_USABLE_HEIGHT - 50
   return (
-    <View
-      style={s.procesoBlock}
-      wrap={fitsOnOnePage ? false : undefined}
-      minPresenceAhead={fitsOnOnePage ? estimatedH : 150}
-    >
+    <View style={s.procesoBlock} break={breakBefore}>
       <View style={[s.procesoShell, cerrado ? s.procesoShellCerrado : {}]}>
         <View wrap={false} style={[s.procesoHeader, cerrado ? s.procesoHeaderCerrado : {}]}>
-          <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text style={s.procesoCargo}>{proceso.cargo}</Text>
-            <Text style={s.procesoServicio}>{nombreServicio}</Text>
-            <Text style={s.procesoMeta}>
-              Solicitud: {fmtDate(proceso.fechaSolicitud)}
-              {cerrado ? `  ·  Cerrado: ${fmtDate(proceso.fechaCierre)}` : ""}
-            </Text>
+          <View style={{ flex: 1, paddingRight: 8, flexDirection: "column" }}>
+            <View style={{ marginBottom: 4 }}>
+              <Text style={s.procesoCargo}>{proceso.cargo}</Text>
+            </View>
+            <View style={{ marginBottom: 4 }}>
+              <Text style={s.procesoServicio}>{nombreServicio}</Text>
+            </View>
+            <View>
+              <Text style={s.procesoMeta}>
+                Solicitud: {fmtDate(proceso.fechaSolicitud)}
+                {cerrado ? `  ·  Cerrado: ${fmtDate(proceso.fechaCierre)}` : ""}
+              </Text>
+            </View>
           </View>
           <View>
             <Text style={[s.estadoBadge, { backgroundColor: ec.bg, color: ec.text }]}>
@@ -792,14 +822,18 @@ function ReportePDFDocument({
               <View style={s.sectionDividerFirst}>
                 <SectionTitle label="Procesos activos" />
               </View>
-              {activos.map((p) => (
-                <ProcesoCardBlock key={p.id} proceso={p} />
+              {activos.map((p, i) => (
+                <ProcesoCardBlock key={p.id} proceso={p} breakBefore={i > 0} />
               ))}
             </>
           )}
 
-          {cerrados.map((p) => (
-            <ProcesoCardBlock key={p.id} proceso={p} />
+          {cerrados.map((p, i) => (
+            <ProcesoCardBlock
+              key={p.id}
+              proceso={p}
+              breakBefore={activos.length > 0 || i > 0}
+            />
           ))}
         </View>
         <PageFooter />

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -17,9 +18,47 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Star } from "lucide-react"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { useAuth } from "@/hooks/auth"
-import { satisfaccionClienteService, type EncuestaPanelData, type EncuestaPanelItem } from "@/lib/api-satisfaccion-cliente"
+import {
+  satisfaccionClienteService,
+  type EncuestaPanelData,
+  type EncuestaPanelItem,
+} from "@/lib/api-satisfaccion-cliente"
 import { debeMostrarEncuestaEnModulo } from "@/lib/encuesta-modulo-config"
 import type { Process } from "@/lib/types"
+
+const PREGUNTAS_ESCALA = [
+  { key: "comunicacion" as const, label: "La comunicación durante el proceso fue clara y oportuna." },
+  {
+    key: "calidad_candidatos" as const,
+    label: "La calidad de los candidatos presentados cumplió con el perfil solicitado.",
+  },
+  { key: "tiempo" as const, label: "El tiempo de respuesta del equipo fue adecuado." },
+  {
+    key: "acompanamiento" as const,
+    label: "El acompañamiento del consultor generó confianza y seguridad.",
+  },
+] as const
+
+type EncuestaFormState = {
+  comunicacion: string
+  calidad_candidatos: string
+  tiempo: string
+  acompanamiento: string
+  volveria_trabajar: string
+  motivo_no: string
+}
+
+/** Máximo del motivo; el JSON completo se guarda en BD con tope de 1000 caracteres. */
+const MOTIVO_NO_MAX_LENGTH = 850
+
+const FORM_INICIAL: EncuestaFormState = {
+  comunicacion: "3",
+  calidad_candidatos: "3",
+  tiempo: "3",
+  acompanamiento: "3",
+  volveria_trabajar: "",
+  motivo_no: "",
+}
 
 interface EncuestaSatisfaccionPanelProps {
   process: Process
@@ -42,7 +81,7 @@ export function EncuestaSatisfaccionPanel({
   const [loading, setLoading] = useState(true)
   const [showDialog, setShowDialog] = useState(false)
   const [selectedItem, setSelectedItem] = useState<EncuestaPanelItem | null>(null)
-  const [encuestaForm, setEncuestaForm] = useState({ calidad: "3", tiempo: "3", apoyo: "3" })
+  const [encuestaForm, setEncuestaForm] = useState<EncuestaFormState>(FORM_INICIAL)
   const [isSaving, setIsSaving] = useState(false)
 
   const loadPanel = useCallback(async () => {
@@ -73,7 +112,7 @@ export function EncuestaSatisfaccionPanel({
 
   const openDialog = (item: EncuestaPanelItem) => {
     setSelectedItem(item)
-    setEncuestaForm({ calidad: "3", tiempo: "3", apoyo: "3" })
+    setEncuestaForm(FORM_INICIAL)
     setShowDialog(true)
   }
 
@@ -87,14 +126,37 @@ export function EncuestaSatisfaccionPanel({
       return
     }
 
-    const calidad = Number(encuestaForm.calidad)
+    const comunicacion = Number(encuestaForm.comunicacion)
+    const calidad_candidatos = Number(encuestaForm.calidad_candidatos)
     const tiempo = Number(encuestaForm.tiempo)
-    const apoyo = Number(encuestaForm.apoyo)
-    if ([calidad, tiempo, apoyo].some((n) => Number.isNaN(n) || n < 1 || n > 5)) {
+    const acompanamiento = Number(encuestaForm.acompanamiento)
+
+    if ([comunicacion, calidad_candidatos, tiempo, acompanamiento].some((n) => Number.isNaN(n) || n < 1 || n > 5)) {
       showToast({
         type: "error",
         title: "Datos inválidos",
-        description: "Seleccione una calificación entre 1 y 5 en cada dimensión.",
+        description: "Seleccione una calificación entre 1 y 5 en cada pregunta.",
+      })
+      return
+    }
+
+    if (encuestaForm.volveria_trabajar !== "si" && encuestaForm.volveria_trabajar !== "no") {
+      showToast({
+        type: "error",
+        title: "Datos incompletos",
+        description: "Indique si volvería a trabajar con LL Consulting.",
+      })
+      return
+    }
+
+    const volveria_trabajar = encuestaForm.volveria_trabajar === "si"
+    const motivo_no = encuestaForm.motivo_no.trim()
+
+    if (!volveria_trabajar && !motivo_no) {
+      showToast({
+        type: "error",
+        title: "Datos incompletos",
+        description: "Si la respuesta es No, indique el motivo.",
       })
       return
     }
@@ -102,9 +164,12 @@ export function EncuestaSatisfaccionPanel({
     setIsSaving(true)
     try {
       const res = await satisfaccionClienteService.registrarEncuesta(selectedItem.id_contratacion, {
-        calidad,
+        comunicacion,
+        calidad_candidatos,
         tiempo,
-        apoyo,
+        acompanamiento,
+        volveria_trabajar,
+        ...(!volveria_trabajar ? { motivo_no } : {}),
       })
       if (res.success) {
         showToast({
@@ -146,7 +211,7 @@ export function EncuestaSatisfaccionPanel({
             Encuesta de satisfacción
           </CardTitle>
           <CardDescription>
-            Registre la percepción del cliente sobre el servicio (escala 1 a 5).
+            Percepción del cliente sobre comunicación, candidatos, tiempos y acompañamiento (escala 1 a 5).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -203,23 +268,17 @@ export function EncuestaSatisfaccionPanel({
       </Card>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Encuesta de satisfacción</DialogTitle>
             <DialogDescription>
               {selectedItem?.nombre
-                ? `Registre la percepción del cliente sobre el servicio para ${selectedItem.nombre} (escala 1 a 5).`
-                : "Calidad, tiempo y sensación de apoyo / expertise."}
+                ? `Respuestas del cliente para ${selectedItem.nombre}. Escala 1 (muy bajo) a 5 (excelente).`
+                : "Complete las preguntas según la percepción del cliente."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            {(
-              [
-                { key: "calidad" as const, label: "Calidad del servicio" },
-                { key: "tiempo" as const, label: "Tiempo de respuesta / gestión" },
-                { key: "apoyo" as const, label: "Sensación de apoyo / expertise" },
-              ] as const
-            ).map(({ key, label }) => (
+            {PREGUNTAS_ESCALA.map(({ key, label }) => (
               <div key={key} className="grid gap-2">
                 <Label htmlFor={`encuesta-panel-${key}`}>{label}</Label>
                 <Select
@@ -227,7 +286,7 @@ export function EncuestaSatisfaccionPanel({
                   onValueChange={(v) => setEncuestaForm((prev) => ({ ...prev, [key]: v }))}
                 >
                   <SelectTrigger id={`encuesta-panel-${key}`}>
-                    <SelectValue />
+                    <SelectValue placeholder="Seleccione 1 a 5" />
                   </SelectTrigger>
                   <SelectContent>
                     {[1, 2, 3, 4, 5].map((n) => (
@@ -239,6 +298,47 @@ export function EncuestaSatisfaccionPanel({
                 </Select>
               </div>
             ))}
+
+            <div className="grid gap-2 border-t pt-4">
+              <Label htmlFor="encuesta-panel-volveria">
+                Volvería a trabajar con LL Consulting en futuros procesos.
+              </Label>
+              <Select
+                value={encuestaForm.volveria_trabajar}
+                onValueChange={(v) =>
+                  setEncuestaForm((prev) => ({
+                    ...prev,
+                    volveria_trabajar: v,
+                    motivo_no: v === "si" ? "" : prev.motivo_no,
+                  }))
+                }
+              >
+                <SelectTrigger id="encuesta-panel-volveria">
+                  <SelectValue placeholder="Seleccione Sí o No" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="si">Sí</SelectItem>
+                  <SelectItem value="no">No</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {encuestaForm.volveria_trabajar === "no" && (
+              <div className="grid gap-2">
+                <Label htmlFor="encuesta-panel-motivo">Si su respuesta es No, indique el ¿Por qué?</Label>
+                <Textarea
+                  id="encuesta-panel-motivo"
+                  rows={4}
+                  placeholder="Describa el motivo..."
+                  value={encuestaForm.motivo_no}
+                  maxLength={MOTIVO_NO_MAX_LENGTH}
+                  onChange={(e) => setEncuestaForm((prev) => ({ ...prev, motivo_no: e.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {encuestaForm.motivo_no.length}/{MOTIVO_NO_MAX_LENGTH} caracteres
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)} disabled={isSaving}>

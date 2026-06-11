@@ -58,9 +58,16 @@ export interface SatisfaccionDetalleEncuesta {
   codigo_servicio: string
   respondida: boolean
   nota_total: number | null
-  calidad: number | null
+  comunicacion: number | null
+  calidad_candidatos: number | null
   tiempo: number | null
-  apoyo: number | null
+  acompanamiento: number | null
+  volveria_trabajar: boolean | null
+  motivo_no: string | null
+  /** @deprecated encuestas antiguas */
+  calidad?: number | null
+  /** @deprecated encuestas antiguas */
+  apoyo?: number | null
 }
 
 export interface EncuestaPanelItem {
@@ -82,6 +89,10 @@ export interface EncuestaPanelData {
 export interface SatisfaccionDashboard {
   resumen: SatisfaccionResumen
   dimensiones: SatisfaccionDimension[]
+  recontratacion?: {
+    volveria_si: number
+    volveria_no: number
+  }
   ranking: {
     mas_satisfechos: SatisfaccionRankingItem[]
     menos_satisfechos: SatisfaccionRankingItem[]
@@ -91,6 +102,15 @@ export interface SatisfaccionDashboard {
   consultores_disponibles: Array<{ rut_usuario: string; nombre: string }>
   procesos_encuesta: SatisfaccionProcesoEncuesta[]
   detalle_encuestas: SatisfaccionDetalleEncuesta[]
+}
+
+export interface EncuestaSatisfaccionPayload {
+  comunicacion: number
+  calidad_candidatos: number
+  tiempo: number
+  acompanamiento: number
+  volveria_trabajar: boolean
+  motivo_no?: string
 }
 
 export const satisfaccionClienteService = {
@@ -135,7 +155,7 @@ export const satisfaccionClienteService = {
 
   async registrarEncuesta(
     idContratacion: number,
-    payload: { calidad: number; tiempo: number; apoyo: number }
+    payload: EncuestaSatisfaccionPayload
   ): Promise<{ success: boolean; message?: string }> {
     const res = await fetch(`${API_BASE()}/api/contrataciones/${idContratacion}/encuesta`, {
       method: "PUT",

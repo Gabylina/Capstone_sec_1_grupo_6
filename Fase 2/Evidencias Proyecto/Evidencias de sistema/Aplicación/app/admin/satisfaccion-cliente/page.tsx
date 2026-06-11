@@ -34,7 +34,7 @@ import { Label } from "@/components/ui/label"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import { getTabEncuesta } from "@/lib/encuesta-modulo-config"
 
-const DIMENSION_COLORS = ["#2563eb", "#16a34a", "#d97706"]
+const DIMENSION_COLORS = ["#2563eb", "#16a34a", "#d97706", "#9333ea"]
 const PAGE_SIZE = 5
 
 function paginate<T>(items: T[], page: number) {
@@ -497,7 +497,7 @@ export default function SatisfaccionClientePage() {
             <CardHeader>
               <CardTitle>Desglose por área</CardTitle>
               <CardDescription>
-                Calidad, tiempo y sensación de apoyo / expertise (promedio de encuestas respondidas).
+                Comunicación, calidad de candidatos, tiempos y acompañamiento (promedio de encuestas respondidas).
               </CardDescription>
             </CardHeader>
             <CardContent>

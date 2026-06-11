@@ -73,10 +73,10 @@ Contratacion.init({
         }
     },
     encuesta_satisfaccion: {
-        type: DataTypes.STRING(300),
+        type: DataTypes.STRING(1000),
         allowNull: true,
         validate: {
-            len: [0, 300]
+            len: [0, 1000]
         }
     },
     id_postulacion: {
