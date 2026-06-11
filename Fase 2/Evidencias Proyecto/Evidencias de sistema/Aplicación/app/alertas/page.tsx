@@ -16,7 +16,8 @@ const serviceCodeLabels: Record<string, string> = {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { matchesMultiFilter, type MultiFilterValue } from "@/lib/multi-filter-utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDateOnly } from "@/lib/utils"
 import { Bell, AlertTriangle, Clock, Search, Filter, CheckCircle, Calendar, User, Briefcase, ShieldCheck } from "lucide-react"
@@ -34,8 +35,8 @@ export default function AlertasPage() {
     unreadCount: notificationsUnreadCount,
   } = useNotifications(user?.id, user?.role)
   const [searchTerm, setSearchTerm] = useState("")
-  const [serviceFilter, setServiceFilter] = useState<string>("all")
-  const [consultorFilter, setConsultorFilter] = useState<string>("all")
+  const [serviceFilter, setServiceFilter] = useState<MultiFilterValue>([])
+  const [consultorFilter, setConsultorFilter] = useState<MultiFilterValue>([])
   const [consultores, setConsultores] = useState<Array<{ rut: string; nombre: string; apellido: string }>>([])
   const [hitosAlertas, setHitosAlertas] = useState<HitoAlert[]>([])
   const [dashboard, setDashboard] = useState<HitosDashboard | null>(null)
@@ -242,10 +243,9 @@ export default function AlertasPage() {
         (hito.solicitud?.descripcionCargo?.titulo_cargo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (hito.solicitud?.contacto?.cliente?.nombre_cliente || '').toLowerCase().includes(searchTerm.toLowerCase())
       
-    const matchesService = serviceFilter === "all" || hito.codigo_servicio === serviceFilter
+    const matchesService = matchesMultiFilter(hito.codigo_servicio, serviceFilter)
     
-    const matchesConsultor = consultorFilter === "all" || 
-                            hito.solicitud?.rut_usuario === consultorFilter
+    const matchesConsultor = matchesMultiFilter(hito.solicitud?.rut_usuario, consultorFilter)
 
     return matchesSearch && matchesService && matchesConsultor
   }).sort((a, b) => {
@@ -462,33 +462,27 @@ export default function AlertasPage() {
                 />
               </div>
             </div>
-            <Select value={serviceFilter} onValueChange={setServiceFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tipo de servicio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los servicios</SelectItem>
-                {Object.entries(serviceCodeLabels).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              className="w-[200px]"
+              value={serviceFilter}
+              onChange={setServiceFilter}
+              emptyLabel="Todos los servicios"
+              options={Object.entries(serviceCodeLabels).map(([key, label]) => ({
+                value: key,
+                label,
+              }))}
+            />
             {user?.role === 'admin' && (
-              <Select value={consultorFilter} onValueChange={setConsultorFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Consultor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los consultores</SelectItem>
-                  {consultores.map((consultor) => (
-                    <SelectItem key={consultor.rut} value={consultor.rut}>
-                      {consultor.nombre} {consultor.apellido}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                className="w-[200px]"
+                value={consultorFilter}
+                onChange={setConsultorFilter}
+                emptyLabel="Todos los consultores"
+                options={consultores.map((consultor) => ({
+                  value: consultor.rut,
+                  label: `${consultor.nombre} ${consultor.apellido}`.trim(),
+                }))}
+              />
             )}
           </div>
         </CardContent>

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { createUser, getUsers, updateUser, changePassword, getStats } from '@/services/userService';
 import { sendError, sendSuccess } from '@/utils/response';
+import { parseMultiQuery } from '@/utils/queryMultiFilter';
 
 // Crear usuario
 export const createUserController = async (req: Request, res: Response) => {
@@ -22,8 +23,8 @@ export const getUsersController = async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const search = (req.query.search as string) || "";
-    const role = (req.query.role as "admin" | "consultor") || undefined;
-    const status = (req.query.status as "habilitado" | "inhabilitado") || undefined;
+    const role = parseMultiQuery(req.query.role as string | string[] | undefined);
+    const status = parseMultiQuery(req.query.status as string | string[] | undefined);
     const sortBy = (req.query.sortBy as "nombre" | "apellido") || "nombre";
     const sortOrder = (req.query.sortOrder as "ASC" | "DESC") || "ASC";
 

@@ -1,3 +1,5 @@
+import { appendMultiQueryParam, type MultiFilterValue } from "@/lib/multi-filter-utils"
+
 const API_BASE = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
 
@@ -110,26 +112,16 @@ export const clientePortalService = {
 
 
   async listSolicitudes(params: {
-
-    service_type?: string
-
-    estado?: string
-
+    service_type?: MultiFilterValue
+    estado?: MultiFilterValue
     fecha_desde?: string
-
     fecha_hasta?: string
-
     page?: number
-
     limit?: number
-
   }): Promise<{ items: ClientePortalSolicitudItem[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
-
     const q = new URLSearchParams()
-
-    if (params.service_type && params.service_type !== "all") q.set("service_type", params.service_type)
-
-    if (params.estado && params.estado !== "all") q.set("estado", params.estado)
+    if (params.service_type) appendMultiQueryParam(q, "service_type", params.service_type)
+    if (params.estado) appendMultiQueryParam(q, "estado", params.estado)
 
     if (params.fecha_desde) q.set("fecha_desde", params.fecha_desde)
 

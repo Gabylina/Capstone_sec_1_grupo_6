@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { detectCVContentType } from '@/utils/cvContentType';
+import { parseMultiQuery } from '@/utils/queryMultiFilter';
 import { CandidatoService } from '@/services/candidatoService';
 
 /**
@@ -37,7 +38,9 @@ export class CandidatoController {
      */
     static async getHistorial(req: Request, res: Response): Promise<Response> {
         try {
-            const { page, limit, search, rut, email, nombre, comuna, profesion } = req.query;
+            const { page, limit, search, rut, email, nombre } = req.query;
+            const comuna = parseMultiQuery(req.query.comuna as string | string[] | undefined);
+            const profesion = parseMultiQuery(req.query.profesion as string | string[] | undefined);
             
             const result = await CandidatoService.getCandidatosPaginados({
                 page: page ? parseInt(page as string) : 1,
@@ -46,8 +49,8 @@ export class CandidatoController {
                 rut: rut as string,
                 email: email as string,
                 nombre: nombre as string,
-                comuna: comuna as string,
-                profesion: profesion as string
+                comuna,
+                profesion
             });
 
             return sendSuccess(res, result, 'Historial de candidatos obtenido exitosamente');

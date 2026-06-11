@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { isFilterActive, type MultiFilterValue } from "@/lib/multi-filter-utils"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -136,9 +137,9 @@ export default function SatisfaccionClientePage() {
   const showToastRef = useRef(showToast)
   showToastRef.current = showToast
 
-  const [serviceFilter, setServiceFilter] = useState<string>("all")
-  const [clienteFilter, setClienteFilter] = useState<string>("all")
-  const [consultorFilter, setConsultorFilter] = useState<string>("all")
+  const [serviceFilter, setServiceFilter] = useState<MultiFilterValue>([])
+  const [clienteFilter, setClienteFilter] = useState<MultiFilterValue>([])
+  const [consultorFilter, setConsultorFilter] = useState<MultiFilterValue>([])
   const [data, setData] = useState<SatisfaccionDashboard | null>(null)
   const [serviceTypes, setServiceTypes] = useState<Array<{ codigo: string; nombre: string }>>([])
   const [clientes, setClientes] = useState<Array<{ id_cliente: number; nombre: string }>>([])
@@ -243,12 +244,14 @@ export default function SatisfaccionClientePage() {
   )
 
   const hasActiveFilters =
-    serviceFilter !== "all" || clienteFilter !== "all" || consultorFilter !== "all"
+    isFilterActive(serviceFilter) ||
+    isFilterActive(clienteFilter) ||
+    isFilterActive(consultorFilter)
 
   const clearFilters = () => {
-    setServiceFilter("all")
-    setClienteFilter("all")
-    setConsultorFilter("all")
+    setServiceFilter([])
+    setClienteFilter([])
+    setConsultorFilter([])
     setProcesosPage(1)
   }
 
@@ -267,51 +270,42 @@ export default function SatisfaccionClientePage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
               <div className="space-y-2">
                 <Label htmlFor="filtro-servicio">Servicio</Label>
-                <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                  <SelectTrigger id="filtro-servicio" className="w-full">
-                    <SelectValue placeholder="Todos los servicios" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los servicios</SelectItem>
-                    {serviceTypes.map((t) => (
-                      <SelectItem key={t.codigo} value={t.codigo}>
-                        {t.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  className="w-full"
+                  emptyLabel="Todos los servicios"
+                  value={serviceFilter}
+                  onChange={setServiceFilter}
+                  options={serviceTypes.map((t) => ({
+                    value: t.codigo,
+                    label: t.nombre,
+                  }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="filtro-cliente">Cliente</Label>
-                <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                  <SelectTrigger id="filtro-cliente" className="w-full">
-                    <SelectValue placeholder="Todos los clientes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los clientes</SelectItem>
-                    {clientes.map((c) => (
-                      <SelectItem key={c.id_cliente} value={String(c.id_cliente)}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  className="w-full"
+                  emptyLabel="Todos los clientes"
+                  value={clienteFilter}
+                  onChange={setClienteFilter}
+                  options={clientes.map((c) => ({
+                    value: String(c.id_cliente),
+                    label: c.nombre,
+                  }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="filtro-consultor">Consultor</Label>
-                <Select value={consultorFilter} onValueChange={setConsultorFilter}>
-                  <SelectTrigger id="filtro-consultor" className="w-full">
-                    <SelectValue placeholder="Todos los consultores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los consultores</SelectItem>
-                    {consultores.map((c) => (
-                      <SelectItem key={c.rut_usuario} value={c.rut_usuario}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  className="w-full"
+                  emptyLabel="Todos los consultores"
+                  value={consultorFilter}
+                  onChange={setConsultorFilter}
+                  options={consultores.map((c) => ({
+                    value: c.rut_usuario,
+                    label: c.nombre,
+                  }))}
+                />
               </div>
             </div>
             <Button

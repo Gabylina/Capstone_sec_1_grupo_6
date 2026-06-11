@@ -6,6 +6,14 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import {
+  getMultiFilterLabel,
+  isFilterActive,
+  matchesMultiFilter,
+  matchesProcessTypeFilter,
+  type MultiFilterValue,
+} from "@/lib/multi-filter-utils"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from "recharts"
 import { solicitudService } from "@/lib/api"
@@ -18,6 +26,20 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { useToastNotification } from "@/components/ui/use-toast-notification"
 import * as XLSX from "xlsx"
+
+const PROCESS_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "PC", label: "Proceso Completo (PC)" },
+  { value: "SC", label: "San Cristóbal Completo (SC)" },
+  { value: "CA", label: "San Cristóbal Acotado (CA)" },
+  { value: "LL", label: "Long List (LL)" },
+  { value: "TR", label: "Targeted Recruitment (TR)" },
+  { value: "HH", label: "Headhunting (HH)" },
+  { value: "FI", label: "Filtro Inteligente (FI)" },
+  { value: "ES", label: "Evaluación Psicolaboral (ES)" },
+  { value: "TS", label: "Test Psicolaboral (TS)" },
+  { value: "EP", label: "Evaluación de Potencial (EP)" },
+  { value: "PP", label: "Publicación Portales (PP)" },
+]
 
 // Función para formatear nombres de servicios (agregar espacios entre palabras)
 const formatServiceName = (nombre: string): string => {
@@ -292,18 +314,18 @@ export default function ReportesPage() {
   const [summaryCards, setSummaryCards] = useState<SummaryCardsData | null>(null)
   const [loadingSummaryCards, setLoadingSummaryCards] = useState(true)
   const [cardYear, setCardYear] = useState<string>("all")
-  const [cardService, setCardService] = useState<string>("all")
-  const [cardConsultant, setCardConsultant] = useState<string>("all")
+  const [cardService, setCardService] = useState<MultiFilterValue>([])
+  const [cardConsultant, setCardConsultant] = useState<MultiFilterValue>([])
   const [averageTimeData, setAverageTimeData] = useState<AverageTimeItem[]>([])
   const [loadingAverageTime, setLoadingAverageTime] = useState(true)
   const [processOverview, setProcessOverview] = useState<ProcessOverviewData | null>(null)
   const [loadingProcessOverview, setLoadingProcessOverview] = useState(true)
   const [currentProcessesPage, setCurrentProcessesPage] = useState(1)
-  const [processTypeFilter, setProcessTypeFilter] = useState<string>("all")
-  const [selectedStateConsultant, setSelectedStateConsultant] = useState<string>("all")
-  const [urgencyServiceFilter, setUrgencyServiceFilter] = useState<string>("all")
-  const [urgencyConsultantFilter, setUrgencyConsultantFilter] = useState<string>("all")
-  const [tableConsultantFilter, setTableConsultantFilter] = useState<string>("all")
+  const [processTypeFilter, setProcessTypeFilter] = useState<MultiFilterValue>([])
+  const [selectedStateConsultant, setSelectedStateConsultant] = useState<MultiFilterValue>([])
+  const [urgencyServiceFilter, setUrgencyServiceFilter] = useState<MultiFilterValue>([])
+  const [urgencyConsultantFilter, setUrgencyConsultantFilter] = useState<MultiFilterValue>([])
+  const [tableConsultantFilter, setTableConsultantFilter] = useState<MultiFilterValue>([])
   const [performanceData, setPerformanceData] = useState<Array<{
     consultant: string;
     processesCompleted: number;
@@ -349,7 +371,7 @@ export default function ReportesPage() {
   const [closedProcessesYear, setClosedProcessesYear] = useState<number>(new Date().getFullYear())
   const [closedProcessesMonth, setClosedProcessesMonth] = useState<number>(new Date().getMonth())
   const [closedProcessesWeek, setClosedProcessesWeek] = useState<string>("")
-  const [closedProcessesServiceFilter, setClosedProcessesServiceFilter] = useState<string>("all")
+  const [closedProcessesServiceFilter, setClosedProcessesServiceFilter] = useState<MultiFilterValue>([])
   const [closedProcessesPage, setClosedProcessesPage] = useState<number>(1)
   const closedProcessesPerPage = 10
   
@@ -361,10 +383,9 @@ export default function ReportesPage() {
 
   // Filtrar procesos cerrados por tipo de servicio
   const filteredClosedProcesses = useMemo(() => {
-    if (closedProcessesServiceFilter === "all") {
-      return closedSuccessfulProcesses
-    }
-    return closedSuccessfulProcesses.filter(process => process.tipo_servicio === closedProcessesServiceFilter)
+    return closedSuccessfulProcesses.filter((process) =>
+      matchesMultiFilter(process.tipo_servicio, closedProcessesServiceFilter)
+    )
   }, [closedSuccessfulProcesses, closedProcessesServiceFilter])
 
   // Obtener tipos de servicio únicos para el filtro con nombres completos formateados
@@ -514,9 +535,7 @@ export default function ReportesPage() {
       try {
         setLoadingSummaryCards(true)
         const yearParam = cardYear === "all" ? undefined : parseInt(cardYear)
-        const serviceParam = cardService === "all" ? undefined : cardService
-        const consultantParam = cardConsultant === "all" ? undefined : cardConsultant
-        const response = await solicitudService.getSummaryCards(yearParam, serviceParam, consultantParam)
+        const response = await solicitudService.getSummaryCards(yearParam, cardService, cardConsultant)
         if (response.success && response.data) {
           setSummaryCards(response.data)
         } else {
@@ -549,7 +568,9 @@ export default function ReportesPage() {
           selectedMonth,
           week,
           periodType,
-          selectedStateConsultant === "all" ? undefined : selectedStateConsultant
+          isFilterActive(selectedStateConsultant) && selectedStateConsultant.length === 1
+            ? selectedStateConsultant[0]
+            : undefined
         )
 
         if (response.success && response.data) {
@@ -829,8 +850,7 @@ export default function ReportesPage() {
   // Procesos del período filtrados por consultor (para cards y gráfico de estados)
   const periodProcessesFiltered = useMemo(() => {
     const procs = processOverview?.processes ?? []
-    if (selectedStateConsultant === "all") return procs
-    return procs.filter((p) => p.consultant === selectedStateConsultant)
+    return procs.filter((p) => matchesMultiFilter(p.consultant, selectedStateConsultant))
   }, [processOverview?.processes, selectedStateConsultant])
 
   // Lista única de consultores para el select (extraída del processOverview)
@@ -846,8 +866,7 @@ export default function ReportesPage() {
   // Snapshot de procesos activos al FINAL del período, filtrado por consultor
   const periodSnapshotFiltered = useMemo(() => {
     const snap = processOverview?.periodActiveSnapshot ?? []
-    if (selectedStateConsultant === "all") return snap
-    return snap.filter((p) => p.consultant === selectedStateConsultant)
+    return snap.filter((p) => matchesMultiFilter(p.consultant, selectedStateConsultant))
   }, [processOverview?.periodActiveSnapshot, selectedStateConsultant])
 
   // Cards del período: activos por tipo de servicio (snapshot al final del período)
@@ -953,19 +972,19 @@ export default function ReportesPage() {
   // Datos de urgencia filtrados
   const filteredDueSoon = useMemo(() => {
     let list = urgencySummary.dueSoonProcessesDetails ?? []
-    if (urgencyServiceFilter !== "all") list = list.filter((p) => p.serviceCode === urgencyServiceFilter)
-    if (urgencyConsultantFilter !== "all") list = list.filter((p) => p.consultant === urgencyConsultantFilter)
+    list = list.filter((p) => matchesMultiFilter(p.serviceCode, urgencyServiceFilter))
+    list = list.filter((p) => matchesMultiFilter(p.consultant, urgencyConsultantFilter))
     return list
   }, [urgencySummary, urgencyServiceFilter, urgencyConsultantFilter])
 
   const filteredOverdue = useMemo(() => {
     let list = urgencySummary.overdueProcessesDetails ?? []
-    if (urgencyServiceFilter !== "all") list = list.filter((p) => p.serviceCode === urgencyServiceFilter)
-    if (urgencyConsultantFilter !== "all") list = list.filter((p) => p.consultant === urgencyConsultantFilter)
+    list = list.filter((p) => matchesMultiFilter(p.serviceCode, urgencyServiceFilter))
+    list = list.filter((p) => matchesMultiFilter(p.consultant, urgencyConsultantFilter))
     return list
   }, [urgencySummary, urgencyServiceFilter, urgencyConsultantFilter])
 
-  const urgencyFiltersActive = urgencyServiceFilter !== "all" || urgencyConsultantFilter !== "all"
+  const urgencyFiltersActive = isFilterActive(urgencyServiceFilter) || isFilterActive(urgencyConsultantFilter)
 
   const filteredUrgencyChartData = useMemo(() => [
     {
@@ -988,17 +1007,12 @@ export default function ReportesPage() {
   const processesInProgress = useMemo(() => {
     let filtered = processOverview?.currentActiveProcesses || []
 
-    if (processTypeFilter !== "all") {
-      filtered = filtered.filter((process) => {
-        const code = process.serviceCode || ""
-        if (processTypeFilter === "HH") return code === "HH" || code === "HS"
-        return code === processTypeFilter
-      })
-    }
-
-    if (tableConsultantFilter !== "all") {
-      filtered = filtered.filter((p) => p.consultant === tableConsultantFilter)
-    }
+    filtered = filtered.filter((process) =>
+      matchesProcessTypeFilter(process.serviceCode || "", processTypeFilter),
+    )
+    filtered = filtered.filter((p) =>
+      matchesMultiFilter(p.consultant, tableConsultantFilter),
+    )
 
     return filtered
   }, [processOverview?.currentActiveProcesses, processTypeFilter, tableConsultantFilter])
@@ -1316,7 +1330,7 @@ export default function ReportesPage() {
         {/* Año */}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Año</label>
-          <Select value={cardYear} onValueChange={(v) => { setCardYear(v); setCardService("all"); setCardConsultant("all") }}>
+          <Select value={cardYear} onValueChange={(v) => { setCardYear(v); setCardService([]); setCardConsultant([]) }}>
             <SelectTrigger className="w-[130px]">
               <SelectValue placeholder="Todos los años" />
             </SelectTrigger>
@@ -1331,35 +1345,33 @@ export default function ReportesPage() {
         {/* Tipo de servicio */}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Tipo de servicio</label>
-          <Select value={cardService} onValueChange={setCardService}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Todos los servicios" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {(summaryCards?.filters.availableServices ?? []).map((s) => (
-                <SelectItem key={s.code} value={s.code}>{formatServiceName(s.name)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            className="w-[200px]"
+            value={cardService}
+            onChange={setCardService}
+            emptyLabel="Todos"
+            options={(summaryCards?.filters.availableServices ?? []).map((s) => ({
+              value: s.code,
+              label: formatServiceName(s.name),
+            }))}
+          />
         </div>
         {/* Consultor */}
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Consultor</label>
-          <Select value={cardConsultant} onValueChange={setCardConsultant}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Todos los consultores" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {(summaryCards?.filters.availableConsultants ?? []).map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            className="w-[200px]"
+            value={cardConsultant}
+            onChange={setCardConsultant}
+            emptyLabel="Todos"
+            options={(summaryCards?.filters.availableConsultants ?? []).map((c) => ({
+              value: c,
+              label: c,
+            }))}
+          />
         </div>
         {/* Badge indicador */}
-        {(cardYear !== "all" || cardService !== "all" || cardConsultant !== "all") && (
+        {(cardYear !== "all" || isFilterActive(cardService) || isFilterActive(cardConsultant)) && (
           <div className="flex items-center gap-2 pb-0.5">
             <Badge variant="secondary" className="text-xs">
               Mostrando según filtro aplicado
@@ -1368,13 +1380,13 @@ export default function ReportesPage() {
               variant="ghost"
               size="sm"
               className="h-7 text-xs text-muted-foreground"
-              onClick={() => { setCardYear("all"); setCardService("all"); setCardConsultant("all") }}
+              onClick={() => { setCardYear("all"); setCardService([]); setCardConsultant([]) }}
             >
               Limpiar filtros
             </Button>
           </div>
         )}
-        {cardYear === "all" && cardService === "all" && cardConsultant === "all" && (
+        {cardYear === "all" && !isFilterActive(cardService) && !isFilterActive(cardConsultant) && (
           <Badge variant="outline" className="text-xs self-end mb-0.5">
             Mostrando acumulado histórico
           </Badge>
@@ -1629,17 +1641,12 @@ export default function ReportesPage() {
                 {/* Filtro de consultor */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Consultor</label>
-                  <Select value={selectedStateConsultant} onValueChange={setSelectedStateConsultant}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {stateConsultantOptions.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    value={selectedStateConsultant}
+                    onChange={setSelectedStateConsultant}
+                    emptyLabel="Todos"
+                    options={stateConsultantOptions.map((c) => ({ value: c, label: c }))}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -1667,7 +1674,12 @@ export default function ReportesPage() {
                         : timePeriod === "year"
                         ? `Año ${selectedYear}`
                         : `${monthNames[selectedMonth]} ${selectedYear}`}
-                      {selectedStateConsultant !== "all" ? ` · ${selectedStateConsultant}` : ""}
+                      {isFilterActive(selectedStateConsultant)
+                        ? ` · ${getMultiFilterLabel(
+                            selectedStateConsultant,
+                            stateConsultantOptions.map((c) => ({ value: c, label: c })),
+                          )}`
+                        : ""}
                     </p>
                   </>
                 )}
@@ -1841,28 +1853,26 @@ export default function ReportesPage() {
                     <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
-                    <Select value={urgencyServiceFilter} onValueChange={setUrgencyServiceFilter}>
-                      <SelectTrigger className="w-[180px] h-8 text-xs">
-                        <SelectValue placeholder="Todos los procesos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los procesos</SelectItem>
-                        {urgencyServiceOptions.map((s) => (
-                          <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={urgencyConsultantFilter} onValueChange={setUrgencyConsultantFilter}>
-                      <SelectTrigger className="w-[170px] h-8 text-xs">
-                        <SelectValue placeholder="Todos los consultores" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los consultores</SelectItem>
-                        {urgencyConsultantOptions.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <MultiSelectFilter
+                      className="w-[180px] h-9 text-xs"
+                      value={urgencyServiceFilter}
+                      onChange={setUrgencyServiceFilter}
+                      emptyLabel="Todos los procesos"
+                      options={urgencyServiceOptions.map((s) => ({
+                        value: s.code,
+                        label: s.name,
+                      }))}
+                    />
+                    <MultiSelectFilter
+                      className="w-[170px] h-9 text-xs"
+                      value={urgencyConsultantFilter}
+                      onChange={setUrgencyConsultantFilter}
+                      emptyLabel="Todos los consultores"
+                      options={urgencyConsultantOptions.map((c) => ({
+                        value: c,
+                        label: c,
+                      }))}
+                    />
                   </div>
                 </div>
               </CardHeader>
@@ -2022,39 +2032,23 @@ export default function ReportesPage() {
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium whitespace-nowrap">Proceso:</label>
-                  <Select value={processTypeFilter} onValueChange={setProcessTypeFilter}>
-                    <SelectTrigger className="w-[220px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos los procesos</SelectItem>
-                      <SelectItem value="PC">Proceso Completo (PC)</SelectItem>
-                      <SelectItem value="SC">San Cristóbal Completo (SC)</SelectItem>
-                      <SelectItem value="CA">San Cristóbal Acotado (CA)</SelectItem>
-                      <SelectItem value="LL">Long List (LL)</SelectItem>
-                      <SelectItem value="TR">Targeted Recruitment (TR)</SelectItem>
-                      <SelectItem value="HH">Headhunting (HH)</SelectItem>
-                      <SelectItem value="FI">Filtro Inteligente (FI)</SelectItem>
-                      <SelectItem value="ES">Evaluación Psicolaboral (ES)</SelectItem>
-                      <SelectItem value="TS">Test Psicolaboral (TS)</SelectItem>
-                      <SelectItem value="EP">Evaluación de Potencial (EP)</SelectItem>
-                      <SelectItem value="PP">Publicación Portales (PP)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    className="w-[220px]"
+                    value={processTypeFilter}
+                    onChange={setProcessTypeFilter}
+                    emptyLabel="Todos los procesos"
+                    options={PROCESS_TYPE_FILTER_OPTIONS}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-sm font-medium whitespace-nowrap">Consultor:</label>
-                  <Select value={tableConsultantFilter} onValueChange={setTableConsultantFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {tableConsultantOptions.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    className="w-[180px]"
+                    value={tableConsultantFilter}
+                    onChange={setTableConsultantFilter}
+                    emptyLabel="Todos"
+                    options={tableConsultantOptions.map((c) => ({ value: c, label: c }))}
+                  />
                 </div>
               </div>
               
@@ -2753,22 +2747,15 @@ export default function ReportesPage() {
 
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Tipo de Servicio</label>
-                    <Select
+                    <MultiSelectFilter
                       value={closedProcessesServiceFilter}
-                      onValueChange={(value) => setClosedProcessesServiceFilter(value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todos los servicios" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos los servicios</SelectItem>
-                        {availableServiceTypes.map((type) => (
-                          <SelectItem key={type.codigo} value={type.codigo}>
-                            {type.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onChange={setClosedProcessesServiceFilter}
+                      emptyLabel="Todos los servicios"
+                      options={availableServiceTypes.map((type) => ({
+                        value: type.codigo,
+                        label: type.nombre,
+                      }))}
+                    />
                   </div>
                 </div>
               </div>

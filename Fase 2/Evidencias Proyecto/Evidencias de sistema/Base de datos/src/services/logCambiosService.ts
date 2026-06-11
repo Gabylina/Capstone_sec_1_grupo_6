@@ -105,9 +105,9 @@ export class LogCambiosService {
      * Buscar logs con filtros combinados
      */
     static async searchLogs(filters: {
-        tabla?: string;
-        usuario?: string;
-        accion?: string;
+        tabla?: string[];
+        usuario?: string[];
+        accion?: string[];
         fechaInicio?: Date;
         fechaFin?: Date;
         limit?: number;
@@ -116,14 +116,20 @@ export class LogCambiosService {
         const { Op } = require('sequelize');
         const whereClause: any = {};
 
-        if (filters.tabla) {
-            whereClause.tabla_afectada = filters.tabla;
+        if (filters.tabla?.length) {
+            whereClause.tabla_afectada = filters.tabla.length === 1
+                ? filters.tabla[0]
+                : { [Op.in]: filters.tabla };
         }
-        if (filters.usuario) {
-            whereClause.usuario_responsable = filters.usuario;
+        if (filters.usuario?.length) {
+            whereClause.usuario_responsable = filters.usuario.length === 1
+                ? filters.usuario[0]
+                : { [Op.in]: filters.usuario };
         }
-        if (filters.accion) {
-            whereClause.accion = filters.accion;
+        if (filters.accion?.length) {
+            whereClause.accion = filters.accion.length === 1
+                ? filters.accion[0]
+                : { [Op.in]: filters.accion };
         }
         if (filters.fechaInicio && filters.fechaFin) {
             whereClause.fecha_cambio = {

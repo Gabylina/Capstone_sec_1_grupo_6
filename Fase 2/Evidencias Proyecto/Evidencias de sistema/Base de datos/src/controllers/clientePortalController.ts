@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ClientePortalService } from '@/services/clientePortalService';
 import { sendSuccess, sendError } from '@/utils/response';
+import { parseMultiQuery } from '@/utils/queryMultiFilter';
 
 export class ClientePortalController {
     private static async requireClienteId(req: Request): Promise<number | null> {
@@ -26,16 +27,16 @@ export class ClientePortalController {
             const idCliente = await ClientePortalController.requireClienteId(req);
             if (!idCliente) return sendError(res, 'Acceso solo para usuarios cliente', 403);
             const {
-                service_type,
-                estado,
                 fecha_desde,
                 fecha_hasta,
                 page,
                 limit,
             } = req.query;
+            const service_type = parseMultiQuery(req.query.service_type as string | string[] | undefined);
+            const estado = parseMultiQuery(req.query.estado as string | string[] | undefined);
             const data = await ClientePortalService.listSolicitudes(idCliente, {
-                service_type: service_type as string | undefined,
-                estado: estado as string | undefined,
+                service_type,
+                estado,
                 fecha_desde: fecha_desde as string | undefined,
                 fecha_hasta: fecha_hasta as string | undefined,
                 page: page ? parseInt(String(page), 10) : 1,

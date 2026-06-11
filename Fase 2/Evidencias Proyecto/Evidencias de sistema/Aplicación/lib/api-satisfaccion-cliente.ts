@@ -1,3 +1,5 @@
+import { appendMultiQueryParam, type MultiFilterValue } from "@/lib/multi-filter-utils"
+
 const API_BASE = () => process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
 
 function authHeaders(): HeadersInit {
@@ -115,24 +117,18 @@ export interface EncuestaSatisfaccionPayload {
 
 export const satisfaccionClienteService = {
   async getDashboard(params?: {
-    service_type?: string
-    cliente_id?: string
-    consultor_id?: string
+    service_type?: MultiFilterValue
+    cliente_id?: MultiFilterValue
+    consultor_id?: MultiFilterValue
   }): Promise<{
     success: boolean
     message?: string
     data?: SatisfaccionDashboard
   }> {
     const searchParams = new URLSearchParams()
-    if (params?.service_type && params.service_type !== "all") {
-      searchParams.set("service_type", params.service_type)
-    }
-    if (params?.cliente_id && params.cliente_id !== "all") {
-      searchParams.set("cliente_id", params.cliente_id)
-    }
-    if (params?.consultor_id && params.consultor_id !== "all") {
-      searchParams.set("consultor_id", params.consultor_id)
-    }
+    if (params?.service_type) appendMultiQueryParam(searchParams, "service_type", params.service_type)
+    if (params?.cliente_id) appendMultiQueryParam(searchParams, "cliente_id", params.cliente_id)
+    if (params?.consultor_id) appendMultiQueryParam(searchParams, "consultor_id", params.consultor_id)
     const qs = searchParams.toString()
     const res = await fetch(
       `${API_BASE()}/api/satisfaccion-cliente/dashboard${qs ? `?${qs}` : ""}`,

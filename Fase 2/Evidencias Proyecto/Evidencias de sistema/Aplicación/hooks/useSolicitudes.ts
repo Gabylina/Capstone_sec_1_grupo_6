@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { Process } from "@/lib/types"
 import { descripcionCargoService, tipoServicioService } from "@/lib/api"
+import { appendMultiQueryParam, isFilterActive, type MultiFilterValue } from "@/lib/multi-filter-utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -30,9 +31,9 @@ export function useSolicitudes() {
   const [solicitudes, setSolicitudes] = useState<HookSolicitud[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [serviceFilter, setServiceFilter] = useState<string>("all")
-  const [clientFilter, setClientFilter] = useState<string>("all")
+  const [statusFilter, setStatusFilter] = useState<MultiFilterValue>([])
+  const [serviceFilter, setServiceFilter] = useState<MultiFilterValue>([])
+  const [clientFilter, setClientFilter] = useState<MultiFilterValue>([])
   const [sortBy, setSortBy] = useState<"fecha" | "cargo" | "cliente">("fecha")
   const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("DESC")
   
@@ -71,16 +72,10 @@ export function useSolicitudes() {
         sortOrder,
       })
 
-      // Agregar filtros solo si no son "all"
-      if (statusFilter !== "all") {
-        params.append("status", statusFilter)
-      }
-      if (serviceFilter !== "all") {
-        params.append("service_type", serviceFilter)
-      }
-      if (clientFilter !== "all") {
-        params.append("cliente_id", clientFilter)
-      }
+      // Agregar filtros multiselect (array vacío = sin filtro)
+      appendMultiQueryParam(params, "status", statusFilter)
+      appendMultiQueryParam(params, "service_type", serviceFilter)
+      appendMultiQueryParam(params, "cliente_id", clientFilter)
 
       const res = await fetch(`${API_URL}/api/solicitudes?${params}`, {
         headers: {
@@ -156,9 +151,9 @@ export function useSolicitudes() {
   const fetchFilteredStats = async () => {
     try {
       const params = new URLSearchParams({ search: searchTerm })
-      if (statusFilter !== "all") params.append("status", statusFilter)
-      if (serviceFilter !== "all") params.append("service_type", serviceFilter)
-      if (clientFilter !== "all") params.append("cliente_id", clientFilter)
+      appendMultiQueryParam(params, "status", statusFilter)
+      appendMultiQueryParam(params, "service_type", serviceFilter)
+      appendMultiQueryParam(params, "cliente_id", clientFilter)
 
       const res = await fetch(`${API_URL}/api/solicitudes/stats?${params}`, {
         headers: {
@@ -212,9 +207,9 @@ export function useSolicitudes() {
   useEffect(() => {
     // Detectar si cambiaron los filtros (no la paginación)
     const searchChanged = prevSearchTerm.current !== searchTerm
-    const statusChanged = prevStatusFilter.current !== statusFilter
-    const serviceChanged = prevServiceFilter.current !== serviceFilter
-    const clientChanged = prevClientFilter.current !== clientFilter
+    const statusChanged = prevStatusFilter.current.join(",") !== statusFilter.join(",")
+    const serviceChanged = prevServiceFilter.current.join(",") !== serviceFilter.join(",")
+    const clientChanged = prevClientFilter.current.join(",") !== clientFilter.join(",")
 
     // Si cambiaron los filtros, resetear a página 1
     if ((searchChanged || statusChanged || serviceChanged || clientChanged) && currentPage !== 1) {
@@ -286,6 +281,12 @@ export function useSolicitudes() {
     await fetchFilteredStats()
   }
 
+  const hasFiltersApplied =
+    searchTerm !== "" ||
+    isFilterActive(statusFilter) ||
+    isFilterActive(serviceFilter) ||
+    isFilterActive(clientFilter)
+
   return {
     // Estados
     solicitudes,
@@ -302,6 +303,7 @@ export function useSolicitudes() {
     totalSolicitudes,
     stats,
     serviceTypes: allServiceTypes, // Usar la lista completa de tipos de servicio
+    hasFiltersApplied,
     
     // Setters
     setSearchTerm,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { User } from "../lib/types"
+import { appendMultiQueryParam, isFilterActive, type MultiFilterValue } from "@/lib/multi-filter-utils"
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 interface NewUserInput {
@@ -24,8 +25,8 @@ type HookUser = User & {
 export function useUsuarios() {
   const [users, setUsers] = useState<HookUser[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "habilitado" | "inhabilitado">("all")
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "consultor">("all")
+  const [statusFilter, setStatusFilter] = useState<MultiFilterValue>([])
+  const [roleFilter, setRoleFilter] = useState<MultiFilterValue>([])
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -88,8 +89,8 @@ export function useUsuarios() {
       // Construir query params para filtros y paginación
       const params = new URLSearchParams()
       if (searchTerm) params.append('search', searchTerm)
-      if (roleFilter !== 'all') params.append('role', roleFilter)
-      if (statusFilter !== 'all') params.append('status', statusFilter)
+      appendMultiQueryParam(params, 'role', roleFilter)
+      appendMultiQueryParam(params, 'status', statusFilter)
       params.append('page', currentPage.toString())
       params.append('limit', pageSize.toString())
       
@@ -356,6 +357,11 @@ export function useUsuarios() {
     setNewUser({ rut: "", nombre: "", apellido: "", email: "", password: "", role: "consultor", status: "habilitado" })
   }
 
+  const hasFiltersApplied =
+    searchTerm !== "" ||
+    isFilterActive(statusFilter) ||
+    isFilterActive(roleFilter)
+
   return {
     users,
     filteredUsers,
@@ -365,6 +371,7 @@ export function useUsuarios() {
     setStatusFilter,
     roleFilter,
     setRoleFilter,
+    hasFiltersApplied,
     isCreateDialogOpen,
     setIsCreateDialogOpen,
     newUser,

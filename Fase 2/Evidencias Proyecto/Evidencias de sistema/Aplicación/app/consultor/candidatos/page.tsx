@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 import { Label } from "@/components/ui/label"
+import { appendMultiQueryParam, isFilterActive, type MultiFilterValue } from "@/lib/multi-filter-utils"
 import { 
   Search, 
   Loader2, 
@@ -87,8 +89,8 @@ export default function HistorialCandidatosPage() {
   // Filtros
   const [searchTerm, setSearchTerm] = useState("")
   const [rutFilter, setRutFilter] = useState("")
-  const [comunaFilter, setComunaFilter] = useState("")
-  const [profesionFilter, setProfesionFilter] = useState("")
+  const [comunaFilter, setComunaFilter] = useState<MultiFilterValue>([])
+  const [profesionFilter, setProfesionFilter] = useState<MultiFilterValue>([])
   const [pageSize, setPageSize] = useState(20)
   
   // Estado para debounce
@@ -152,8 +154,8 @@ export default function HistorialCandidatosPage() {
       
       if (debouncedSearch) params.append('search', debouncedSearch)
       if (rutFilter) params.append('rut', rutFilter)
-      if (comunaFilter) params.append('comuna', comunaFilter)
-      if (profesionFilter) params.append('profesion', profesionFilter)
+      appendMultiQueryParam(params, 'comuna', comunaFilter)
+      appendMultiQueryParam(params, 'profesion', profesionFilter)
       
       const response = await fetch(`${API_URL}/api/candidatos/historial?${params}`, {
         headers: {
@@ -218,8 +220,8 @@ export default function HistorialCandidatosPage() {
   const clearFilters = () => {
     setSearchTerm("")
     setRutFilter("")
-    setComunaFilter("")
-    setProfesionFilter("")
+    setComunaFilter([])
+    setProfesionFilter([])
   }
 
   // Ver detalle de candidato
@@ -280,48 +282,34 @@ export default function HistorialCandidatosPage() {
               />
             </div>
 
-            {/* Filtro por Comuna - Dropdown */}
+            {/* Filtro por Comuna */}
             <div className="space-y-2">
               <Label>Comuna</Label>
-              <Select 
-                value={comunaFilter || "all"} 
-                onValueChange={(v) => setComunaFilter(v === "all" ? "" : v)}
+              <MultiSelectFilter
+                value={comunaFilter}
+                onChange={setComunaFilter}
+                emptyLabel="Todas las comunas"
                 disabled={isLoadingLists}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas las comunas" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  <SelectItem value="all">Todas las comunas</SelectItem>
-                  {comunas.map((comuna) => (
-                    <SelectItem key={comuna.id_comuna} value={comuna.nombre_comuna}>
-                      {comuna.nombre_comuna}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={comunas.map((comuna) => ({
+                  value: comuna.nombre_comuna,
+                  label: comuna.nombre_comuna,
+                }))}
+              />
             </div>
 
-            {/* Filtro por Profesión - Dropdown */}
+            {/* Filtro por Profesión */}
             <div className="space-y-2">
               <Label>Profesión</Label>
-              <Select 
-                value={profesionFilter || "all"} 
-                onValueChange={(v) => setProfesionFilter(v === "all" ? "" : v)}
+              <MultiSelectFilter
+                value={profesionFilter}
+                onChange={setProfesionFilter}
+                emptyLabel="Todas las profesiones"
                 disabled={isLoadingLists}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas las profesiones" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  <SelectItem value="all">Todas las profesiones</SelectItem>
-                  {profesiones.map((profesion) => (
-                    <SelectItem key={profesion.id_profesion} value={profesion.nombre_profesion}>
-                      {profesion.nombre_profesion}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={profesiones.map((profesion) => ({
+                  value: profesion.nombre_profesion,
+                  label: profesion.nombre_profesion,
+                }))}
+              />
             </div>
 
             {/* Items por página */}
@@ -342,7 +330,7 @@ export default function HistorialCandidatosPage() {
           </div>
 
           {/* Botón limpiar filtros */}
-          {(searchTerm || rutFilter || comunaFilter || profesionFilter) && (
+          {(searchTerm || rutFilter || isFilterActive(comunaFilter) || isFilterActive(profesionFilter)) && (
             <div className="mt-4">
               <Button variant="outline" size="sm" onClick={clearFilters}>
                 <X className="mr-2 h-4 w-4" />
@@ -366,7 +354,7 @@ export default function HistorialCandidatosPage() {
               <Users className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold">No se encontraron candidatos</h3>
               <p className="text-muted-foreground">
-                {searchTerm || rutFilter || comunaFilter 
+                {searchTerm || rutFilter || isFilterActive(comunaFilter) || isFilterActive(profesionFilter)
                   ? "Intenta ajustar los filtros de búsqueda" 
                   : "No hay candidatos registrados en el sistema"}
               </p>

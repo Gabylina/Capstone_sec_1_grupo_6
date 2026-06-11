@@ -103,8 +103,8 @@ export const getUsers = async (
   page: number = 1,
   limit: number = 10,
   search: string = "",
-  role?: "admin" | "consultor",
-  status?: "habilitado" | "inhabilitado",
+  role?: string[],
+  status?: string[],
   sortBy: "nombre" | "apellido" = "nombre",
   sortOrder: "ASC" | "DESC" = "ASC"
 ) => {
@@ -124,17 +124,32 @@ export const getUsers = async (
   }
 
   // Filtro por rol
-  let roleValue: number | undefined;
-  if (role === "admin") roleValue = 1;
-  else if (role === "consultor") roleValue = 2;
+    const roleValues: number[] = [];
+    if (role?.length) {
+      for (const r of role) {
+        if (r === "admin") roleValues.push(1);
+        else if (r === "consultor") roleValues.push(2);
+      }
+      if (roleValues.length === 1) {
+        andConditions.push({ rol_usuario: roleValues[0] });
+      } else if (roleValues.length > 1) {
+        andConditions.push({ rol_usuario: { [Op.in]: roleValues } });
+      }
+    }
 
-  if (roleValue !== undefined) {
-    andConditions.push({ rol_usuario: roleValue });
+    // Filtro por estado
+    if (status?.length) {
+      const activoValues: boolean[] = [];
+      for (const s of status) {
+        if (s === "habilitado") activoValues.push(true);
+        else if (s === "inhabilitado") activoValues.push(false);
+      }
+    if (activoValues.length === 1) {
+      andConditions.push({ activo_usuario: activoValues[0] });
+    } else if (activoValues.length > 1) {
+      andConditions.push({ activo_usuario: { [Op.in]: activoValues } });
+    }
   }
-
-  // Filtro por estado
-  if (status === "habilitado") andConditions.push({ activo_usuario: true });
-  else if (status === "inhabilitado") andConditions.push({ activo_usuario: false });
 
   // Construir la condición final
   const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};

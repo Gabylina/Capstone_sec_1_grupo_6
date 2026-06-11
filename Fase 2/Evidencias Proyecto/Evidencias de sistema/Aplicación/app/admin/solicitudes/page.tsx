@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Search, Eye, Trash2, Loader2, Upload, ChevronLeft, ChevronRight, Edit, ShieldCheck } from "lucide-react"
 import Link from "next/link"
@@ -443,46 +444,40 @@ export default function SolicitudesPage() {
                 />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="creado">Creado</SelectItem>
-                <SelectItem value="en_progreso">En Progreso</SelectItem>
-                <SelectItem value="cerrado">Cerrado</SelectItem>
-                <SelectItem value="congelado">Congelado</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-                <SelectItem value="cierre_extraordinario">Cierre Extraordinario</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={serviceFilter} onValueChange={setServiceFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tipo de servicio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los servicios</SelectItem>
-                {serviceTypes.map((type) => (
-                  <SelectItem key={type.codigo} value={type.codigo}>
-                    {formatServiceName(type.nombre)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={clientFilter} onValueChange={setClientFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los clientes</SelectItem>
-                {clientes.map((c) => (
-                  <SelectItem key={c.id_cliente} value={String(c.id_cliente)}>
-                    {c.nombre_cliente}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              className="w-[180px]"
+              emptyLabel="Todos los estados"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "creado", label: "Creado" },
+                { value: "en_progreso", label: "En Progreso" },
+                { value: "cerrado", label: "Cerrado" },
+                { value: "congelado", label: "Congelado" },
+                { value: "cancelado", label: "Cancelado" },
+                { value: "cierre_extraordinario", label: "Cierre Extraordinario" },
+              ]}
+            />
+            <MultiSelectFilter
+              className="w-[200px]"
+              emptyLabel="Todos los servicios"
+              value={serviceFilter}
+              onChange={setServiceFilter}
+              options={serviceTypes.map((type) => ({
+                value: type.codigo,
+                label: formatServiceName(type.nombre),
+              }))}
+            />
+            <MultiSelectFilter
+              className="w-[200px]"
+              emptyLabel="Todos los clientes"
+              value={clientFilter}
+              onChange={setClientFilter}
+              options={clientes.map((c) => ({
+                value: String(c.id_cliente),
+                label: c.nombre_cliente,
+              }))}
+            />
           </div>
         </CardContent>
       </Card>

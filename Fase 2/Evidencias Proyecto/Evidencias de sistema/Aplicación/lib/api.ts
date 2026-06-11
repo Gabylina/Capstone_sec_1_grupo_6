@@ -2,6 +2,8 @@
 // CONFIGURACIÓN DE API
 // ===========================================
 
+import { appendMultiQueryParam, type MultiFilterValue } from "@/lib/multi-filter-utils"
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 // ===========================================
@@ -555,8 +557,8 @@ export const solicitudService = {
   // KPIs para las 4 cards del dashboard (acumulado histórico, sin filtro de período)
   async getSummaryCards(
     year?: number | 'all',
-    serviceCode?: string,
-    consultant?: string
+    serviceCode?: MultiFilterValue,
+    consultant?: MultiFilterValue
   ): Promise<ApiResponse<{
     totalProcesses: number;
     closedProcesses: number;
@@ -570,8 +572,8 @@ export const solicitudService = {
   }>> {
     const params = new URLSearchParams();
     if (year && year !== 'all') params.append('year', year.toString());
-    if (serviceCode && serviceCode !== 'all') params.append('serviceCode', serviceCode);
-    if (consultant && consultant !== 'all') params.append('consultant', consultant);
+    if (serviceCode) appendMultiQueryParam(params, 'serviceCode', serviceCode);
+    if (consultant) appendMultiQueryParam(params, 'consultant', consultant);
     const qs = params.toString();
     return apiRequest(`/api/solicitudes/reportes/summary-cards${qs ? `?${qs}` : ''}`);
   },

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
+import { parseMultiQuery } from '@/utils/queryMultiFilter';
 import { LogCambiosService } from '@/services/logCambiosService';
 
 /**
@@ -137,13 +138,16 @@ export class LogCambiosController {
      */
     static async search(req: Request, res: Response): Promise<Response> {
         try {
-            const { tabla, usuario, accion, fecha_inicio, fecha_fin, limit, offset } = req.query;
+            const { fecha_inicio, fecha_fin, limit, offset } = req.query;
             
             const filters: any = {};
             
-            if (tabla) filters.tabla = tabla as string;
-            if (usuario) filters.usuario = usuario as string;
-            if (accion) filters.accion = accion as string;
+            const tabla = parseMultiQuery(req.query.tabla as string | string[] | undefined);
+            const usuario = parseMultiQuery(req.query.usuario as string | string[] | undefined);
+            const accion = parseMultiQuery(req.query.accion as string | string[] | undefined);
+            if (tabla) filters.tabla = tabla;
+            if (usuario) filters.usuario = usuario;
+            if (accion) filters.accion = accion;
             if (fecha_inicio) filters.fechaInicio = new Date(fecha_inicio as string);
             if (fecha_fin) filters.fechaFin = new Date(fecha_fin as string);
             if (limit) filters.limit = parseInt(limit as string);

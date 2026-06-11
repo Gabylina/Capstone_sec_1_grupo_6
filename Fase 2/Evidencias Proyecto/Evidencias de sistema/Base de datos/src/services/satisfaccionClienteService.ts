@@ -11,6 +11,7 @@ import {
     Candidato,
     Usuario,
 } from '@/models';
+import { Op } from 'sequelize';
 import { parseEncuestaSatisfaccion } from '@/utils/encuestaSatisfaccion';
 import { getServiciosConEncuesta, servicioTieneEncuesta } from '@/utils/encuestaModuloConfig';
 
@@ -33,13 +34,17 @@ type RowContext = {
 
 export class SatisfaccionClienteService {
     private static async loadRows(opts?: {
-        serviceType?: string;
-        clienteId?: string;
-        consultorRut?: string;
+        serviceType?: string[];
+        clienteId?: string[];
+        consultorRut?: string[];
     }): Promise<RowContext[]> {
-        const serviceType = opts?.serviceType;
+        const serviceTypes = opts?.serviceType;
         const solicitudWhere =
-            serviceType && serviceType !== 'all' ? { codigo_servicio: serviceType } : undefined;
+            serviceTypes?.length
+                ? (serviceTypes.length === 1
+                    ? { codigo_servicio: serviceTypes[0] }
+                    : { codigo_servicio: { [Op.in]: serviceTypes } })
+                : undefined;
 
         const contrataciones = await Contratacion.findAll({
             where: { id_estado_contratacion: ID_ESTADO_CONTRATADO },
@@ -168,22 +173,22 @@ export class SatisfaccionClienteService {
         }
 
         let filtered = rows;
-        if (opts?.clienteId && opts.clienteId !== 'all') {
-            const idCliente = Number(opts.clienteId);
-            if (!Number.isNaN(idCliente)) {
-                filtered = filtered.filter((r) => r.idCliente === idCliente);
+        if (opts?.clienteId?.length) {
+            const ids = opts.clienteId.map(Number).filter((n) => !Number.isNaN(n));
+            if (ids.length) {
+                filtered = filtered.filter((r) => ids.includes(r.idCliente));
             }
         }
-        if (opts?.consultorRut && opts.consultorRut !== 'all') {
-            filtered = filtered.filter((r) => r.rutConsultor === opts.consultorRut);
+        if (opts?.consultorRut?.length) {
+            filtered = filtered.filter((r) => opts.consultorRut!.includes(r.rutConsultor));
         }
         return filtered;
     }
 
     static async getDashboard(opts?: {
-        serviceType?: string;
-        clienteId?: string;
-        consultorRut?: string;
+        serviceType?: string[];
+        clienteId?: string[];
+        consultorRut?: string[];
     }) {
         const rows = await this.loadRows(opts);
 

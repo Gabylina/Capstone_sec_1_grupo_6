@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -698,26 +699,26 @@ export default function UsuariosPage() {
                 className="pl-8"
               />
             </div>
-            <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="habilitado">Habilitado</SelectItem>
-                <SelectItem value="inhabilitado">Inhabilitado</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={roleFilter} onValueChange={(value: any) => setRoleFilter(value)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Rol" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los roles</SelectItem>
-                <SelectItem value="admin">Administrador</SelectItem>
-                <SelectItem value="consultor">Consultor</SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              className="w-[180px]"
+              emptyLabel="Todos los estados"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "habilitado", label: "Habilitado" },
+                { value: "inhabilitado", label: "Inhabilitado" },
+              ]}
+            />
+            <MultiSelectFilter
+              className="w-[180px]"
+              emptyLabel="Todos los roles"
+              value={roleFilter}
+              onChange={setRoleFilter}
+              options={[
+                { value: "admin", label: "Administrador" },
+                { value: "consultor", label: "Consultor" },
+              ]}
+            />
           </div>
         </CardContent>
       </Card>

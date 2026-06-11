@@ -33,8 +33,8 @@ export class CandidatoService {
         rut?: string;
         email?: string;
         nombre?: string;
-        comuna?: string;
-        profesion?: string;
+        comuna?: string[];
+        profesion?: string[];
     }) {
         const { Op } = require('sequelize');
         const page = filters.page || 1;
@@ -121,6 +121,24 @@ export class CandidatoService {
             ];
         }
 
+        const comunaInclude = filters.comuna?.length
+            ? {
+                where: filters.comuna.length === 1
+                    ? { nombre_comuna: { [Op.iLike]: `%${filters.comuna[0]}%` } }
+                    : { [Op.or]: filters.comuna.map((c) => ({ nombre_comuna: { [Op.iLike]: `%${c}%` } })) },
+                required: true,
+            }
+            : {};
+
+        const profesionInclude = filters.profesion?.length
+            ? {
+                where: filters.profesion.length === 1
+                    ? { nombre_profesion: { [Op.iLike]: `%${filters.profesion[0]}%` } }
+                    : { [Op.or]: filters.profesion.map((p) => ({ nombre_profesion: { [Op.iLike]: `%${p}%` } })) },
+                required: true,
+            }
+            : {};
+
         const { count, rows: candidatos } = await Candidato.findAndCountAll({
             where: whereClause,
             include: [
@@ -128,7 +146,7 @@ export class CandidatoService {
                     model: Comuna,
                     as: 'comuna',
                     attributes: ['id_comuna', 'nombre_comuna'],
-                    ...(filters.comuna ? { where: { nombre_comuna: { [Op.iLike]: `%${filters.comuna}%` } } } : {})
+                    ...comunaInclude,
                 },
                 {
                     model: Nacionalidad,
@@ -139,7 +157,7 @@ export class CandidatoService {
                     model: Profesion,
                     as: 'profesiones',
                     through: { attributes: [] },
-                    ...(filters.profesion ? { where: { nombre_profesion: { [Op.iLike]: `%${filters.profesion}%` } } } : {})
+                    ...profesionInclude,
                 },
                 {
                     model: Postulacion,

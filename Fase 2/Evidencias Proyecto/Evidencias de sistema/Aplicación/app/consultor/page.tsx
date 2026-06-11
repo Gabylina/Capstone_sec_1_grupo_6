@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { isFilterActive } from "@/lib/multi-filter-utils"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -132,7 +134,8 @@ export default function ConsultorPage() {
     nextPage,
     prevPage,
     handlePageSizeChange,
-    refreshData
+    refreshData,
+    hasFiltersApplied,
   } = useConsultorProcesses(user?.id)
 
   // Cargar resumen de candidatos en batch para procesos visibles
@@ -189,9 +192,6 @@ export default function ConsultorPage() {
     return () => { cancelled = true }
   }, [pendingProcesses, otherProcesses])
   
-  // Detectar si hay filtros aplicados
-  const hasFiltersApplied = searchTerm !== "" || statusFilter !== "all" || serviceFilter !== "all"
-  
   // Función para aplicar la búsqueda
   const handleSearch = () => {
     setSearchTerm(localSearchTerm)
@@ -201,8 +201,8 @@ export default function ConsultorPage() {
   const handleClearFilters = () => {
     setLocalSearchTerm("")
     setSearchTerm("")
-    setStatusFilter("all")
-    setServiceFilter("all")
+    setStatusFilter([])
+    setServiceFilter([])
   }
   
   // Manejar Enter en el campo de búsqueda
@@ -460,32 +460,29 @@ export default function ConsultorPage() {
                 Buscar
               </Button>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="en_progreso">En Progreso</SelectItem>
-                <SelectItem value="cerrado">Cerrado</SelectItem>
-                <SelectItem value="congelado">Congelado</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
-                <SelectItem value="cierre_extraordinario">Cierre Extraordinario</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={serviceFilter} onValueChange={setServiceFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tipo de servicio" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los servicios</SelectItem>
-                {serviceTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              className="w-[180px]"
+              emptyLabel="Todos los estados"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "en_progreso", label: "En Progreso" },
+                { value: "cerrado", label: "Cerrado" },
+                { value: "congelado", label: "Congelado" },
+                { value: "cancelado", label: "Cancelado" },
+                { value: "cierre_extraordinario", label: "Cierre Extraordinario" },
+              ]}
+            />
+            <MultiSelectFilter
+              className="w-[200px]"
+              emptyLabel="Todos los servicios"
+              value={serviceFilter}
+              onChange={setServiceFilter}
+              options={serviceTypes.map((type) => ({
+                value: type,
+                label: type,
+              }))}
+            />
             <Button 
               onClick={handleClearFilters} 
               variant="outline"
@@ -521,7 +518,7 @@ export default function ConsultorPage() {
               <Target className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No se encontraron procesos</h3>
               <p className="text-muted-foreground max-w-md">
-                {searchTerm || statusFilter !== "all" || serviceFilter !== "all"
+                {searchTerm || isFilterActive(statusFilter) || isFilterActive(serviceFilter)
                   ? "No hay procesos que coincidan con los filtros aplicados. Intenta ajustar los filtros para ver más resultados."
                   : "No tienes procesos en curso, completados o en otros estados en este momento."}
               </p>

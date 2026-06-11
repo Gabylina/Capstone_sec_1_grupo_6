@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { matchesMultiFilter, type MultiFilterValue } from "@/lib/multi-filter-utils"
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
@@ -265,8 +267,8 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
   const [historialCandidatos, setHistorialCandidatos] = useState<any[]>([])
   const [historialSearchTerm, setHistorialSearchTerm] = useState("")
   const [candidateSearchTerm, setCandidateSearchTerm] = useState("")
-  const [candidateStatusFilter, setCandidateStatusFilter] = useState("all")
-  const [candidatePortalFilter, setCandidatePortalFilter] = useState("all")
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState<MultiFilterValue>([])
+  const [candidatePortalFilter, setCandidatePortalFilter] = useState<MultiFilterValue>([])
   const [historialLoading, setHistorialLoading] = useState(false)
   const [historialSelectingId, setHistorialSelectingId] = useState<string | null>(null)
   const [historialPagination, setHistorialPagination] = useState({
@@ -362,14 +364,10 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
     const term = candidateSearchTerm.trim().toLowerCase()
 
     return candidates.filter((candidate) => {
-      if (candidateStatusFilter !== "all") {
-        const status = candidate.presentation_status || "sin_estado"
-        if (status !== candidateStatusFilter) return false
-      }
+      const status = candidate.presentation_status || "sin_estado"
+      if (!matchesMultiFilter(status, candidateStatusFilter)) return false
 
-      if (candidatePortalFilter !== "all") {
-        if ((candidate.source_portal || "").trim() !== candidatePortalFilter) return false
-      }
+      if (!matchesMultiFilter((candidate.source_portal || "").trim(), candidatePortalFilter)) return false
 
       if (term) {
         const haystack = [candidate.name, candidate.email, candidate.phone, candidate.rut]
@@ -4011,32 +4009,29 @@ export function ProcessModule2({ process, readOnly = false, coordinadorMode = fa
                   className="pl-10"
                 />
               </div>
-              <Select value={candidateStatusFilter} onValueChange={setCandidateStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="agregado">Agregado</SelectItem>
-                  <SelectItem value="presentado">Presentado</SelectItem>
-                  <SelectItem value="no_presentado">No Presentado</SelectItem>
-                  <SelectItem value="rechazado">Rechazado</SelectItem>
-                  <SelectItem value="sin_estado">Sin Estado</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={candidatePortalFilter} onValueChange={setCandidatePortalFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Portal" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los portales</SelectItem>
-                  {candidatePortalOptions.map((portal) => (
-                    <SelectItem key={portal} value={portal}>
-                      {portal}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                className="w-[180px]"
+                value={candidateStatusFilter}
+                onChange={setCandidateStatusFilter}
+                emptyLabel="Todos los estados"
+                options={[
+                  { value: "agregado", label: "Agregado" },
+                  { value: "presentado", label: "Presentado" },
+                  { value: "no_presentado", label: "No Presentado" },
+                  { value: "rechazado", label: "Rechazado" },
+                  { value: "sin_estado", label: "Sin Estado" },
+                ]}
+              />
+              <MultiSelectFilter
+                className="w-[200px]"
+                value={candidatePortalFilter}
+                onChange={setCandidatePortalFilter}
+                emptyLabel="Todos los portales"
+                options={candidatePortalOptions.map((portal) => ({
+                  value: portal,
+                  label: portal,
+                }))}
+              />
             </div>
           )}
 

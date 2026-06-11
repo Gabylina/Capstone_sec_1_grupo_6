@@ -27,6 +27,7 @@ import { HitoHelperService } from './hitoHelperService';
 import { obtenerDuracionProceso } from '@/utils/duracionProcesos';
 import { FechasLaborales } from '@/utils/fechasLaborales';
 import FeriadosService from '@/services/feriadosService';
+import { buildSqlInClause } from '@/utils/queryMultiFilter';
 
 /**
  * Servicio para gestión de Solicitudes
@@ -75,6 +76,31 @@ export class SolicitudService {
         return map;
     }
 
+    /** Construye condición Sequelize para filtro multi-valor de tipo de servicio */
+    private static buildServiceTypeCondition(serviceTypes?: string[]): Record<string, unknown> | null {
+        if (!serviceTypes?.length) return null;
+        const shortCodes = serviceTypes.filter((st) => st.length <= 5);
+        const longNames = serviceTypes.filter((st) => st.length > 5);
+        if (longNames.length === 0) {
+            return { codigo_servicio: { [Op.in]: shortCodes } };
+        }
+        const orParts: Record<string, unknown>[] = [];
+        if (shortCodes.length) {
+            orParts.push({ codigo_servicio: { [Op.in]: shortCodes } });
+        }
+        for (const name of longNames) {
+            orParts.push({ '$tipoServicio.nombre_servicio$': name });
+        }
+        return orParts.length === 1 ? orParts[0] : { [Op.or]: orParts };
+    }
+
+    /** Parsea IDs de cliente desde strings */
+    private static parseClienteIds(clienteIds?: string[]): number[] | undefined {
+        if (!clienteIds?.length) return undefined;
+        const parsed = clienteIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n));
+        return parsed.length > 0 ? parsed : undefined;
+    }
+
     /**
      * Obtener solicitudes paginadas con filtros opcionales y orden
      */
@@ -82,13 +108,13 @@ export class SolicitudService {
         page: number = 1,
         limit: number = 10,
         search: string = "",
-        status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
-        service_type?: string,
-        consultor_id?: string,
+        status?: string[],
+        service_type?: string[],
+        consultor_id?: string[],
         exclude_status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
         sortBy: "fecha" | "cargo" | "cliente" = "fecha",
         sortOrder: "ASC" | "DESC" = "DESC",
-        cliente_id?: string
+        cliente_id?: string[]
     ) {
         const offset = (page - 1) * limit;
 
@@ -115,15 +141,17 @@ export class SolicitudService {
             'cancelado': 'Cancelado',
             'cierre_extraordinario': 'Cierre Extraordinario'
         };
-        if (status || exclude_status) {
+        if (status?.length || exclude_status) {
             const estadoPorSolicitud = await this.getEstadoActualPorSolicitud();
             let idsAIncluir: number[] = [];
 
-            if (status) {
-                const nombreEstadoExacto = estadoMapping[status];
-                if (nombreEstadoExacto) {
+            if (status?.length) {
+                const nombresEstado = status
+                    .map((s) => estadoMapping[s])
+                    .filter(Boolean);
+                if (nombresEstado.length) {
                     estadoPorSolicitud.forEach((estadoActual: string, idSolicitud: number) => {
-                        if (estadoActual === nombreEstadoExacto) idsAIncluir.push(idSolicitud);
+                        if (nombresEstado.includes(estadoActual)) idsAIncluir.push(idSolicitud);
                     });
                 }
             } else {
@@ -146,26 +174,22 @@ export class SolicitudService {
         }
 
         // Filtro por tipo de servicio (puede ser código o nombre)
-        if (service_type) {
-            // Si es un código corto (2-3 caracteres), buscar por código
-            // Si es un nombre largo, buscar por nombre del servicio en la relación
-            if (service_type.length <= 5) {
-                // Es probablemente un código (PC, PE, PAL, etc.)
-                andConditions.push({ codigo_servicio: service_type });
-            } else {
-                // Es probablemente un nombre ("Personal Calificado", etc.)
-                // Buscar por nombre en la tabla relacionada TipoServicio
-                andConditions.push({ '$tipoServicio.nombre_servicio$': service_type });
-            }
+        const serviceTypeCond = this.buildServiceTypeCondition(service_type);
+        if (serviceTypeCond) {
+            andConditions.push(serviceTypeCond);
         }
 
         // Filtro por consultor
-        if (consultor_id) {
-            andConditions.push({ rut_usuario: consultor_id });
+        if (consultor_id?.length) {
+            andConditions.push(
+                consultor_id.length === 1
+                    ? { rut_usuario: consultor_id[0] }
+                    : { rut_usuario: { [Op.in]: consultor_id } }
+            );
         }
 
         // Filtro por cliente: se aplica en el include de contacto (más fiable que where en raíz)
-        const idClienteFilter = cliente_id ? (parseInt(cliente_id, 10) || undefined) : undefined;
+        const idClienteFilters = this.parseClienteIds(cliente_id);
 
         // Construir la condición final
         const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
@@ -187,8 +211,12 @@ export class SolicitudService {
                 {
                     model: Contacto,
                     as: 'contacto',
-                    where: idClienteFilter != null ? { id_cliente: idClienteFilter } : undefined,
-                    required: idClienteFilter != null,
+                    where: idClienteFilters != null
+                        ? (idClienteFilters.length === 1
+                            ? { id_cliente: idClienteFilters[0] }
+                            : { id_cliente: { [Op.in]: idClienteFilters } })
+                        : undefined,
+                    required: idClienteFilters != null,
                     include: [
                         {
                             model: Cliente,
@@ -280,9 +308,9 @@ export class SolicitudService {
      */
     private static async getMatchingSolicitudIds(
         search: string = "",
-        service_type?: string,
-        consultor_id?: string,
-        cliente_id?: string
+        service_type?: string[],
+        consultor_id?: string[],
+        cliente_id?: string[]
     ): Promise<number[]> {
         const andConditions: any[] = [];
 
@@ -297,29 +325,34 @@ export class SolicitudService {
             });
         }
 
-        if (service_type) {
-            if (service_type.length <= 5) {
-                andConditions.push({ codigo_servicio: service_type });
-            } else {
-                andConditions.push({ '$tipoServicio.nombre_servicio$': service_type });
-            }
+        const serviceTypeCond = this.buildServiceTypeCondition(service_type);
+        if (serviceTypeCond) {
+            andConditions.push(serviceTypeCond);
         }
 
-        if (consultor_id) {
-            andConditions.push({ rut_usuario: consultor_id });
+        if (consultor_id?.length) {
+            andConditions.push(
+                consultor_id.length === 1
+                    ? { rut_usuario: consultor_id[0] }
+                    : { rut_usuario: { [Op.in]: consultor_id } }
+            );
         }
 
-        const idClienteFilter = cliente_id ? (parseInt(cliente_id, 10) || undefined) : undefined;
+        const idClienteFilters = this.parseClienteIds(cliente_id);
         const where = andConditions.length > 0 ? { [Op.and]: andConditions } : {};
 
         const includes: any[] = [];
-        if (idClienteFilter != null || search) {
+        if (idClienteFilters != null || search) {
             includes.push({
                 model: Contacto,
                 as: 'contacto',
                 attributes: [],
-                where: idClienteFilter != null ? { id_cliente: idClienteFilter } : undefined,
-                required: idClienteFilter != null,
+                where: idClienteFilters != null
+                    ? (idClienteFilters.length === 1
+                        ? { id_cliente: idClienteFilters[0] }
+                        : { id_cliente: { [Op.in]: idClienteFilters } })
+                    : undefined,
+                required: idClienteFilters != null,
                 include: search ? [{ model: Cliente, as: 'cliente', attributes: [] }] : undefined
             });
         }
@@ -336,7 +369,7 @@ export class SolicitudService {
                 attributes: []
             });
         }
-        if (service_type && service_type.length > 5) {
+        if (service_type?.some((st) => st.length > 5)) {
             includes.push({
                 model: TipoServicio,
                 as: 'tipoServicio',
@@ -360,10 +393,10 @@ export class SolicitudService {
      */
     static async getFilteredStats(
         search: string = "",
-        status?: "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario",
-        service_type?: string,
-        consultor_id?: string,
-        cliente_id?: string
+        status?: string[],
+        service_type?: string[],
+        consultor_id?: string[],
+        cliente_id?: string[]
     ): Promise<{
         total: number;
         en_progreso: number;
@@ -406,11 +439,13 @@ export class SolicitudService {
             'Cierre Extraordinario': 'cierre_extraordinario'
         };
 
-        const statusFilterName = status ? estadoMapping[status] : undefined;
+        const statusFilterNames = status?.length
+            ? status.map((s) => estadoMapping[s]).filter(Boolean)
+            : undefined;
 
         for (const id of matchingIds) {
             const estado = estadoPorSolicitud.get(id) || 'Creado';
-            if (statusFilterName && estado !== statusFilterName) continue;
+            if (statusFilterNames?.length && !statusFilterNames.includes(estado)) continue;
 
             counters.total++;
             const counterKey = estadoToCounter[estado];
@@ -3191,8 +3226,8 @@ export class SolicitudService {
      */
     static async getSummaryCards(
         year?: number,
-        serviceCode?: string,
-        consultant?: string
+        serviceCode?: string[],
+        consultant?: string[]
     ): Promise<{
         totalProcesses: number;
         closedProcesses: number;
@@ -3212,13 +3247,15 @@ export class SolicitudService {
                 conditions.push(`EXTRACT(YEAR FROM s.fecha_ingreso_solicitud) = :year`);
                 replacements.year = year;
             }
-            if (serviceCode) {
-                conditions.push(`s.codigo_servicio = :serviceCode`);
-                replacements.serviceCode = serviceCode;
+            if (serviceCode?.length) {
+                const { clause, replacements: svcRepl } = buildSqlInClause('s.codigo_servicio', serviceCode, 'svc');
+                conditions.push(clause);
+                Object.assign(replacements, svcRepl);
             }
-            if (consultant) {
-                conditions.push(`u.nombre_usuario = :consultant`);
-                replacements.consultant = consultant;
+            if (consultant?.length) {
+                const { clause, replacements: consRepl } = buildSqlInClause('u.nombre_usuario', consultant, 'cons');
+                conditions.push(clause);
+                Object.assign(replacements, consRepl);
             }
 
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

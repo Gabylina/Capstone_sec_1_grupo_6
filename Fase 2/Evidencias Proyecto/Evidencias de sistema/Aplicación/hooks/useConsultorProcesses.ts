@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { tipoServicioService } from "@/lib/api"
+import { appendMultiQueryParam, isFilterActive, type MultiFilterValue } from "@/lib/multi-filter-utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
@@ -30,8 +31,8 @@ export function useConsultorProcesses(consultorId: string | undefined) {
   const [isLoading, setIsLoading] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [serviceFilter, setServiceFilter] = useState<string>("all")
+  const [statusFilter, setStatusFilter] = useState<MultiFilterValue>([])
+  const [serviceFilter, setServiceFilter] = useState<MultiFilterValue>([])
 
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -130,12 +131,8 @@ export function useConsultorProcesses(consultorId: string | undefined) {
         sortOrder: "DESC",
       })
 
-      if (statusFilter !== "all") {
-        params.append("status", statusFilter)
-      }
-      if (serviceFilter !== "all") {
-        params.append("service_type", serviceFilter)
-      }
+      appendMultiQueryParam(params, "status", statusFilter)
+      appendMultiQueryParam(params, "service_type", serviceFilter)
 
       const res = await fetch(`${API_URL}/api/solicitudes?${params}`, {
         headers: authHeaders(),
@@ -165,8 +162,8 @@ export function useConsultorProcesses(consultorId: string | undefined) {
     if (!consultorId) return
 
     const searchChanged = prevSearchTerm.current !== searchTerm
-    const statusChanged = prevStatusFilter.current !== statusFilter
-    const serviceChanged = prevServiceFilter.current !== serviceFilter
+    const statusChanged = prevStatusFilter.current.join(",") !== statusFilter.join(",")
+    const serviceChanged = prevServiceFilter.current.join(",") !== serviceFilter.join(",")
 
     if ((searchChanged || statusChanged || serviceChanged) && currentPage !== 1) {
       setCurrentPage(1)
@@ -196,6 +193,11 @@ export function useConsultorProcesses(consultorId: string | undefined) {
     await Promise.all([fetchStats(), fetchPendingProcesses(), fetchOtherProcesses()])
   }
 
+  const hasFiltersApplied =
+    searchTerm !== "" ||
+    isFilterActive(statusFilter) ||
+    isFilterActive(serviceFilter)
+
   return {
     pendingProcesses,
     otherProcesses,
@@ -208,6 +210,7 @@ export function useConsultorProcesses(consultorId: string | undefined) {
     setSearchTerm,
     setStatusFilter,
     setServiceFilter,
+    hasFiltersApplied,
     currentPage,
     pageSize,
     totalPages,

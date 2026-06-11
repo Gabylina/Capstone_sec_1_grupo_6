@@ -42,7 +42,7 @@ export class ClientePortalService {
             undefined,
             'fecha',
             'DESC',
-            String(idCliente)
+            [String(idCliente)]
         );
 
         const solicitudes = result.solicitudes || [];
@@ -74,8 +74,8 @@ export class ClientePortalService {
     static async listSolicitudes(
         idCliente: number,
         opts: {
-            service_type?: string;
-            estado?: string;
+            service_type?: string[];
+            estado?: string[];
             fecha_desde?: string;
             fecha_hasta?: string;
             page?: number;
@@ -95,7 +95,7 @@ export class ClientePortalService {
             undefined,
             'fecha',
             'DESC',
-            String(idCliente)
+            [String(idCliente)]
         );
 
         let items = (result.solicitudes || []) as any[];
@@ -115,10 +115,10 @@ export class ClientePortalService {
                 return f && new Date(f) <= hasta;
             });
         }
-        if (opts.estado && opts.estado !== 'all') {
-            const estadoFiltro = opts.estado.trim().toLowerCase();
-            items = items.filter(
-                (s) => String(s.estado_solicitud || '').trim().toLowerCase() === estadoFiltro
+        if (opts.estado?.length) {
+            const estadosFiltro = opts.estado.map((e) => e.trim().toLowerCase());
+            items = items.filter((s) =>
+                estadosFiltro.includes(String(s.estado_solicitud || '').trim().toLowerCase())
             );
         }
 

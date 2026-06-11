@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '@/utils/response';
 import { Logger } from '@/utils/logger';
 import { parseLocalDate } from '@/utils/validators';
+import { parseMultiQuery } from '@/utils/queryMultiFilter';
 import { SolicitudService } from '@/services/solicitudService';
 import { HitoSolicitudService } from '@/services/hitoSolicitudService';
 import { notifyConsultorNewSolicitud } from '@/services/emailService';
@@ -21,10 +22,10 @@ export class SolicitudController {
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
             const search = (req.query.search as string) || "";
-            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
-            const service_type = (req.query.service_type as string) || undefined;
-            const consultor_id = (req.query.consultor_id as string) || undefined;
-            const cliente_id = (req.query.cliente_id as string) || undefined;
+            const status = parseMultiQuery(req.query.status as string | string[] | undefined);
+            const service_type = parseMultiQuery(req.query.service_type as string | string[] | undefined);
+            const consultor_id = parseMultiQuery(req.query.consultor_id as string | string[] | undefined);
+            const cliente_id = parseMultiQuery(req.query.cliente_id as string | string[] | undefined);
             const exclude_status = (req.query.exclude_status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
             const sortBy = (req.query.sortBy as "fecha" | "cargo" | "cliente") || "fecha";
             const sortOrder = (req.query.sortOrder as "ASC" | "DESC") || "DESC";
@@ -44,10 +45,10 @@ export class SolicitudController {
     static async getStats(req: Request, res: Response): Promise<Response> {
         try {
             const search = (req.query.search as string) || "";
-            const status = (req.query.status as "creado" | "en_progreso" | "cerrado" | "congelado" | "cancelado" | "cierre_extraordinario") || undefined;
-            const service_type = (req.query.service_type as string) || undefined;
-            const consultor_id = (req.query.consultor_id as string) || undefined;
-            const cliente_id = (req.query.cliente_id as string) || undefined;
+            const status = parseMultiQuery(req.query.status as string | string[] | undefined);
+            const service_type = parseMultiQuery(req.query.service_type as string | string[] | undefined);
+            const consultor_id = parseMultiQuery(req.query.consultor_id as string | string[] | undefined);
+            const cliente_id = parseMultiQuery(req.query.cliente_id as string | string[] | undefined);
 
             const stats = await SolicitudService.getFilteredStats(search, status, service_type, consultor_id, cliente_id);
             return sendSuccess(res, stats, "Estadísticas obtenidas correctamente");
@@ -687,8 +688,8 @@ export class SolicitudController {
         try {
             const yearRaw = req.query.year as string | undefined;
             const year = yearRaw && yearRaw !== 'all' ? parseInt(yearRaw) : undefined;
-            const serviceCode = req.query.serviceCode as string | undefined;
-            const consultant = req.query.consultant as string | undefined;
+            const serviceCode = parseMultiQuery(req.query.serviceCode as string | string[] | undefined);
+            const consultant = parseMultiQuery(req.query.consultant as string | string[] | undefined);
 
             const resultado = await SolicitudService.getSummaryCards(year, serviceCode, consultant);
             return sendSuccess(res, resultado, 'KPIs del dashboard obtenidos exitosamente');

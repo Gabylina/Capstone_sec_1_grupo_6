@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { type MultiFilterValue } from "@/lib/multi-filter-utils"
 import { Badge } from "@/components/ui/badge"
 import { Building2, Eye, Loader2, Filter, ChevronLeft, ChevronRight } from "lucide-react"
 import { formatDateShort, getSolicitudEstadoBadgeClass, serviceTypeLabels } from "@/lib/utils"
@@ -23,8 +25,8 @@ export default function ClientePortalPage() {
   const [resumen, setResumen] = useState<ClientePortalResumen | null>(null)
   const [items, setItems] = useState<ClientePortalSolicitudItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [serviceFilter, setServiceFilter] = useState("all")
-  const [estadoFilter, setEstadoFilter] = useState("all")
+  const [serviceFilter, setServiceFilter] = useState<MultiFilterValue>([])
+  const [estadoFilter, setEstadoFilter] = useState<MultiFilterValue>([])
   const [fechaDesde, setFechaDesde] = useState("")
   const [fechaHasta, setFechaHasta] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -181,35 +183,29 @@ export default function ClientePortalPage() {
             </div>
             <div className="space-y-1">
               <Label>Tipo de servicio</Label>
-              <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {resumen?.por_tipo?.map((t) => (
-                    <SelectItem key={t.codigo} value={t.codigo}>
-                      {t.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                className="w-[200px]"
+                emptyLabel="Todos"
+                value={serviceFilter}
+                onChange={setServiceFilter}
+                options={(resumen?.por_tipo ?? []).map((t) => ({
+                  value: t.codigo,
+                  label: t.nombre,
+                }))}
+              />
             </div>
             <div className="space-y-1">
               <Label>Estado</Label>
-              <Select value={estadoFilter} onValueChange={setEstadoFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {(resumen?.estados_disponibles ?? []).map((estado) => (
-                    <SelectItem key={estado} value={estado}>
-                      {estado}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                className="w-[200px]"
+                emptyLabel="Todos"
+                value={estadoFilter}
+                onChange={setEstadoFilter}
+                options={(resumen?.estados_disponibles ?? []).map((estado) => ({
+                  value: estado,
+                  label: estado,
+                }))}
+              />
             </div>
             <Button type="button" onClick={applyFilters} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

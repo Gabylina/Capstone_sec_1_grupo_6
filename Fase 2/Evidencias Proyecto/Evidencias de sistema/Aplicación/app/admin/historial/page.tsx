@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
+import { appendMultiQueryParam, isFilterActive, type MultiFilterValue } from "@/lib/multi-filter-utils"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, History, User, FileText, Calendar, Loader2, Eye, ChevronLeft, ChevronRight, X } from "lucide-react"
@@ -80,9 +82,9 @@ export default function HistorialPage() {
   const [error, setError] = useState<string | null>(null)
   const [localSearchTerm, setLocalSearchTerm] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
-  const [tablaFilter, setTablaFilter] = useState<string>("all")
-  const [accionFilter, setAccionFilter] = useState<string>("all")
-  const [usuarioFilter, setUsuarioFilter] = useState<string>("all")
+  const [tablaFilter, setTablaFilter] = useState<MultiFilterValue>([])
+  const [accionFilter, setAccionFilter] = useState<MultiFilterValue>([])
+  const [usuarioFilter, setUsuarioFilter] = useState<MultiFilterValue>([])
   const [usuariosMap, setUsuariosMap] = useState<Map<string, string>>(new Map())
   
   // Estados de paginación
@@ -160,21 +162,27 @@ export default function HistorialPage() {
         // Calcular offset basado en la página actual
         const offset = (currentPage - 1) * pageSize
 
-        // Preparar filtros para el backend
-        const searchParams: any = {
-          limit: pageSize,
-          offset: offset
-        }
+        const filterParams = new URLSearchParams()
+        appendMultiQueryParam(filterParams, "tabla", tablaFilter)
+        appendMultiQueryParam(filterParams, "accion", accionFilter)
+        appendMultiQueryParam(filterParams, "usuario", usuarioFilter)
 
-        if (tablaFilter !== "all") {
-          searchParams.tabla = tablaFilter
+        const searchParams: {
+          limit: number
+          offset: number
+          tabla?: string
+          accion?: string
+          usuario?: string
+        } = {
+          limit: pageSize,
+          offset,
         }
-        if (accionFilter !== "all") {
-          searchParams.accion = accionFilter
-        }
-        if (usuarioFilter !== "all") {
-          searchParams.usuario = usuarioFilter
-        }
+        const tabla = filterParams.get("tabla")
+        const accion = filterParams.get("accion")
+        const usuario = filterParams.get("usuario")
+        if (tabla) searchParams.tabla = tabla
+        if (accion) searchParams.accion = accion
+        if (usuario) searchParams.usuario = usuario
 
         // Cargar logs y estadísticas en paralelo
         const [logsResponse, statsResponse, totalResponse] = await Promise.all([
@@ -320,7 +328,11 @@ export default function HistorialPage() {
   }
 
   // Detectar si hay filtros aplicados
-  const hasFiltersApplied = searchTerm !== "" || tablaFilter !== "all" || accionFilter !== "all" || usuarioFilter !== "all"
+  const hasFiltersApplied =
+    searchTerm !== "" ||
+    isFilterActive(tablaFilter) ||
+    isFilterActive(accionFilter) ||
+    isFilterActive(usuarioFilter)
 
   // Función para aplicar la búsqueda
   const handleSearch = () => {
@@ -332,9 +344,9 @@ export default function HistorialPage() {
   const handleClearFilters = () => {
     setLocalSearchTerm("")
     setSearchTerm("")
-    setTablaFilter("all")
-    setAccionFilter("all")
-    setUsuarioFilter("all")
+    setTablaFilter([])
+    setAccionFilter([])
+    setUsuarioFilter([])
     setCurrentPage(1)
   }
 
@@ -500,79 +512,44 @@ export default function HistorialPage() {
               </div>
             </div>
             <div className="flex flex-col md:flex-row gap-4">
-              <Select value={tablaFilter} onValueChange={setTablaFilter}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <SelectValue placeholder="Tabla" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las tablas</SelectItem>
-                  {tablasUnicas.map((tabla) => (
-                    <SelectItem key={tabla} value={tabla}>
-                      {formatTabla(tabla)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={accionFilter} onValueChange={setAccionFilter}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <SelectValue placeholder="Acción" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las acciones</SelectItem>
-                  {accionesUnicas.map((accion) => (
-                    <SelectItem key={accion} value={accion}>
-                      {accion === 'INSERT' ? 'Creación' : accion === 'UPDATE' ? 'Actualización' : 'Eliminación'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={usuarioFilter} onValueChange={setUsuarioFilter}>
-                <SelectTrigger className="w-full md:w-[250px]">
-                  <SelectValue placeholder="Usuario">
-                    {usuarioFilter === "all" ? (
-                      "Todos los usuarios"
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        <span>
-                          {usuariosMap.get(usuarioFilter.replace(/[.\-]/g, '').toLowerCase()) || formatRut(usuarioFilter)}
-                        </span>
-                      </div>
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span>Todos los usuarios</span>
-                    </div>
-                  </SelectItem>
-                  {usuariosUnicos.map((rut) => {
-                    const normalizarRut = (rutStr: string): string => {
-                      return rutStr.replace(/[.\-]/g, '').toLowerCase()
-                    }
-                    const nombreUsuario = usuariosMap.get(normalizarRut(rut))
-                    return (
-                      <SelectItem key={rut} value={rut}>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 flex-shrink-0" />
-                          <div className="flex flex-col min-w-0">
-                            {nombreUsuario ? (
-                              <>
-                                <span className="font-medium truncate">{nombreUsuario}</span>
-                                <span className="text-xs text-muted-foreground font-mono">{formatRut(rut)}</span>
-                              </>
-                            ) : (
-                              <span className="font-mono">{formatRut(rut)}</span>
-                            )}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                className="w-full md:w-[200px]"
+                emptyLabel="Todas las tablas"
+                value={tablaFilter}
+                onChange={setTablaFilter}
+                options={tablasUnicas.map((tabla) => ({
+                  value: tabla,
+                  label: formatTabla(tabla),
+                }))}
+              />
+              <MultiSelectFilter
+                className="w-full md:w-[200px]"
+                emptyLabel="Todas las acciones"
+                value={accionFilter}
+                onChange={setAccionFilter}
+                options={accionesUnicas.map((accion) => ({
+                  value: accion,
+                  label:
+                    accion === "INSERT"
+                      ? "Creación"
+                      : accion === "UPDATE"
+                        ? "Actualización"
+                        : "Eliminación",
+                }))}
+              />
+              <MultiSelectFilter
+                className="w-full md:w-[250px]"
+                emptyLabel="Todos los usuarios"
+                value={usuarioFilter}
+                onChange={setUsuarioFilter}
+                options={usuariosUnicos.map((rut) => {
+                  const nombreUsuario = usuariosMap.get(rut.replace(/[.\-]/g, "").toLowerCase())
+                  return {
+                    value: rut,
+                    label: nombreUsuario ? `${nombreUsuario} (${formatRut(rut)})` : formatRut(rut),
+                  }
+                })}
+              />
             </div>
           </div>
         </CardContent>
