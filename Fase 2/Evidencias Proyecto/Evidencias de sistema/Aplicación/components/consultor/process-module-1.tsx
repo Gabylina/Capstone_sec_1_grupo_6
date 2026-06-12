@@ -36,6 +36,22 @@ interface ProcessModule1Props {
   readOnly?: boolean
 }
 
+function splitNombreCompleto(fullName: string): {
+  nombre: string
+  primer_apellido: string
+  segundo_apellido?: string
+} {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { nombre: "", primer_apellido: "" }
+  if (parts.length === 1) return { nombre: parts[0], primer_apellido: "N/A" }
+  if (parts.length === 2) return { nombre: parts[0], primer_apellido: parts[1] }
+  return {
+    nombre: parts[0],
+    primer_apellido: parts[1],
+    segundo_apellido: parts.slice(2).join(" "),
+  }
+}
+
 export function ProcessModule1({ process, descripcionCargo, readOnly = false }: ProcessModule1Props) {
   const { showToast } = useToastNotification()
   const processView = useProcessView()
@@ -476,9 +492,12 @@ export function ProcessModule1({ process, descripcionCargo, readOnly = false }: 
     try {
       setSavingCandidate(true)
 
-      // Preparar datos para actualizar el candidato
+      // Preparar datos para actualizar el candidato (backend espera nombre/apellidos, no "name")
+      const { nombre, primer_apellido, segundo_apellido } = splitNombreCompleto(personalData.name)
       const candidateData = {
-        name: personalData.name,
+        nombre,
+        primer_apellido,
+        segundo_apellido,
         email: personalData.email,
         phone: personalData.phone,
         rut: personalData.rut || undefined,
