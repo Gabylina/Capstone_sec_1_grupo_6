@@ -159,6 +159,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
 
   // Estados específicos para evaluación/test psicolaboral
   const [candidatos, setCandidatos] = useState<Array<{
+    id_candidato?: number
     rut_candidato: string,
     nombre_candidato: string,
     primer_apellido_candidato: string,
@@ -402,6 +403,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 const segundoApellido = candidato.segundo_apellido || ''
 
                 return {
+                  id_candidato: candidato.id_candidato ?? (candidato.id ? parseInt(String(candidato.id), 10) : undefined),
                   rut_candidato: candidato.rut || "",
                   nombre_candidato: nombre,
                   primer_apellido_candidato: primerApellido,
@@ -790,6 +792,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
             deadline_days: 30,
             fecha_ingreso_solicitud: formData.fecha_ingreso_solicitud || undefined,
             candidatos: candidatos.map(c => ({
+              ...(c.id_candidato ? { id_candidato: c.id_candidato } : {}),
               nombre: c.nombre_candidato,
               primer_apellido: c.primer_apellido_candidato,
               segundo_apellido: c.segundo_apellido_candidato,
@@ -934,6 +937,7 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
         } else if (isEvaluationProcess && isEditMode && candidatos.length > 0) {
           // Actualización con candidatos nuevos - subir CVs si hay
           const candidatosNuevos = response.data.candidatos_creados || 0
+          const candidatosActualizados = response.data.candidatos_actualizados || 0
           if (response.data.candidatos_postulaciones && candidatos.some(c => c.cv_file)) {
             try {
               showToast({
@@ -971,21 +975,18 @@ export function CreateProcessDialog({ open, onOpenChange, solicitudToEdit, onSuc
                 })
               }
             }
-          } else {
-            if (candidatosNuevos > 0) {
-              showToast({
-                type: "success",
-                title: "¡Éxito!",
-                description: `Solicitud actualizada exitosamente con ${candidatosNuevos} candidato(s) nuevo(s)`,
-              })
             } else {
+              const partes: string[] = []
+              if (candidatosNuevos > 0) partes.push(`${candidatosNuevos} candidato(s) nuevo(s)`)
+              if (candidatosActualizados > 0) partes.push(`${candidatosActualizados} candidato(s) actualizado(s)`)
               showToast({
                 type: "success",
                 title: "¡Éxito!",
-                description: "Solicitud actualizada exitosamente",
+                description: partes.length > 0
+                  ? `Solicitud actualizada exitosamente con ${partes.join(' y ')}`
+                  : "Solicitud actualizada exitosamente",
               })
             }
-          }
           onOpenChange(false)
           onSuccess?.() // Recargar datos
         } else {

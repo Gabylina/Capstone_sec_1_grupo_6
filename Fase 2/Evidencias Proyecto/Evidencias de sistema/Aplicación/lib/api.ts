@@ -778,6 +778,7 @@ export const solicitudService = {
     deadline_days?: number;
     fecha_ingreso_solicitud?: string;
     candidatos?: Array<{
+      id_candidato?: number;
       nombre: string;
       primer_apellido: string;
       segundo_apellido?: string;

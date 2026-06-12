@@ -278,8 +278,9 @@ export class SolicitudEvaluacionService {
             consultant_id?: string;
             deadline_days?: number;
             fecha_ingreso_solicitud?: Date;
-            // Datos de los candidatos nuevos (solo se agregan, no se modifican existentes)
+            // Candidatos: actualiza existentes (por id_candidato) y crea los nuevos
             candidatos?: Array<{
+                id_candidato?: number;
                 nombre: string;
                 primer_apellido: string;
                 segundo_apellido?: string;
@@ -437,8 +438,9 @@ export class SolicitudEvaluacionService {
                 }
             }
 
-            // 4. Crear candidatos nuevos y sus postulaciones si se proporcionan
+            // 4. Crear candidatos nuevos y actualizar existentes si se proporcionan
             const candidatosCreados: number[] = [];
+            const candidatosActualizados: number[] = [];
             const postulacionesCreadas: number[] = [];
             const candidatosPostulaciones: Array<{ email: string; postulacion_id: number }> = [];
 
@@ -450,6 +452,20 @@ export class SolicitudEvaluacionService {
 
                     let candidatoId: number | null = null;
                     let postulacionId: number | null = null;
+
+                    // Prioridad: id_candidato explícito (edición admin)
+                    if (candidato.id_candidato) {
+                        const postPorId = postulacionesExistentesDetalladas.find(
+                            (p) => p.id_candidato === candidato.id_candidato
+                        );
+                        if (postPorId) {
+                            candidatoId = candidato.id_candidato;
+                            postulacionId = postPorId.id_postulacion;
+                            Logger.info(
+                                `Candidato ${candidatoId} identificado por id_candidato (postulación ${postulacionId})`
+                            );
+                        }
+                    }
 
                     // Intentar reutilizar una postulación existente por email / RUT / nombre+apellido
                     const clavesPayload = buildKeysFromPayload(candidato);
@@ -546,15 +562,38 @@ export class SolicitudEvaluacionService {
                         }
                     }
 
+                    // Actualizar datos del candidato si ya existía en la solicitud
+                    if (candidatoId != null && !candidatosCreados.includes(candidatoId)) {
+                        await this.actualizarDatosCandidatoEnTransaccion(
+                            candidatoId,
+                            candidato,
+                            transaction
+                        );
+                        if (!candidatosActualizados.includes(candidatoId)) {
+                            candidatosActualizados.push(candidatoId);
+                        }
+                    }
+
                     // Agregar al mapeo para subir CVs después
                     candidatosPostulaciones.push({ email: candidato.email, postulacion_id: postulacionId });
                 }
             }
 
-            // 4. Commit de la transacción - TODO exitoso
+            // 5. Commit de la transacción - TODO exitoso
             await transaction.commit();
 
-            Logger.info(`✅ Transacción de actualización completada: Solicitud ${solicitudId} con ${candidatosCreados.length} candidato(s) nuevo(s)`);
+            Logger.info(
+                `✅ Transacción de actualización completada: Solicitud ${solicitudId} — ` +
+                `${candidatosCreados.length} nuevo(s), ${candidatosActualizados.length} actualizado(s)`
+            );
+
+            const partesMensaje: string[] = ['Solicitud actualizada exitosamente'];
+            if (candidatosCreados.length > 0) {
+                partesMensaje.push(`${candidatosCreados.length} candidato(s) nuevo(s)`);
+            }
+            if (candidatosActualizados.length > 0) {
+                partesMensaje.push(`${candidatosActualizados.length} candidato(s) actualizado(s)`);
+            }
 
             return {
                 success: true,
@@ -562,14 +601,14 @@ export class SolicitudEvaluacionService {
                     solicitud_id: solicitudId,
                     id_descripcion_cargo: (solicitud as any).descripcionCargo?.id_descripcioncargo || null,
                     candidatos_creados: candidatosCreados.length,
+                    candidatos_actualizados: candidatosActualizados.length,
                     postulaciones_creadas: postulacionesCreadas.length,
                     candidatos_ids: candidatosCreados,
+                    candidatos_actualizados_ids: candidatosActualizados,
                     postulaciones_ids: postulacionesCreadas,
                     candidatos_postulaciones: candidatosPostulaciones // Mapeo email -> postulacion_id
                 },
-                message: candidatosCreados.length > 0 
-                    ? `Solicitud actualizada exitosamente con ${candidatosCreados.length} candidato(s) nuevo(s)`
-                    : 'Solicitud actualizada exitosamente'
+                message: partesMensaje.join(' con ')
             };
 
         } catch (error: any) {
@@ -578,6 +617,50 @@ export class SolicitudEvaluacionService {
             Logger.error('❌ Error en transacción de actualización, rollback automático ejecutado:', error);
             throw error;
         }
+    }
+
+    /** Aplica cambios de nombre, contacto y discapacidad sobre un candidato existente */
+    private static async actualizarDatosCandidatoEnTransaccion(
+        candidatoId: number,
+        candidato: {
+            nombre: string;
+            primer_apellido: string;
+            segundo_apellido?: string;
+            email: string;
+            phone: string;
+            rut?: string;
+            has_disability_credential?: boolean;
+        },
+        transaction: Transaction
+    ): Promise<void> {
+        const Candidato = (await import('@/models/Candidato')).default;
+        const candidatoRecord = await Candidato.findByPk(candidatoId, { transaction });
+        if (!candidatoRecord) {
+            throw new Error(`Candidato ${candidatoId} no encontrado`);
+        }
+
+        const updatePayload: Record<string, unknown> = {
+            nombre_candidato: candidato.nombre.trim(),
+            primer_apellido_candidato: candidato.primer_apellido.trim(),
+            segundo_apellido_candidato:
+                candidato.segundo_apellido && candidato.segundo_apellido.trim().length >= 2
+                    ? candidato.segundo_apellido.trim()
+                    : 'N/A',
+            discapacidad: candidato.has_disability_credential ?? candidatoRecord.discapacidad,
+        };
+
+        if (candidato.email?.trim()) {
+            updatePayload.email_candidato = candidato.email.trim();
+        }
+        if (candidato.phone?.trim()) {
+            updatePayload.telefono_candidato = candidato.phone.trim();
+        }
+        if (candidato.rut !== undefined) {
+            updatePayload.rut_candidato = candidato.rut?.trim() || null;
+        }
+
+        await candidatoRecord.update(updatePayload, { transaction });
+        Logger.info(`Datos del candidato ${candidatoId} actualizados en solicitud de evaluación`);
     }
 }
 
