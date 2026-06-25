@@ -224,6 +224,7 @@ export default function ClientePortalPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Proceso</TableHead>
+                  <TableHead className="min-w-[100px] max-w-[140px]">Candidato</TableHead>
                   <TableHead>Tipo de servicio</TableHead>
                   <TableHead>Fecha solicitud</TableHead>
                   <TableHead>Consultor a cargo</TableHead>
@@ -234,7 +235,19 @@ export default function ClientePortalPage() {
               <TableBody>
                 {items.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.proceso}</TableCell>
+                    <TableCell className="font-medium max-w-[250px]">
+                      <span
+                        className="block truncate"
+                        title={row.proceso || undefined}
+                      >
+                        {row.proceso && row.proceso.length > 40
+                          ? `${row.proceso.substring(0, 40)}...`
+                          : row.proceso || "—"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="max-w-[140px]" title={row.candidato || undefined}>
+                      <span className="block truncate">{row.candidato || "—"}</span>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
                         {row.tipo_servicio

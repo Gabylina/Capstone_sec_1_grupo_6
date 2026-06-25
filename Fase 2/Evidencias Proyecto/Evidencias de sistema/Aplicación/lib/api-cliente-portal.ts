@@ -67,6 +67,8 @@ export interface ClientePortalSolicitudItem {
 
   etapa?: string
 
+  candidato?: string | null
+
 }
 
 

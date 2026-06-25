@@ -39,7 +39,7 @@ export function useConsultorProcesses(consultorId: string | undefined) {
   const [totalPages, setTotalPages] = useState(0)
   const [totalProcesses, setTotalProcesses] = useState(0)
 
-  const [allServiceTypes, setAllServiceTypes] = useState<string[]>([])
+  const [allServiceTypes, setAllServiceTypes] = useState<Array<{ codigo: string; nombre: string }>>([])
 
   const [stats, setStats] = useState({
     total: 0,
@@ -89,7 +89,14 @@ export function useConsultorProcesses(consultorId: string | undefined) {
     try {
       const response = await tipoServicioService.getAll()
       if (response.success && response.data) {
-        setAllServiceTypes(response.data.map((s) => s.nombre || s.codigo).filter(Boolean))
+        setAllServiceTypes(
+          response.data
+            .map((s) => ({
+              codigo: s.codigo || s.nombre || "",
+              nombre: s.nombre || s.codigo || "",
+            }))
+            .filter((s) => s.codigo),
+        )
       }
     } catch (error) {
       console.error("Error fetching service types:", error)

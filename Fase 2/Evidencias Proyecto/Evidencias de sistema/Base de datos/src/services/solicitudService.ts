@@ -77,12 +77,31 @@ export class SolicitudService {
     }
 
     /** Construye condición Sequelize para filtro multi-valor de tipo de servicio */
+    private static expandServiceTypeCodes(codes: string[]): string[] {
+        const expanded = new Set<string>();
+        for (const code of codes) {
+            const normalized = code.trim().toUpperCase();
+            if (!normalized) continue;
+            expanded.add(normalized);
+            if (normalized === 'HH') expanded.add('HS');
+            if (normalized === 'HS') expanded.add('HH');
+        }
+        return [...expanded];
+    }
+
+    /** Expone expansión HH/HS para consultas SQL de reportes */
+    static expandServiceTypeCodesForQuery(codes: string[]): string[] {
+        return this.expandServiceTypeCodes(codes);
+    }
+
     private static buildServiceTypeCondition(serviceTypes?: string[]): Record<string, unknown> | null {
         if (!serviceTypes?.length) return null;
-        const shortCodes = serviceTypes.filter((st) => st.length <= 5);
+        const shortCodes = this.expandServiceTypeCodes(
+            serviceTypes.filter((st) => st.length <= 5)
+        );
         const longNames = serviceTypes.filter((st) => st.length > 5);
         if (longNames.length === 0) {
-            return { codigo_servicio: { [Op.in]: shortCodes } };
+            return shortCodes.length > 0 ? { codigo_servicio: { [Op.in]: shortCodes } } : null;
         }
         const orParts: Record<string, unknown>[] = [];
         if (shortCodes.length) {
@@ -2685,8 +2704,8 @@ export class SolicitudService {
                     }
                 }
                 
-                // Agregar a procesos activos actuales si está en curso
-                if (!isClosed && ['Iniciado', 'En Progreso', 'En Revisión'].includes(statusInfo.label)) {
+                // Agregar a procesos activos actuales (no cerrados ni cancelados: incluye Creado, En Progreso, Congelado, etc.)
+                if (!isClosed) {
                     const startDateValue = parseDbDate(row.fecha_ingreso_solicitud);
                     const deadlineValue = parseDbDate(row.plazo_maximo_solicitud);
                     const closedAtValue = parseDbDate(row.fecha_cierre);
@@ -3248,7 +3267,8 @@ export class SolicitudService {
                 replacements.year = year;
             }
             if (serviceCode?.length) {
-                const { clause, replacements: svcRepl } = buildSqlInClause('s.codigo_servicio', serviceCode, 'svc');
+                const expandedCodes = SolicitudService.expandServiceTypeCodesForQuery(serviceCode);
+                const { clause, replacements: svcRepl } = buildSqlInClause('s.codigo_servicio', expandedCodes, 'svc');
                 conditions.push(clause);
                 Object.assign(replacements, svcRepl);
             }

@@ -5,23 +5,31 @@ export function isFilterActive(value: MultiFilterValue): boolean {
   return value.length > 0
 }
 
+function normalizeFilterToken(value: string): string {
+  return value.trim().toLocaleLowerCase("es-CL")
+}
+
 export function matchesMultiFilter(
   fieldValue: string | null | undefined,
   selected: MultiFilterValue,
 ): boolean {
   if (selected.length === 0) return true
-  return selected.includes((fieldValue ?? "").trim())
+  const normalizedField = normalizeFilterToken(fieldValue ?? "")
+  if (!normalizedField) return false
+  return selected.some((item) => normalizeFilterToken(item) === normalizedField)
 }
 
-/** Filtro de tipo proceso (HH incluye HS) */
+/** Filtro de tipo proceso (HH incluye HS; comparación sin distinguir mayúsculas) */
 export function matchesProcessTypeFilter(
   code: string,
   selected: MultiFilterValue,
 ): boolean {
   if (selected.length === 0) return true
+  const normalizedCode = code.trim().toUpperCase()
   return selected.some((f) => {
-    if (f === "HH") return code === "HH" || code === "HS"
-    return code === f
+    const filterCode = f.trim().toUpperCase()
+    if (filterCode === "HH") return normalizedCode === "HH" || normalizedCode === "HS"
+    return normalizedCode === filterCode
   })
 }
 

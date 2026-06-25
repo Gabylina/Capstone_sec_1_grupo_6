@@ -1,6 +1,7 @@
 import { Op } from 'sequelize';
 import { Solicitud, Contacto, Cliente, Usuario } from '@/models';
 import { SolicitudService } from './solicitudService';
+import { PostulacionService } from './postulacionService';
 import { rutForClientePortal } from '@/utils/rutCliente';
 import { generarPasswordPortalSegura, portalUsuarioFromNombreEmpresa } from '@/utils/portalUsuario';
 
@@ -126,17 +127,32 @@ export class ClientePortalService {
         const offset = (page - 1) * limit;
         const paginated = items.slice(offset, offset + limit);
 
+        const paginatedIds = paginated
+            .map((s) => Number(s.id || s.id_solicitud))
+            .filter((id) => Number.isFinite(id) && id > 0);
+        const resumenCandidatos = await PostulacionService.getResumenBatch(paginatedIds);
+
         return {
-            items: paginated.map((s) => ({
-                id: s.id || s.id_solicitud,
-                proceso: s.cargo || s.position_title || 'Sin cargo',
-                fecha_solicitud: s.fecha_creacion || s.fecha_ingreso_solicitud,
-                consultor: s.consultor || 'Sin asignar',
-                tipo_servicio: s.tipo_servicio,
-                tipo_servicio_nombre: s.tipo_servicio_nombre,
-                estado_solicitud: s.estado_solicitud,
-                etapa: s.etapa,
-            })),
+            items: paginated.map((s) => {
+                const id = Number(s.id || s.id_solicitud);
+                const resumen = resumenCandidatos[id];
+                const candidato =
+                    resumen && (resumen.nombre || resumen.apellido)
+                        ? `${resumen.nombre} ${resumen.apellido}`.trim()
+                        : null;
+
+                return {
+                    id,
+                    proceso: s.cargo || s.position_title || 'Sin cargo',
+                    fecha_solicitud: s.fecha_creacion || s.fecha_ingreso_solicitud,
+                    consultor: s.consultor || 'Sin asignar',
+                    tipo_servicio: s.tipo_servicio,
+                    tipo_servicio_nombre: s.tipo_servicio_nombre,
+                    estado_solicitud: s.estado_solicitud,
+                    etapa: s.etapa,
+                    candidato,
+                };
+            }),
             pagination: {
                 page,
                 limit,

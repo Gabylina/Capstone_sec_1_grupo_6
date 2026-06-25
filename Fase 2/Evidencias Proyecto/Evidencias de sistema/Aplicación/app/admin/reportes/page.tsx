@@ -972,14 +972,14 @@ export default function ReportesPage() {
   // Datos de urgencia filtrados
   const filteredDueSoon = useMemo(() => {
     let list = urgencySummary.dueSoonProcessesDetails ?? []
-    list = list.filter((p) => matchesMultiFilter(p.serviceCode, urgencyServiceFilter))
+    list = list.filter((p) => matchesProcessTypeFilter(p.serviceCode || "", urgencyServiceFilter))
     list = list.filter((p) => matchesMultiFilter(p.consultant, urgencyConsultantFilter))
     return list
   }, [urgencySummary, urgencyServiceFilter, urgencyConsultantFilter])
 
   const filteredOverdue = useMemo(() => {
     let list = urgencySummary.overdueProcessesDetails ?? []
-    list = list.filter((p) => matchesMultiFilter(p.serviceCode, urgencyServiceFilter))
+    list = list.filter((p) => matchesProcessTypeFilter(p.serviceCode || "", urgencyServiceFilter))
     list = list.filter((p) => matchesMultiFilter(p.consultant, urgencyConsultantFilter))
     return list
   }, [urgencySummary, urgencyServiceFilter, urgencyConsultantFilter])
@@ -998,11 +998,24 @@ export default function ReportesPage() {
   ], [filteredDueSoon, filteredOverdue, urgencyFiltersActive, urgencySummary])
 
   const tableConsultantOptions = useMemo(() => {
-    const all = processOverview?.currentActiveProcesses || []
     const set = new Set<string>()
-    all.forEach((p) => { if (p.consultant && p.consultant !== "Sin asignar") set.add(p.consultant) })
-    return Array.from(set).sort()
-  }, [processOverview?.currentActiveProcesses])
+    const add = (name?: string | null) => {
+      const trimmed = name?.trim()
+      if (trimmed && trimmed !== "Sin asignar") set.add(trimmed)
+    }
+    ;(processOverview?.currentActiveProcesses || []).forEach((p) => add(p.consultant))
+    Object.keys(activeProcesses).forEach((name) => add(name))
+    stateConsultantOptions.forEach((name) => add(name))
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"))
+  }, [processOverview?.currentActiveProcesses, activeProcesses, stateConsultantOptions])
+
+  const effectiveTableConsultantFilter = useMemo(
+    () => (isFilterActive(tableConsultantFilter) ? tableConsultantFilter : selectedStateConsultant),
+    [tableConsultantFilter, selectedStateConsultant],
+  )
+
+  const tableFiltersActive =
+    isFilterActive(processTypeFilter) || isFilterActive(effectiveTableConsultantFilter)
 
   const processesInProgress = useMemo(() => {
     let filtered = processOverview?.currentActiveProcesses || []
@@ -1011,11 +1024,11 @@ export default function ReportesPage() {
       matchesProcessTypeFilter(process.serviceCode || "", processTypeFilter),
     )
     filtered = filtered.filter((p) =>
-      matchesMultiFilter(p.consultant, tableConsultantFilter),
+      matchesMultiFilter(p.consultant, effectiveTableConsultantFilter),
     )
 
     return filtered
-  }, [processOverview?.currentActiveProcesses, processTypeFilter, tableConsultantFilter])
+  }, [processOverview?.currentActiveProcesses, processTypeFilter, effectiveTableConsultantFilter])
 
   const ITEMS_PER_PAGE = 10
   const totalProcessesPages = Math.ceil(processesInProgress.length / ITEMS_PER_PAGE)
@@ -2046,10 +2059,32 @@ export default function ReportesPage() {
                     className="w-[180px]"
                     value={tableConsultantFilter}
                     onChange={setTableConsultantFilter}
-                    emptyLabel="Todos"
+                    emptyLabel={
+                      isFilterActive(selectedStateConsultant)
+                        ? getMultiFilterLabel(
+                            selectedStateConsultant,
+                            tableConsultantOptions.map((c) => ({ value: c, label: c })),
+                            "Todos",
+                          )
+                        : "Todos"
+                    }
                     options={tableConsultantOptions.map((c) => ({ value: c, label: c }))}
                   />
                 </div>
+                {tableFiltersActive && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setProcessTypeFilter([])
+                      setTableConsultantFilter([])
+                      setSelectedStateConsultant([])
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                )}
               </div>
               
               {processesInProgress.length === 0 ? (
@@ -2057,7 +2092,9 @@ export default function ReportesPage() {
                   <Target className="mx-auto h-12 w-12 text-muted-foreground/50" />
                   <h3 className="mt-4 text-lg font-semibold">No hay procesos en curso</h3>
                   <p className="text-muted-foreground">
-                    No hay procesos que cumplan el filtro de tipo (los datos son globales, sin período).
+                    {tableFiltersActive
+                      ? "No hay procesos que coincidan con los filtros de tipo o consultor aplicados."
+                      : "No hay procesos activos en este momento (los datos son globales, sin período)."}
                   </p>
                 </div>
               ) : (

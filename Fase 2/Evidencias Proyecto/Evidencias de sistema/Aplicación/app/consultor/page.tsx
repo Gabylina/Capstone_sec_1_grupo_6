@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter"
 import { isFilterActive } from "@/lib/multi-filter-utils"
+import { serviceTypeLabels } from "@/lib/utils"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Play, Search, Eye, Calendar, Building2, Target, Clock, AlertTriangle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
@@ -479,8 +480,8 @@ export default function ConsultorPage() {
               value={serviceFilter}
               onChange={setServiceFilter}
               options={serviceTypes.map((type) => ({
-                value: type,
-                label: type,
+                value: type.codigo,
+                label: serviceTypeLabels[type.codigo] || type.nombre || type.codigo,
               }))}
             />
             <Button 
