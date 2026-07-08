@@ -1011,6 +1011,15 @@ export default function ClientesPage() {
                               )}
                               Reporte PDF
                             </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-7 w-[8.25rem] shrink-0 px-2 text-xs justify-center"
+                              onClick={() => handleDeleteClient(client.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1 shrink-0" />
+                              Eliminar
+                            </Button>
                           </div>
                     </TableCell>
                   </TableRow>
@@ -1352,7 +1361,7 @@ export default function ClientesPage() {
         onOpenChange={setIsDeleteConfirmOpen}
         type="confirm"
         title="¿Eliminar cliente?"
-        description="Esta acción no se puede deshacer. Se eliminará el cliente y todos sus contactos asociados permanentemente del sistema."
+        description="El cliente se marcará como inactivo y dejará de aparecer en el sistema. Sus datos y contactos no se borran."
         confirmText="Eliminar"
         cancelText="Cancelar"
         onConfirm={confirmDeleteClient}

@@ -58,7 +58,7 @@ export class ClienteService {
     ) {
         const offset = (page - 1) * limit;
 
-        const andConditions: any[] = [];
+        const andConditions: any[] = [{ activo_cliente: true }];
 
         // Filtro de búsqueda por texto
         if (search) {
@@ -131,9 +131,14 @@ export class ClienteService {
 
             // Actualizar la condición where para incluir búsqueda en nombre del cliente O en contactos
             whereClause = {
-                [Op.or]: [
-                    where,
-                    { id_cliente: { [Op.in]: todosLosIds } }
+                [Op.and]: [
+                    { activo_cliente: true },
+                    {
+                        [Op.or]: [
+                            where,
+                            { id_cliente: { [Op.in]: todosLosIds } }
+                        ]
+                    }
                 ]
             } as any;
         }
@@ -212,6 +217,7 @@ export class ClienteService {
      */
     static async getAllClientes() {
         const clientes = await Cliente.findAll({
+            where: { activo_cliente: true },
             include: [
                 {
                     model: Contacto,
@@ -541,7 +547,7 @@ export class ClienteService {
     }
 
     /**
-     * Eliminar cliente
+     * Eliminar cliente (soft delete: se marca como inactivo, no se borra de la BD)
      */
     static async deleteCliente(id: number, usuarioRut?: string) {
         const transaction: Transaction = await sequelize.transaction();
@@ -551,44 +557,14 @@ export class ClienteService {
             if (usuarioRut) {
                 await setDatabaseUser(usuarioRut, transaction);
             }
-            
-            const cliente = await Cliente.findByPk(id, {
-                include: [
-                    {
-                        model: Contacto,
-                        as: 'contactos'
-                    }
-                ],
-                transaction
-            });
+
+            const cliente = await Cliente.findByPk(id, { transaction });
 
             if (!cliente) {
                 throw new Error('Cliente no encontrado');
             }
 
-            // Verificar si tiene solicitudes asociadas
-            const { Solicitud } = require('@/models');
-            const contactos = cliente.get('contactos') as any[];
-            const idsContactos = contactos.map(c => c.id_contacto);
-
-            const solicitudesActivas = await Solicitud.count({
-                where: {
-                    id_contacto: idsContactos
-                },
-                transaction
-            });
-
-            if (solicitudesActivas > 0) {
-                throw new Error('No se puede eliminar el cliente porque tiene solicitudes asociadas');
-            }
-
-            // Eliminar contactos
-            for (const contacto of contactos) {
-                await contacto.destroy({ transaction });
-            }
-
-            // Eliminar cliente
-            await cliente.destroy({ transaction });
+            await cliente.update({ activo_cliente: false }, { transaction });
 
             await transaction.commit();
 
@@ -603,7 +579,7 @@ export class ClienteService {
      * Obtener estadísticas de clientes
      */
     static async getStats() {
-        const totalClientes = await Cliente.count();
+        const totalClientes = await Cliente.count({ where: { activo_cliente: true } });
         const totalContactos = await Contacto.count();
 
         const { Solicitud } = require('@/models');

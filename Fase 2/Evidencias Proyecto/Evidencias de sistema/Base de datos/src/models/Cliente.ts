@@ -8,9 +8,10 @@ import sequelize from '@/config/database';
 interface ClienteAttributes {
   id_cliente: number;
   nombre_cliente: string;
+  activo_cliente: boolean;
 }
 
-interface ClienteCreationAttributes extends Optional<ClienteAttributes, 'id_cliente'> {}
+interface ClienteCreationAttributes extends Optional<ClienteAttributes, 'id_cliente' | 'activo_cliente'> {}
 
 // ===========================================
 // MODELO SEQUELIZE
@@ -19,6 +20,7 @@ interface ClienteCreationAttributes extends Optional<ClienteAttributes, 'id_clie
 class Cliente extends Model<ClienteAttributes, ClienteCreationAttributes> implements ClienteAttributes {
   public id_cliente!: number;
   public nombre_cliente!: string;
+  public activo_cliente!: boolean;
 
   // ===========================================
   // MÉTODOS PERSONALIZADOS
@@ -55,6 +57,11 @@ Cliente.init({
         msg: 'El nombre debe tener entre 2 y 100 caracteres'
       }
     }
+  },
+  activo_cliente: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
   }
 }, {
   sequelize,

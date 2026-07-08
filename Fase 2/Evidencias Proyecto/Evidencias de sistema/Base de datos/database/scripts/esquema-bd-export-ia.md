@@ -92,6 +92,7 @@ Empresa contratante del servicio de reclutamiento. En esta copia los nombres est
 |-------|------|:--:|:----:|-------------|
 | `id_cliente` | INTEGER | ✓ | NO | Identificador interno de la empresa |
 | `nombre_cliente` | VARCHAR(100) | | NO | Razón social o nombre comercial *(anonimizado: `Cliente_anon_{id}`)* |
+| `activo_cliente` | BOOLEAN | | NO | Soft delete: `false` cuando el cliente fue "eliminado" desde el front (se oculta de los listados pero no se borra) |
 
 ### `contacto`
 

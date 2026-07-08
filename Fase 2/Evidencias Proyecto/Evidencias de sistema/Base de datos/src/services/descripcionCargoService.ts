@@ -411,6 +411,7 @@ export class DescripcionCargoService {
 
         // Obtener clientes con sus contactos
         const clientes = await Cliente.findAll({
+            where: { activo_cliente: true },
             include: [
                 {
                     model: Contacto,

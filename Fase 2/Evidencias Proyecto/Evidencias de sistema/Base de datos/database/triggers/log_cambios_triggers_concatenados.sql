@@ -360,16 +360,21 @@ BEGIN
         
     ELSIF TG_OP = 'UPDATE' THEN
         IF OLD.nombre_cliente IS DISTINCT FROM NEW.nombre_cliente THEN
-            v_cambios := array_append(v_cambios, 
+            v_cambios := array_append(v_cambios,
                 'Nombre: ' || OLD.nombre_cliente || '→' || NEW.nombre_cliente);
         END IF;
-        
+
+        IF OLD.activo_cliente IS DISTINCT FROM NEW.activo_cliente THEN
+            v_cambios := array_append(v_cambios,
+                CASE WHEN NEW.activo_cliente THEN 'Cliente reactivado' ELSE 'Cliente eliminado (desactivado)' END);
+        END IF;
+
         IF array_length(v_cambios, 1) > 0 THEN
             v_detalle := array_to_string(v_cambios, ' | ');
         ELSE
             v_detalle := 'Cliente actualizado';
         END IF;
-        
+
     ELSIF TG_OP = 'DELETE' THEN
         v_detalle := 'Cliente eliminado: ' || OLD.nombre_cliente;
     END IF;

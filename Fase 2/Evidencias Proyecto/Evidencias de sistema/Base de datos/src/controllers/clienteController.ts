@@ -155,26 +155,22 @@ export class ClienteController {
 
     /**
      * DELETE /api/clientes/:id
-     * Eliminar cliente (solo si no tiene solicitudes activas)
+     * Eliminar cliente (soft delete: se marca como inactivo)
      */
     static async delete(req: Request, res: Response): Promise<Response> {
         try {
             const { id } = req.params;
             await ClienteService.deleteCliente(parseInt(id), req.user?.id);
-            
+
             Logger.info(`Cliente eliminado: ${id}`);
             return sendSuccess(res, null, 'Cliente eliminado exitosamente');
         } catch (error: any) {
             Logger.error('Error al eliminar cliente:', error);
-            
+
             if (error.message === 'Cliente no encontrado') {
                 return sendError(res, error.message, 404);
             }
-            
-            if (error.message.includes('solicitudes asociadas')) {
-                return sendError(res, error.message, 400);
-            }
-            
+
             return sendError(res, 'Error al eliminar cliente', 500);
         }
     }
