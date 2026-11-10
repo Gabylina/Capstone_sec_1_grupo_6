@@ -103,6 +103,11 @@ const processApiErrorMessage = (errorMessage: string | undefined | null, default
   return errorMessage.charAt(0).toUpperCase() + errorMessage.slice(1)
 }
 
+// URL pública del generador de informes con IA (llmconsulting). Se lee aquí, a nivel de módulo,
+// porque dentro del componente `process` es la prop del proceso y no el global de Node.
+// Next.js la incrusta en build; vacía = no se muestra el acceso en el diálogo del informe.
+const LLM_REPORTS_URL = (process.env.NEXT_PUBLIC_LLM_REPORTS_URL || "").replace(/\/+$/, "")
+
 interface WorkReference {
   id: string
   candidate_id: string
@@ -3993,6 +3998,35 @@ function ProcessModule4Component({ process, readOnly = false, clientViewOnly = f
                   </p>
                 )}
                       </div>
+
+              {/* Redacción asistida por IA: enlace al generador de informes (llmconsulting),
+                  que corre como servicio aparte. Solo viajan IDs opacos en la URL, nunca datos
+                  personales del candidato. Sin NEXT_PUBLIC_LLM_REPORTS_URL el bloque no se muestra. */}
+              {canEdit && selectedCandidate && LLM_REPORTS_URL && (() => {
+                const llmParams = new URLSearchParams({
+                  external_postulation_id: String(selectedCandidate.id_postulacion),
+                  external_id: String(selectedCandidate.id),
+                })
+                return (
+                  <div className="space-y-2 rounded-md border border-dashed p-4">
+                    <p className="text-sm font-medium">Redacción asistida por IA</p>
+                    <p className="text-xs text-muted-foreground">
+                      Abre el generador de informes psicolaborales en una pestaña nueva. Revisa y aprueba el
+                      informe allí; luego registra aquí el estado y la conclusión.
+                    </p>
+                    <Button type="button" variant="outline" asChild>
+                      <a
+                        href={`${LLM_REPORTS_URL}/evaluations/new?${llmParams.toString()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        Generar informe con IA
+                      </a>
+                    </Button>
+                  </div>
+                )
+              })()}
 
             </div>
           </div>

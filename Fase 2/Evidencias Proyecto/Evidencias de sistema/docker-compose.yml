@@ -80,6 +80,8 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://web.llconsulting.cl/api
+        # Generador de informes con IA (llmconsulting). Vacío = sin botón en el Módulo 4.
+        NEXT_PUBLIC_LLM_REPORTS_URL: ${NEXT_PUBLIC_LLM_REPORTS_URL:-}
     container_name: llconsulting_frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://web.llconsulting.cl/api}

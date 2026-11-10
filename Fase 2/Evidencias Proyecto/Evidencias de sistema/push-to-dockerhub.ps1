@@ -1,10 +1,23 @@
 # Script para construir y subir imágenes Docker a Docker Hub
-# Uso: .\push-to-dockerhub.ps1 [--rebuild]
-#   --rebuild: Reconstruye las imágenes antes de subirlas
+# Uso: .\push-to-dockerhub.ps1 [-rebuild] [-NoCache] [-LlmPath <carpeta>]
+#   -rebuild:  Reconstruye las imágenes (docker-compose build) antes de subirlas.
+#              También se acepta --rebuild.
+#   -NoCache:  Construye sin caché (equivale a: docker-compose build --no-cache).
+#              Con -rebuild aplica a docker-compose; con -LlmPath, al generador de IA.
+#   -LlmPath:  Carpeta del generador de informes con IA (llmconsulting). Si se indica,
+#              también construye y sube sus imágenes (tags llm-backend-<tag> y
+#              llm-frontend-<tag>) al MISMO repositorio de Docker Hub.
 
 param(
-    [switch]$rebuild = $false
+    [switch]$rebuild = $false,
+    [switch]$NoCache = $false,
+    [string]$LlmPath = ""
 )
+
+# Antes `--rebuild` (doble guion) no hacía nada: PowerShell lo deja en $args como texto
+# y nunca activaba el switch. Se reconoce explícitamente.
+if ($args -contains '--rebuild') { $rebuild = $true }
+if ($args -contains '--no-cache') { $NoCache = $true }
 
 Write-Host "=== Construir y Subir Imágenes Docker a Docker Hub ===" -ForegroundColor Cyan
 Write-Host ""
@@ -24,7 +37,11 @@ if ($rebuild) {
     Write-Host "=== Reconstruyendo imágenes con docker-compose ===" -ForegroundColor Cyan
     Write-Host ""
     Push-Location $scriptDir
-    docker-compose build
+    if ($NoCache) {
+        docker-compose build --no-cache
+    } else {
+        docker-compose build
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: No se pudieron construir las imágenes" -ForegroundColor Red
         Pop-Location
@@ -360,6 +377,51 @@ if ($postgresImageLocal) {
     Write-Host ""
 }
 
+# Generador de informes con IA (llmconsulting): opcional, sólo si se pasa -LlmPath.
+# Va al MISMO repositorio de Docker Hub (la cuenta gratuita sólo da un repositorio privado)
+# con tags llm-backend-<tag> y llm-frontend-<tag>.
+$llmPushed = @()
+if (-not [string]::IsNullOrWhiteSpace($LlmPath)) {
+    Write-Host "=== Procesando generador de informes con IA ===" -ForegroundColor Cyan
+    $llmBackendDir = Join-Path $LlmPath "backend"
+    $llmFrontendDir = Join-Path $LlmPath "frontend"
+    if (-not ((Test-Path (Join-Path $llmBackendDir "Dockerfile")) -and (Test-Path (Join-Path $llmFrontendDir "Dockerfile")))) {
+        Write-Host "Error: no se encontraron backend\Dockerfile y frontend\Dockerfile en $LlmPath" -ForegroundColor Red
+        exit 1
+    }
+
+    $llmBackendRef = "$backendImageHub`:llm-backend-$tag"
+    $llmFrontendRef = "$frontendImageHub`:llm-frontend-$tag"
+    $llmBuildArgs = @()
+    if ($NoCache) { $llmBuildArgs += "--no-cache" }
+
+    Write-Host "Construyendo $llmBackendRef ..." -ForegroundColor Yellow
+    docker build @llmBuildArgs -t $llmBackendRef $llmBackendDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: no se pudo construir el backend del generador" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "Construyendo $llmFrontendRef ..." -ForegroundColor Yellow
+    # Ruta relativa a propósito: la imagen no lleva ningún dominio incrustado.
+    docker build @llmBuildArgs --build-arg VITE_API_BASE_URL=/api -t $llmFrontendRef $llmFrontendDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Error: no se pudo construir el frontend del generador" -ForegroundColor Red
+        exit 1
+    }
+
+    foreach ($ref in @($llmBackendRef, $llmFrontendRef)) {
+        Write-Host "Subiendo $ref ..." -ForegroundColor Yellow
+        docker push $ref
+        if ($LASTEXITCODE -eq 0) {
+            $llmPushed += $ref
+        } else {
+            Write-Host "Error al subir $ref" -ForegroundColor Red
+        }
+    }
+    Write-Host ""
+}
+
 Write-Host "=== Proceso Completado ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Imágenes disponibles en Docker Hub (mismo repositorio):" -ForegroundColor Green
@@ -370,7 +432,7 @@ if ($postgresImageLocal) {
     Write-Host "  - PostgreSQL: $postgresImageHub`:$postgresTag"
 }
 Write-Host ""
-Write-Host "Para usar estas imágenes, actualiza tu docker-compose.yml con:" -ForegroundColor Yellow
+Write-Host "Para usar estas imágenes, el docker-compose.yml del servidor debe referenciarlas así:" -ForegroundColor Yellow
 Write-Host "  backend:"
 Write-Host "    image: $backendImageHub`:$backendTag"
 Write-Host ""
@@ -381,6 +443,12 @@ if ($postgresImageLocal) {
     Write-Host "  postgres:"
     Write-Host "    image: $postgresImageHub`:$postgresTag"
 }
+if ($llmPushed.Count -gt 0) {
+    Write-Host ""
+    Write-Host "Generador de informes con IA (se despliega con su propio docker-compose.prod.yml):" -ForegroundColor Yellow
+    foreach ($ref in $llmPushed) { Write-Host "  - $ref" }
+    Write-Host "  En el .env del servidor: LLM_IMAGE_REPO=$backendImageHub y LLM_VERSION=$tag"
+}
 Write-Host ""
 if ($postgresImageLocal) {
     Write-Host "Nota: Todas las imágenes están en el mismo repositorio '$repositoryName' con tags diferentes." -ForegroundColor Gray
@@ -389,12 +457,30 @@ if ($postgresImageLocal) {
     Write-Host "      PostgreSQL usa la imagen oficial postgres:16-alpine." -ForegroundColor Gray
 }
 Write-Host ""
-Write-Host "=== Flujo de trabajo recomendado ===" -ForegroundColor Cyan
-Write-Host "1. Realiza cambios en tu código" -ForegroundColor White
-Write-Host "2. Ejecuta: .\push-to-dockerhub.ps1 --rebuild" -ForegroundColor Yellow
-Write-Host "   (Esto reconstruirá las imágenes y las subirá a Docker Hub)" -ForegroundColor Gray
+Write-Host "=== Flujo de trabajo ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "O si las imágenes ya están construidas:" -ForegroundColor White
-Write-Host "   .\push-to-dockerhub.ps1" -ForegroundColor Yellow
+Write-Host "LOCAL (desde 'Fase 2/Evidencias Proyecto/Evidencias de sistema'):" -ForegroundColor White
+Write-Host "  docker-compose build --no-cache" -ForegroundColor Yellow
+Write-Host "  .\push-to-dockerhub.ps1" -ForegroundColor Yellow
+Write-Host '  (con el generador de IA:  .\push-to-dockerhub.ps1 -LlmPath "C:\ruta\a\llmconsulting" -NoCache)' -ForegroundColor Gray
+Write-Host "  (con versión:  responde el tag, p. ej. 1.0.1, cuando el script lo pida)" -ForegroundColor Gray
 Write-Host ""
-
+Write-Host "SERVIDOR:" -ForegroundColor White
+Write-Host "  cd /opt/llconsulting" -ForegroundColor Yellow
+Write-Host "  docker-compose pull" -ForegroundColor Yellow
+Write-Host "  docker-compose up -d" -ForegroundColor Yellow
+Write-Host "  docker image prune -f" -ForegroundColor Yellow
+Write-Host "  docker-compose ps" -ForegroundColor Yellow
+Write-Host "  docker-compose logs -f" -ForegroundColor Yellow
+Write-Host "  (antes: pull, down, rmi, up. El rmi borraba la imagen recién descargada y 'up' la bajaba" -ForegroundColor Gray
+Write-Host "   de nuevo con el sitio caído. 'up -d' recrea sólo lo que cambió y 'image prune' libera disco.)" -ForegroundColor Gray
+Write-Host ""
+Write-Host "GENERADOR DE IA (en la carpeta de su docker-compose.prod.yml y su .env):" -ForegroundColor White
+Write-Host "  docker-compose -f docker-compose.prod.yml pull" -ForegroundColor Yellow
+Write-Host "  docker-compose -f docker-compose.prod.yml up -d" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "BASE DE DATOS (Postgres del servidor):" -ForegroundColor White
+Write-Host "  docker exec -it llconsulting_db psql -U postgres -d defaultdb" -ForegroundColor Yellow
+Write-Host "  (generador de IA, su BD aparte:  docker-compose -f docker-compose.prod.yml exec db psql -U llm llmconsulting" -ForegroundColor Gray
+Write-Host "   con el usuario y la base que figuren en su .env)" -ForegroundColor Gray
+Write-Host ""

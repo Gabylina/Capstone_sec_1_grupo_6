@@ -19,6 +19,11 @@ COPY . .
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+# URL pública del generador de informes con IA (llmconsulting, en su propio subdominio).
+# Se incrusta en el bundle al construir; vacía = el botón del Módulo 4 no se muestra.
+ARG NEXT_PUBLIC_LLM_REPORTS_URL=
+ENV NEXT_PUBLIC_LLM_REPORTS_URL=$NEXT_PUBLIC_LLM_REPORTS_URL
+
 # Construir Next.js
 RUN npm run build
 
