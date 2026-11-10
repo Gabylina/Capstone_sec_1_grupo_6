@@ -286,7 +286,7 @@ export default function ReportesPage() {
     return errorMessage || defaultMessage
   }
   
-
+  
   const defaultWeek = getDefaultWeekInfo()
   const [timePeriod, setTimePeriod] = useState<"month" | "week" | "year">("month")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -1046,10 +1046,10 @@ export default function ReportesPage() {
   const averageTimeChartData = useMemo(() => {
     return averageTimeData
       .filter((item) => item.averageDays > 0)
-      .map((item) => ({
+        .map((item) => ({
         service: formatServiceName(item.serviceName),
-        days: item.averageDays,
-        sampleSize: item.sampleSize,
+          days: item.averageDays,
+          sampleSize: item.sampleSize,
       }))
       .sort((a, b) => b.days - a.days)
   }, [averageTimeData],
@@ -1682,11 +1682,11 @@ export default function ReportesPage() {
                   <>
                     <div className="text-3xl font-bold">{periodActiveTotal}</div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {timePeriod === "week"
-                        ? selectedWeekOption?.label ?? "Semana seleccionada"
-                        : timePeriod === "year"
-                        ? `Año ${selectedYear}`
-                        : `${monthNames[selectedMonth]} ${selectedYear}`}
+                  {timePeriod === "week"
+                    ? selectedWeekOption?.label ?? "Semana seleccionada"
+                    : timePeriod === "year"
+                    ? `Año ${selectedYear}`
+                    : `${monthNames[selectedMonth]} ${selectedYear}`}
                       {isFilterActive(selectedStateConsultant)
                         ? ` · ${getMultiFilterLabel(
                             selectedStateConsultant,
@@ -1862,8 +1862,8 @@ export default function ReportesPage() {
               <CardHeader>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <CardTitle>Procesos con Urgencia</CardTitle>
-                    <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
+              <CardTitle>Procesos con Urgencia</CardTitle>
+              <CardDescription>Basado en el plazo máximo de cierre definido para cada proceso</CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
                     <MultiSelectFilter
@@ -2588,9 +2588,9 @@ export default function ReportesPage() {
                   <ResponsiveContainer width="100%" height={320}>
                     <BarChart
                       data={completionStats.map((stat) => ({
-                        name: stat.consultant,
-                        aTiempo: stat.onTime,
-                        retrasados: stat.delayed,
+                      name: stat.consultant,
+                      aTiempo: stat.onTime,
+                      retrasados: stat.delayed,
                       }))}
                       margin={{ top: 24, right: 20, left: 10, bottom: 60 }}
                     >
