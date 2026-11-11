@@ -482,12 +482,13 @@ Write-Host "  docker-compose logs -f" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "GENERADOR DE IA (en la carpeta de su docker-compose.prod.yml y su .env):" -ForegroundColor White
 Write-Host "  (sólo la primera vez: copiar docker-compose.prod.yml y el .env a esa carpeta del servidor)" -ForegroundColor Gray
-Write-Host "  docker-compose -f docker-compose.prod.yml pull" -ForegroundColor Yellow
-Write-Host "  docker-compose -f docker-compose.prod.yml up -d" -ForegroundColor Yellow
+Write-Host "  docker compose -f docker-compose.prod.yml pull" -ForegroundColor Yellow
+Write-Host "  docker compose -f docker-compose.prod.yml up -d" -ForegroundColor Yellow
+Write-Host "  (aquí con 'docker compose' sin guion, la v2 del servidor; LLConsulting sigue con 'docker-compose')" -ForegroundColor Gray
 Write-Host ""
 Write-Host "BASE DE DATOS (Postgres del servidor):" -ForegroundColor White
 Write-Host "  docker exec -it llconsulting_db psql -U postgres" -ForegroundColor Yellow
 Write-Host '  \c defaultdb' -ForegroundColor Yellow
-Write-Host "  (generador de IA, su BD aparte:  docker-compose -f docker-compose.prod.yml exec db psql -U llm llmconsulting" -ForegroundColor Gray
+Write-Host "  (generador de IA, su BD aparte:  docker compose -f docker-compose.prod.yml exec db psql -U llm llmconsulting" -ForegroundColor Gray
 Write-Host "   con el usuario y la base que figuren en su .env)" -ForegroundColor Gray
 Write-Host ""
