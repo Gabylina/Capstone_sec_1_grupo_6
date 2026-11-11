@@ -177,24 +177,41 @@ if ($postgresImageLocal) {
 }
 Write-Host ""
 
-# Detectar el usuario autenticado primero
-$dockerConfigPath = "$env:USERPROFILE\.docker\config.json"
-$authenticatedUser = $null
-
-if (Test-Path $dockerConfigPath) {
+# Detectar la cuenta de Docker Hub con sesión iniciada.
+# Docker Desktop guarda las credenciales en su almacén ("credsStore": "desktop") y NO en
+# config.json, así que además de leer config.json se consulta el almacén (sólo lista
+# servidor -> usuario; no devuelve contraseñas).
+function Get-DockerHubUser {
+    $server = 'https://index.docker.io/v1/'
+    $configPath = "$env:USERPROFILE\.docker\config.json"
+    if (-not (Test-Path $configPath)) { return $null }
     try {
-        $dockerConfig = Get-Content $dockerConfigPath | ConvertFrom-Json
-        if ($dockerConfig.auths.'https://index.docker.io/v1/'.auth) {
-            $authString = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($dockerConfig.auths.'https://index.docker.io/v1/'.auth))
-            $credentials = $authString -split ':'
-            if ($credentials.Length -ge 1) {
-                $authenticatedUser = $credentials[0]
+        $config = Get-Content $configPath -Raw | ConvertFrom-Json
+
+        # 1) Credenciales embebidas en config.json
+        $embedded = $config.auths.$server.auth
+        if ($embedded) {
+            $authString = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($embedded))
+            $parts = $authString -split ':'
+            if ($parts.Length -ge 1 -and $parts[0]) { return $parts[0] }
+        }
+
+        # 2) Almacén de credenciales (Docker Desktop: docker-credential-desktop)
+        if ($config.credsStore) {
+            $helper = "docker-credential-$($config.credsStore)"
+            if (Get-Command $helper -ErrorAction SilentlyContinue) {
+                $stored = (& $helper list) | ConvertFrom-Json
+                $entry = $stored.PSObject.Properties[$server]
+                if ($entry -and $entry.Value) { return [string]$entry.Value }
             }
         }
     } catch {
         # Ignorar errores de lectura
     }
+    return $null
 }
+
+$authenticatedUser = Get-DockerHubUser
 
 # Solicitar nombre de usuario de Docker Hub (con sugerencia del autenticado)
 if ($authenticatedUser) {
@@ -241,25 +258,14 @@ Write-Host ""
 Write-Host "Login exitoso!" -ForegroundColor Green
 Write-Host ""
 
-# Verificar nuevamente el usuario autenticado después del login (puede haber cambiado)
-if (Test-Path $dockerConfigPath) {
-    try {
-        $dockerConfig = Get-Content $dockerConfigPath | ConvertFrom-Json
-        if ($dockerConfig.auths.'https://index.docker.io/v1/'.auth) {
-            $authString = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($dockerConfig.auths.'https://index.docker.io/v1/'.auth))
-            $credentials = $authString -split ':'
-            if ($credentials.Length -ge 1) {
-                $currentAuthenticatedUser = $credentials[0]
-                if ($currentAuthenticatedUser -ne $dockerHubUsername) {
-                    Write-Host "Advertencia: El usuario ingresado ($dockerHubUsername) difiere del autenticado ($currentAuthenticatedUser)" -ForegroundColor Yellow
-                    Write-Host "Usando el usuario autenticado: $currentAuthenticatedUser" -ForegroundColor Yellow
-                    $dockerHubUsername = $currentAuthenticatedUser
-                }
-            }
-        }
-    } catch {
-        # Ignorar errores
-    }
+# Verificar nuevamente el usuario autenticado después del login (puede haber cambiado).
+# Si el usuario escrito a mano difiere del autenticado, manda el autenticado: subir a otro
+# nombre falla con "insufficient_scope" porque esa cuenta no tiene permiso.
+$currentAuthenticatedUser = Get-DockerHubUser
+if ($currentAuthenticatedUser -and $currentAuthenticatedUser -ne $dockerHubUsername) {
+    Write-Host "Advertencia: El usuario ingresado ($dockerHubUsername) difiere del autenticado ($currentAuthenticatedUser)" -ForegroundColor Yellow
+    Write-Host "Usando el usuario autenticado: $currentAuthenticatedUser" -ForegroundColor Yellow
+    $dockerHubUsername = $currentAuthenticatedUser
 }
 
 Write-Host "Usuario final: $dockerHubUsername" -ForegroundColor Cyan
